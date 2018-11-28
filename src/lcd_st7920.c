@@ -35,6 +35,10 @@ st7920_xmit_byte(struct st7920 *s, uint8_t data)
             gpio_out_toggle(sid);
             data = ~data;
         }
+        asm volatile("nop");
+        asm volatile("nop");
+        asm volatile("nop");
+        asm volatile("nop");
         gpio_out_toggle(sclk);
         asm volatile("nop");
         asm volatile("nop");
