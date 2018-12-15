@@ -88,9 +88,17 @@ class BLTouchEndstopWrapper:
             self._reset()
     def home_prepare(self):
         logging.info("BLTouch prepare")
+        toolhead = self.printer.lookup_object('toolhead')
         self.test_sensor()
         try:
             self.send_cmd_and_verify("pin_down")
+            # Enable touch mode for the actual probe, in normal mode, the pin is automatically re-deployed when
+            # activated
+            # The finalize tries to take care of that by moving the pin up, however it's sometimes too slow, and
+            # especially on clones that causes many different problem
+            # The additional verify here also performs an additional test, it actually checks that the probe reports
+            # that it it isn't triggered when it is in the down position
+            self.send_cmd_and_verify("touch_mode")
         except homing.EndstopError:
             # Try to reset in order to move the pin up
             self._reset()
@@ -99,7 +107,15 @@ class BLTouchEndstopWrapper:
     def home_finalize(self):
         logging.info("BLTouch finalize")
         try:
-            self.send_cmd_and_verify("pin_up")
+            toolhead = self.printer.lookup_object('toolhead')
+            time = toolhead.get_last_move_time()
+            # Note that we are in touch mode, so we can't verify this command. Genuine and clone BLTouch probes behaves
+            # slightly differently here
+            self.send_cmd(time, "pin_up")
+            toolhead.dwell(self.pin_move_time)
+            # Since we are in touch mode, we need to reset in order to get back to normal mode, so that we can detect
+            # more errors
+            self.send_cmd_and_verify("reset")
         except homing.EndstopError:
             self._reset()
             raise homing.EndstopError("An error was detected during the BLTouch probing")
