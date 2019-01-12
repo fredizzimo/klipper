@@ -510,11 +510,12 @@ class ZMesh:
             msg += "Interpolation Algorithm: %s\n" \
                    % (self.probe_params['algo'])
             msg += "Measured points:\n"
-            for y_line in range(self.mesh_y_count - 1, -1, -1):
-                for z in self.mesh_z_table[y_line]:
-                    msg += "  %f" % (z)
-                msg += "\n"
             print_func(msg)
+            for y_line in range(self.mesh_y_count - 1, -1, -1):
+                msg = ""
+                for z in self.mesh_z_table[y_line]:
+                    msg += "  %.3f" % (z)
+                print_func(msg)
         else:
             print_func("bed_mesh: Z Mesh not generated")
     def build_mesh(self, z_table):
