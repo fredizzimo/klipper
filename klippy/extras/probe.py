@@ -199,7 +199,7 @@ class ProbePointsHelper:
         probe = self.printer.lookup_object('probe', None)
         method = self.gcode.get_str('METHOD', params, 'automatic').lower()
         if probe is not None and method == 'automatic':
-            self.lift_speed = min(self.speed, probe.speed)
+            self.lift_speed = self.speed
             self.probe_offsets = probe.get_offsets()
             if self.horizontal_move_z < self.probe_offsets[2]:
                 raise self.gcode.error("horizontal_move_z can't be less than"
