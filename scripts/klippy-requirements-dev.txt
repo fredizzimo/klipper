@@ -1,0 +1,7 @@
+# This file describes the Python virtualenv package requirements for
+# developing of the Klipper host software (Klippy). These package
+# requirements are typically installed via the command:
+#   pip install -r klippy-requirements-dev.txt
+matplotlib==2.2.4
+numpy==1.16.4
+pytest==4.6.5
