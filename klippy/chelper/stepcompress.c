@@ -388,7 +388,7 @@ stepcompress_get_step_dir(struct stepcompress *sc)
 #define CLOCK_DIFF_MAX (3<<28)
 
 // Create a cursor for inserting clock times into the queue
-inline struct queue_append
+struct queue_append __visible
 queue_append_start(struct stepcompress *sc, double print_time, double adjust)
 {
     double print_clock = (print_time - sc->mcu_time_offset) * sc->mcu_freq;
@@ -399,7 +399,7 @@ queue_append_start(struct stepcompress *sc, double print_time, double adjust)
 }
 
 // Finalize a cursor created with queue_append_start()
-inline void
+void __visible
 queue_append_finish(struct queue_append qa)
 {
     qa.sc->queue_next = qa.qnext;
@@ -454,7 +454,7 @@ queue_append_slow(struct stepcompress *sc, double rel_sc)
 }
 
 // Add a clock time to the queue (flushing the queue if needed)
-inline int
+int __visible
 queue_append(struct queue_append *qa, double step_clock)
 {
     double rel_sc = step_clock + qa->clock_offset;
