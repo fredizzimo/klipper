@@ -53,6 +53,7 @@ class StepCompress(object):
         self.steppersync = self.init_steppersync()
         self.set_time(self.time, self.frequency)
         self.open = True
+        self.input = None
     
     def create_message_parser(self):
         data = {
@@ -145,6 +146,7 @@ class StepCompress(object):
 
     def set_input(self, input):
         start_time = self.time
+        self.input = input
         with self.appender(self.time) as appender:
             for i in input:
                 appender.append(i-start_time)
@@ -153,6 +155,9 @@ class StepCompress(object):
         messages = self.get_messages()
         if expected_messages:
             self.check_messages(messages, expected_messages)
+        output = self.generate_output_trajectory(messages)
+        assert self.input == pytest.approx(output, abs=self.max_error + 1e-12)
+        
 
     def get_messages(self, time=None):
         if time is None:
@@ -189,6 +194,34 @@ class StepCompress(object):
         assert len(messages) == len(check)
         for m, c in zip(messages, check):
             self.check_message(m, *c)
+
+    def generate_output_trajectory(self, messages):
+        current_clock = 0
+        current_step = 0
+        step_dir = 0
+        steps = []
+        for m in messages:
+            name = m["#name"]
+            if name == "set_next_step_dir":
+                d = m["dir"]
+                step_dir = 1 if d == 0 else -1 
+            elif name == "queue_step":
+                interval = m["interval"]
+                count = m["count"]
+                add = m["add"]
+                time = current_clock
+                d = step_dir
+                for _ in range(count):
+                    current_step += d
+                    time += interval
+                    steps.append((time, current_step))
+                    interval += add
+                current_clock = time
+
+        output = []
+        for step in steps:
+            output.append(step[0] / float(self.frequency))
+        return output
         
     def __del__(self):
         self.close()
