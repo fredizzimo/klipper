@@ -23,101 +23,168 @@ from pty import openpty
 from os import fdopen
 from klippy.util import set_nonblock
 import select
+import json
 
 import logging
 from time import sleep
 from serial import Serial
 import os
 
-@pytest.fixture
-def ffi():
-    ffi_main, ffi_lib = chelper.get_ffi()
-    return namedtuple("FFI", "main lib")(ffi_main, ffi_lib)
 
-@pytest.fixture
-def parser():
-    data = r"""{
-        "commands": {
-            "queue_step oid=%c interval=%u count=%hu add=%hi": 1,
-            "set_next_step_dir oid=%c dir=%c": 2
-        },
-        "responses": {}
-    }"""
-    parser = MessageParser()
-    parser.process_identify(data, decompress=False)
-    return parser
+class StepCompress(object):
+    def __init__(self):
+        self.ffi_main, self.ffi_lib = chelper.get_ffi()
 
-@pytest.fixture
-def virtual_pty():
-    master, slave = openpty()
-    name = os.ttyname(slave)
-    # This will set the right flags for binary writing
-    serial = Serial(name)
-    yield (master, serial.fileno())
+        self.queue_step = ("queue_step oid=%c interval=%u count=%hu add=%hi", 1)
+        self.set_next_step_dir = ("set_next_step_dir oid=%c dir=%c", 2)
+
+        self.parser = self.create_message_parser()
+        self.stepcompress = self.init_stepcompress()
+        self.stepqueues = [self.stepcompress]
+        self.pty, self.serial_device, self.serial_file = self.init_pty()
+        self.serialqueue = self.init_serialqueue()
+        self.steppersync = self.init_steppersync()
+        self.frequency = 1000*1000
+        self.time = 0
+        self.set_time(self.time, self.frequency)
+        self.open = True
+    
+    def create_message_parser(self):
+        data = {
+            "commands": {
+                self.queue_step[0]: self.queue_step[1],
+                self.set_next_step_dir[0]: self.set_next_step_dir[1]
+            },
+            "responses": {}
+        }
+        data = json.dumps(data)
+        parser = MessageParser()
+        parser.process_identify(data, decompress=False)
+        return parser
+
+    def init_stepcompress(self):
+        step_compress = self.ffi_lib.stepcompress_alloc(0)
+        max_error = 0
+        invert_dir = False
+        self.ffi_lib.stepcompress_fill(
+            step_compress, max_error, invert_dir,
+            self.queue_step[1], self.set_next_step_dir[1])
+        return step_compress
+
+    def init_pty(self):
+        master, slave = openpty()
+        name = os.ttyname(slave)
+        return ((master, slave), Serial(name), fdopen(master, "rb"))
+
+    def deinit_pty(self):
+        self.serial_device.close()
+        self.serial_file.close()
+        # The file already closes this handle
+        #os.close(self.pty[0])
+        os.close(self.pty[1])
+
+    def init_serialqueue(self):
+        return self.ffi_lib.serialqueue_alloc(self.serial_device.fileno(), True)
+
+    def init_steppersync(self):
+        move_count = 16
+        steppersync = self.ffi_lib.steppersync_alloc(
+            self.serialqueue, self.stepqueues, len(self.stepqueues),
+            move_count)
+        return steppersync
+
+    def close(self):
+        if self.open:
+            # Reverse order of allocation
+            self.ffi_lib.steppersync_free(self.steppersync)
+            self.ffi_lib.serialqueue_free(self.serialqueue)
+            self.deinit_pty()
+            self.ffi_lib.stepcompress_free(self.stepcompress)
+            self.open = False
+
+    class Appender(object):
+        def __init__(self, tester, time):
+            ffi = tester.ffi_lib
+            stepcompress = tester.stepcompress
+            self.qa = ffi.queue_append_start(stepcompress, time, 0.5)
+            self.qa_address = tester.ffi_main.addressof(self.qa)
+            self.ffi_append = ffi.queue_append
+            self.ffi_finish = ffi.queue_append_finish
+            self.tester = tester
         
+        def append(self, time):
+            new_time = time * self.tester.frequency
+            self.tester.time = new_time
+            self.ffi_append(self.qa_address, new_time)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            self.ffi_finish(self.qa)
+
+    def appender(self, time):
+        self.time = time
+        return StepCompress.Appender(self, time)
+
+    def set_time(self, time, frequency):
+        self.time = time
+        self.frequency = frequency
+        self.ffi_lib.steppersync_set_time(self.steppersync, time, frequency)
+
+    def get_messages(self, time=None):
+        if time is None:
+            time = self.time
+        self.ffi_lib.steppersync_flush(self.steppersync, time)
+        poll = select.poll()
+        poll.register(self.serial_file.fileno(), select.POLLIN)
+        data = ""
+        messages = []
+        while len(poll.poll(500)) == 1:
+            data += os.read(self.serial_file.fileno(), 4096)
+            while data != "":
+                size = self.parser.check_packet(data)
+                if size > 0:
+                    res = self.parser.parse_packet(bytearray(data[:size]))
+                    messages += res
+                    data = data[size:]
+                else:
+                    break
+        return messages
+
+    def check_message(self, message, interval, count, add):
+        interval = interval * self.frequency
+        add = add * self.frequency
+        assert message["#name"] == "queue_step"
+        assert message["interval"] == interval 
+        assert message["count"] == count
+        assert message["add"] == add
+
+    def check_messages(self, messages, check):
+        assert len(messages) == len(check)
+        for m, c in zip(messages, check):
+            self.check_message(m, *c)
+        
+    def __del__(self):
+        self.close()
+
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
 
 @pytest.fixture
-def pty_file(virtual_pty):
-    return fdopen(virtual_pty[0], "rb")
-
-@pytest.fixture
-def serialqueue(ffi, virtual_pty, pty_file):
-    return ffi.lib.serialqueue_alloc(virtual_pty[1], True)
-
-@pytest.fixture
-def step_compress(ffi, parser):
-    step_compress = ffi.main.gc(ffi.lib.stepcompress_alloc(0), ffi.lib.stepcompress_free)
-    step_cmd_id = parser.lookup_command(
-        "queue_step oid=%c interval=%u count=%hu add=%hi").msgid
-    dir_cmd_id = parser.lookup_command(
-        "set_next_step_dir oid=%c dir=%c").msgid
-    max_error = 0
-    invert_dir = False
-    ffi.lib.stepcompress_fill(
-        step_compress, max_error,
-        invert_dir, step_cmd_id, dir_cmd_id)
-    return step_compress
-
-@pytest.fixture
-def stepqueues(step_compress):
-    # Use a generator to make sure that the list remains until the test is finished
-    queues = [step_compress]
-    yield queues
+def stepcompress():
+    with StepCompress() as tester:
+        yield tester
 
 
-@pytest.fixture
-def steppersync(ffi, serialqueue, stepqueues):
-    move_count = 16
-    steppersync = ffi.lib.steppersync_alloc(
-        serialqueue, stepqueues, len(stepqueues),
-        move_count)
-    return steppersync
+def test_one_step(stepcompress):
+    with stepcompress.appender(0) as appender:
+        appender.append(1)
 
-
-
-def test_one_step(ffi, step_compress, parser, steppersync, pty_file):
-    qa = ffi.lib.queue_append_start(step_compress, 0, 0.5)
-    ffi.lib.queue_append(ffi.main.addressof(qa), 1)
-    ffi.lib.queue_append_finish(qa)
-    ffi.lib.steppersync_flush(steppersync, 2)
-
-    poll = select.poll()
-    poll.register(pty_file.fileno(), select.POLLIN)
-    data = ""
-    messages = []
-    while len(poll.poll(500)) == 1:
-        data += os.read(pty_file.fileno(), 4096)
-        while data != "":
-            size = parser.check_packet(data)
-            if size > 0:
-                res = parser.parse_packet(bytearray(data[:size]))
-                messages += res
-                data = data[size:]
-            else:
-                break
-    print(messages)
-    assert len(messages) == 1
-    assert messages[0]["#name"] == "queue_step"
-    assert messages[0]["interval"] == 1
-    assert messages[0]["count"] == 1
-    assert messages[0]["add"] == 0
+    messages = stepcompress.get_messages()
+    stepcompress.check_messages(messages, [
+        (1, 1, 0)
+    ])
