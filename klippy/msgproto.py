@@ -275,6 +275,18 @@ class MessageParser:
             raise error("Extra data at end of message")
         params['#name'] = mid.name
         return params
+    def parse_packet(self, s):
+        out = []
+        pos = MESSAGE_HEADER_SIZE
+        while 1:
+            msgid = s[pos]
+            mid = self.messages_by_id.get(msgid, self.unknown)
+            params, pos = mid.parse(s, pos)
+            params['#name'] = mid.name
+            out.append(params)
+            if pos >= len(s)-MESSAGE_TRAILER_SIZE:
+                break
+        return out
     def encode(self, seq, cmd):
         msglen = MESSAGE_MIN + len(cmd)
         seq = (seq & MESSAGE_SEQ_MASK) | MESSAGE_DEST

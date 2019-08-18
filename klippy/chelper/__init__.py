@@ -41,6 +41,17 @@ defs_stepcompress = """
     void steppersync_set_time(struct steppersync *ss
         , double time_offset, double mcu_freq);
     int steppersync_flush(struct steppersync *ss, uint64_t move_clock);
+
+    struct queue_append {
+        struct stepcompress *sc;
+        uint32_t *qnext, *qend, last_step_clock_32;
+        double clock_offset;
+    };
+    struct queue_append queue_append_start(
+        struct stepcompress *sc, double print_time, double adjust);
+    void queue_append_finish(struct queue_append qa);
+    int queue_append(struct queue_append *qa, double step_clock);
+    int queue_append_set_next_step_dir(struct queue_append *qa, int sdir);
 """
 
 defs_itersolve = """
