@@ -32,7 +32,13 @@ import os
 
 
 class StepCompress(object):
-    def __init__(self):
+    def __init__(self, logger):
+        self.logger = logger
+        self.invert_dir=False
+        self.max_error = 0.000025
+        self.frequency = 1000*1000*16
+        self.time = 0
+
         self.ffi_main, self.ffi_lib = chelper.get_ffi()
 
         self.queue_step = ("queue_step oid=%c interval=%u count=%hu add=%hi", 1)
@@ -40,12 +46,11 @@ class StepCompress(object):
 
         self.parser = self.create_message_parser()
         self.stepcompress = self.init_stepcompress()
+        self.set_options(invert_dir=self.invert_dir, max_error=self.max_error)
         self.stepqueues = [self.stepcompress]
         self.pty, self.serial_device, self.serial_file = self.init_pty()
         self.serialqueue = self.init_serialqueue()
         self.steppersync = self.init_steppersync()
-        self.frequency = 1000*1000
-        self.time = 0
         self.set_time(self.time, self.frequency)
         self.open = True
     
@@ -64,11 +69,6 @@ class StepCompress(object):
 
     def init_stepcompress(self):
         step_compress = self.ffi_lib.stepcompress_alloc(0)
-        max_error = 0
-        invert_dir = False
-        self.ffi_lib.stepcompress_fill(
-            step_compress, max_error, invert_dir,
-            self.queue_step[1], self.set_next_step_dir[1])
         return step_compress
 
     def init_pty(self):
@@ -129,8 +129,19 @@ class StepCompress(object):
 
     def set_time(self, time, frequency):
         self.time = time
+        old_frequency = self.frequency
         self.frequency = frequency
         self.ffi_lib.steppersync_set_time(self.steppersync, time, frequency)
+        if frequency != old_frequency:
+            self.set_options(self.invert_dir, self.max_error)
+
+    def set_options(self, invert_dir, max_error):
+        self.invert_dir = invert_dir
+        self.max_error = max_error
+        max_error_ticks = int(max_error * self.frequency)
+        self.ffi_lib.stepcompress_fill(
+            self.stepcompress, max_error_ticks, invert_dir,
+            self.queue_step[1], self.set_next_step_dir[1])
 
     def get_messages(self, time=None):
         if time is None:
@@ -150,6 +161,8 @@ class StepCompress(object):
                     data = data[size:]
                 else:
                     break
+        for m in messages:
+            self.logger.info(m)
         return messages
 
     def check_message(self, message, interval, count, add):
@@ -173,10 +186,16 @@ class StepCompress(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
+@pytest.fixture
+def logger(request):
+    logging.basicConfig()
+    logger = logging.getLogger(request.node.name)
+    logger.setLevel(logging.INFO)
+    return logger
 
 @pytest.fixture
-def stepcompress():
-    with StepCompress() as tester:
+def stepcompress(logger):
+    with StepCompress(logger) as tester:
         yield tester
 
 
