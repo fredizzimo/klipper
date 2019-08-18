@@ -143,6 +143,17 @@ class StepCompress(object):
             self.stepcompress, max_error_ticks, invert_dir,
             self.queue_step[1], self.set_next_step_dir[1])
 
+    def set_input(self, input):
+        start_time = self.time
+        with self.appender(self.time) as appender:
+            for i in input:
+                appender.append(i-start_time)
+    
+    def verify_output(self, expected_messages=None):
+        messages = self.get_messages()
+        if expected_messages:
+            self.check_messages(messages, expected_messages)
+
     def get_messages(self, time=None):
         if time is None:
             time = self.time
@@ -201,46 +212,23 @@ def stepcompress(logger):
 
 
 def test_one_step(stepcompress):
-    with stepcompress.appender(0) as appender:
-        appender.append(1)
-
-    messages = stepcompress.get_messages()
-    stepcompress.check_messages(messages, [
-        (1, 1, 0)
-    ])
+    stepcompress.set_input([1])
+    stepcompress.verify_output([(1, 1, 0)])
 
 def test_two_linear_steps(stepcompress):
-    with stepcompress.appender(0) as appender:
-        appender.append(0.1)
-        appender.append(0.2)
-
-    messages = stepcompress.get_messages()
-    stepcompress.check_messages(messages, [
-        (0.1, 2, 0)
-    ])
+    stepcompress.set_input([0.1, 0.2])
+    stepcompress.verify_output([(0.1, 2, 0)])
 
 def test_accelerating_third_step_encoded_as_single_message(stepcompress):
-    with stepcompress.appender(0) as appender:
-        appender.append(0.1)
-        appender.append(0.2)
-        appender.append(0.3001)
-
-    messages = stepcompress.get_messages()
+    stepcompress.set_input([0.1, 0.2, 0.3001])
     # The output is a single message with an early first step and an add part
     # Note that it's just one of many possible interpretations, but at least
     # this test shoudld notify if something changes
-    stepcompress.check_messages(messages, [
-        (0.099975, 3, 0.00005)
-    ])
+    stepcompress.verify_output([(0.099975, 3, 0.00005)])
 
 def test_accelerating_third_step_encoded_as_two_messages(stepcompress):
-    with stepcompress.appender(0) as appender:
-        appender.append(0.1)
-        appender.append(0.2)
-        appender.append(0.301)
-
-    messages = stepcompress.get_messages()
-    stepcompress.check_messages(messages, [
+    stepcompress.set_input([0.1, 0.2, 0.301])
+    stepcompress.verify_output([
         (0.1, 2, 0),
         (0.101, 1, 0)
     ])
