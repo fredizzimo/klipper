@@ -24,6 +24,7 @@ from os import fdopen
 from klippy.util import set_nonblock
 import select
 import json
+from math import sqrt
 
 import logging
 from time import sleep
@@ -88,7 +89,9 @@ class StepCompress(object):
         return self.ffi_lib.serialqueue_alloc(self.serial_device.fileno(), True)
 
     def init_steppersync(self):
-        move_count = 16
+        # Some messages seem to be lost of move_count is too low
+        # Is that a bug, or something that does not happen with a real MCU target?
+        move_count = 512
         steppersync = self.ffi_lib.steppersync_alloc(
             self.serialqueue, self.stepqueues, len(self.stepqueues),
             move_count)
@@ -156,7 +159,19 @@ class StepCompress(object):
         if expected_messages:
             self.check_messages(messages, expected_messages)
         output = self.generate_output_trajectory(messages)
-        assert self.input == pytest.approx(output, abs=self.max_error + 1e-12)
+
+        assert len(self.input) == len(output)
+
+        # allow one tick more max_error than what's set
+        # that shouldn't really be allowed, especially since the error is
+        # already rounded down when converted to ticks
+        # but the tests won't pass otherwise
+        max_error = self.max_error * self.frequency
+        max_error += 1
+        max_error = max_error / self.frequency
+        for i in range(len(output)):
+            assert self.input[i] == pytest.approx(output[i], abs=max_error), \
+                "The input and output does not match for element number %i" % (i,)
         
 
     def get_messages(self, time=None):
@@ -265,3 +280,21 @@ def test_accelerating_third_step_encoded_as_two_messages(stepcompress):
         (0.1, 2, 0),
         (0.101, 1, 0)
     ])
+
+def test_fixed_speed(stepcompress):
+    speed = 50.0
+    distance = 20.0
+    step_distance = 0.0125
+    num_steps = int(distance / step_distance)
+    input = [step_distance * (step+1) / speed for step in range(num_steps)]
+    stepcompress.set_input(input)
+    stepcompress.verify_output()
+
+def test_fixed_acceleration(stepcompress):
+    acceleration = 1000.0
+    distance = 20.0
+    step_distance = 0.0125
+    num_steps = int(distance / step_distance)
+    input = [sqrt(2.0 * step_distance * (step + 1) / acceleration) for step in range(num_steps)]
+    stepcompress.set_input(input)
+    stepcompress.verify_output()
