@@ -25,12 +25,50 @@ from klippy.util import set_nonblock
 import select
 import json
 from math import sqrt
-
 import logging
-from time import sleep
 from serial import Serial
 import os
+import plotly.graph_objects as go
+import plotly.io as pio
 
+from future.builtins import range
+
+class Plotter(object):
+    def __init__(self):
+        self.html = ""
+
+    def plot(self, testname, input, output, step_distance):
+        first = self.html == ""
+        fig = go.Figure()
+
+        def add_traces(fig, data):
+            x_t = [0] + data
+            x = [step_distance * i for i in range(len(x_t))]
+            v_t = [0] + [0.5 * (x_t[i-1] + x_t[i]) for i in range(1, len(x))]
+            v = [0] + [(x[i] - x[i-1]) / (x_t[i] - x_t[i-1])  for i in range(1,len(x))]
+            a_t = [0] + [0.5 * (v_t[i-1] + v_t[i]) for i in range(1, len(x))]
+            a = [0] + [(v[i] - v[i-1]) / (v_t[i] - v_t[i-1]) for i in range(1,len(x))]
+            fig.add_trace(go.Scatter(x=x_t, y=x))
+            fig.add_trace(go.Scatter(x=v_t, y=v))
+            fig.add_trace(go.Scatter(x=a_t, y=a))
+
+        add_traces(fig, input)
+        add_traces(fig, output)
+
+        plot_html = pio.to_html(fig, include_plotlyjs=first, full_html=first)
+        if first:
+            self.html = plot_html
+        else:
+            self.html = self.html.replace("</body>", plot_html + "\n</body>")
+    
+    def write(self):
+        output_dir = os.path.dirname(os.path.realpath(__file__))
+        output_dir = os.path.join(output_dir, "output")
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        output_file = os.path.join(output_dir, "test_stepcompress.html")
+        with open(output_file, "w") as o:
+            o.write(self.html)
 
 class StepCompress(object):
     def __init__(self, logger):
@@ -38,6 +76,7 @@ class StepCompress(object):
         self.invert_dir=False
         self.max_error = 0.000025
         self.frequency = 1000*1000*16
+        self.step_distance = 0.0125
         self.time = 0
 
         self.ffi_main, self.ffi_lib = chelper.get_ffi()
@@ -55,6 +94,7 @@ class StepCompress(object):
         self.set_time(self.time, self.frequency)
         self.open = True
         self.input = None
+        self.output = None
     
     def create_message_parser(self):
         data = {
@@ -158,9 +198,9 @@ class StepCompress(object):
         messages = self.get_messages()
         if expected_messages:
             self.check_messages(messages, expected_messages)
-        output = self.generate_output_trajectory(messages)
+        self.output = self.generate_output_trajectory(messages)
 
-        assert len(self.input) == len(output)
+        assert len(self.input) == len(self.output)
 
         # allow one tick more max_error than what's set
         # that shouldn't really be allowed, especially since the error is
@@ -169,8 +209,8 @@ class StepCompress(object):
         max_error = self.max_error * self.frequency
         max_error += 1
         max_error = max_error / self.frequency
-        for i in range(len(output)):
-            assert self.input[i] == pytest.approx(output[i], abs=max_error), \
+        for i in range(len(self.output)):
+            assert self.input[i] == pytest.approx(self.output[i], abs=max_error), \
                 "The input and output does not match for element number %i" % (i,)
         
 
@@ -253,10 +293,17 @@ def logger(request):
     logger.setLevel(logging.INFO)
     return logger
 
+@pytest.fixture(scope="module")
+def plotter():
+    p = Plotter()
+    yield p
+    p.write()
+
 @pytest.fixture
-def stepcompress(logger):
+def stepcompress(logger, plotter, request):
     with StepCompress(logger) as tester:
         yield tester
+        plotter.plot(request.node.name, tester.input, tester.output, tester.step_distance)
 
 
 def test_one_step(stepcompress):
@@ -284,7 +331,7 @@ def test_accelerating_third_step_encoded_as_two_messages(stepcompress):
 def test_fixed_speed(stepcompress):
     speed = 50.0
     distance = 20.0
-    step_distance = 0.0125
+    step_distance = stepcompress.step_distance
     num_steps = int(distance / step_distance)
     input = [step_distance * (step+1) / speed for step in range(num_steps)]
     stepcompress.set_input(input)
@@ -293,7 +340,7 @@ def test_fixed_speed(stepcompress):
 def test_fixed_acceleration(stepcompress):
     acceleration = 1000.0
     distance = 20.0
-    step_distance = 0.0125
+    step_distance = stepcompress.step_distance
     num_steps = int(distance / step_distance)
     input = [sqrt(2.0 * step_distance * (step + 1) / acceleration) for step in range(num_steps)]
     stepcompress.set_input(input)
