@@ -163,6 +163,9 @@ def check_build_code(srcdir, target, sources, cmd, other_files=[]):
         logging.info("Building C code module %s", target)
         srcfiles = [os.path.join(srcdir, fname) for fname in sources]
         destlib = os.path.join(srcdir, target)
+        # Make sure we don't use an out of date library
+        if os.path.isfile(destlib):
+            os.remove(destlib)
         os.system(cmd % (destlib, ' '.join(srcfiles)))
 
 FFI_main = None
