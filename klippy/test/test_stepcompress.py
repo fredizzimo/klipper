@@ -339,9 +339,18 @@ def test_fixed_speed(stepcompress):
 
 def test_fixed_acceleration(stepcompress):
     acceleration = 1000.0
-    distance = 20.0
+    distance = 30.0
     step_distance = stepcompress.step_distance
     num_steps = int(distance / step_distance)
     input = [sqrt(2.0 * step_distance * (step + 1) / acceleration) for step in range(num_steps)]
+    stepcompress.set_input(input)
+    stepcompress.verify_output()
+
+def test_fixed_jerk(stepcompress):
+    jerk = 10000.0
+    distance = 30.0
+    step_distance = stepcompress.step_distance
+    num_steps = int(distance / step_distance)
+    input = [(6.0 * step_distance * (step + 1) / jerk)**(1.0/3.0) for step in range(num_steps)]
     stepcompress.set_input(input)
     stepcompress.verify_output()
