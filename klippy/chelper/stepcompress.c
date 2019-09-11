@@ -35,6 +35,7 @@ struct stepcompress {
     double mcu_time_offset, mcu_freq;
     // Message generation
     uint64_t last_step_clock;
+    int32_t last_step_speed;
     struct list_head msg_queue;
     uint32_t queue_step_msgid, set_next_step_dir_msgid, oid;
     int sdir, invert_sdir;
@@ -75,11 +76,11 @@ minmax_point(struct stepcompress *sc, uint32_t *pos)
 }
 
 struct step_move {
-    uint32_t interval;
-    uint16_t count;
     int32_t add1;
     int32_t add2;
-    uint32_t ticks;
+    uint16_t count;
+    uint64_t end_time;
+    uint32_t end_speed;
 };
 
 #if 0
@@ -212,51 +213,43 @@ generate_move(struct stepcompress *sc)
     uint32_t start_time = *sc->queue_pos;
     uint32_t end_time = sc->queue_next[-1];
 
-    int32_t start_speed = start_time - sc->last_step_clock;
+    int32_t start_speed = sc->last_step_speed;
     uint16_t count = sc->queue_next - sc->queue_pos;
-    uint32_t ticks = end_time - sc->last_step_clock;
-    if (count > 1)
-    {
-        // TODO: Handle timer wrap around
-        uint32_t end_speed = end_time - sc->queue_next[-2];
 
-        errorf("start_time %u, end_time %u, start_speed %u end_speed %u",
-            start_time, end_time, start_speed, end_speed);
-        errorf("count %i", count);
+    // TODO: Handle timer wrap around
+    uint32_t end_speed = end_time - sc->queue_next[-2];
 
-        int64_t a0 = sc->last_step_clock;
-        int64_t a1 = start_speed;
-        int64_t a2 = (int64_t)3*end_time - 3*a0 - count*(2*a1 + end_speed);
-        int64_t a3 = 2*a0 - (int64_t)2*end_time + count*(a1 + end_speed); 
+    errorf("start_time %u, end_time %u, start_speed %u end_speed %u",
+        start_time, end_time, start_speed, end_speed);
+    errorf("count %i", count);
 
-        uint32_t count2 = (uint32_t)count*count;
-        uint32_t count3 = count2*count;
+    int64_t a0 = sc->last_step_clock;
+    int64_t a1 = start_speed;
+    int64_t a2 = (int64_t)3*end_time - 3*a0 - count*(2*a1 + end_speed);
+    int64_t a3 = 2*a0 - (int64_t)2*end_time + count*(a1 + end_speed); 
 
-        a2 = fixed_divide_by_integer(a2, count2);
-        a3 = fixed_divide_by_integer(a3, count3);
+    uint32_t count2 = (uint32_t)count*count;
+    uint32_t count3 = count2*count;
 
-        float da2 = fixed_to_double(a2);
-        float da3 = fixed_to_double(a3);
+    a2 = fixed_divide_by_integer(a2, count2);
+    a3 = fixed_divide_by_integer(a3, count3);
 
-        errorf("%ld, %ld, %f, %f", a0, a1, da2, da3);
+    float da2 = fixed_to_double(a2);
+    float da3 = fixed_to_double(a3);
 
-        uint32_t res1 = a1 + da2 + da3;
-        uint32_t res2 = a1*2 + da2*4 + da3*8;
-        uint32_t res3 = a1*3 + da2*9 + da3*27;
-        errorf("%u, %u %u", res1, res2, res3);
-        errorf("%u, %u %u", sc->queue_pos[0], sc->queue_pos[1], sc->queue_pos[2]);
+    errorf("%ld, %ld, %ld, %i, %f, %f", a0, a1, a2, (uint32_t)a3, da2, da3);
 
-        // We need to recalculate the end time and ticks in case of precision loss
-        end_time = a1 * 3 + fixed_multiply_by_integer(a2, count2) + fixed_multiply_by_integer(a3, count3);
-        ticks = end_time - sc->last_step_clock;
-        errorf("%u", ticks);
-        // TODO: Also recalculate the end speed
+    uint32_t res1 = a1 + da2 + da3;
+    uint32_t res2 = a1*2 + da2*4 + da3*8;
+    uint32_t res3 = a1*3 + da2*9 + da3*27;
+    errorf("%u, %u %u", res1, res2, res3);
+    errorf("%u, %u %u", sc->queue_pos[0], sc->queue_pos[1], sc->queue_pos[2]);
 
-        return (struct step_move){ a1, count, a2, a3, ticks };
-    }
+    // We need to recalculate the end time and ticks in case of precision loss
+    end_time = a1 * 3 + fixed_multiply_by_integer(a2, count2) + fixed_multiply_by_integer(a3, count3);
+    // TODO: Also recalculate the end speed
 
-
-    return (struct step_move){ start_speed, count, 0, 0, ticks };
+    return (struct step_move){ a2, a3, count, end_time, 0 };
 }
 
 
@@ -308,12 +301,13 @@ stepcompress_flush(struct stepcompress *sc, uint64_t move_clock)
     while (sc->last_step_clock < move_clock) {
         struct step_move move = generate_move(sc);
 
-        uint32_t msg[6] = {
-            sc->queue_step_msgid, sc->oid, move.interval, move.count, move.add1, move.add2
+        uint32_t msg[] = {
+            sc->queue_step_msgid, sc->oid, move.count, move.add1, move.add2
         };
-        struct queue_message *qm = message_alloc_and_encode(msg, 5);
+        struct queue_message *qm = message_alloc_and_encode(msg, sizeof(msg)/sizeof(uint32_t));
         qm->min_clock = qm->req_clock = sc->last_step_clock;
-        sc->last_step_clock += move.ticks;
+        sc->last_step_clock = move.end_time;
+        sc->last_step_speed = move.end_speed;
         list_add_tail(&qm->node, &sc->msg_queue);
 
         if (sc->queue_pos + move.count >= sc->queue_next) {
@@ -326,6 +320,7 @@ stepcompress_flush(struct stepcompress *sc, uint64_t move_clock)
 }
 
 // Generate a queue_step for a step far in the future from the last step
+// TODO: Fix and test this
 static int
 stepcompress_flush_far(struct stepcompress *sc, uint64_t abs_step_clock)
 {
@@ -367,6 +362,7 @@ stepcompress_reset(struct stepcompress *sc, uint64_t last_step_clock)
     if (ret)
         return ret;
     sc->last_step_clock = last_step_clock;
+    sc->last_step_speed = 0;
     sc->sdir = -1;
     return 0;
 }

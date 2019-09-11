@@ -99,7 +99,7 @@ class StepCompress(object):
 
         self.ffi_main, self.ffi_lib = chelper.get_ffi()
 
-        self.queue_step = ("queue_step oid=%c interval=%u count=%hu add=%hi", 1)
+        self.queue_step = ("queue_step oid=%c count=%hu add1=%i add2=%i", 1)
         self.set_next_step_dir = ("set_next_step_dir oid=%c dir=%c", 2)
 
         self.parser = self.create_message_parser()
@@ -255,13 +255,15 @@ class StepCompress(object):
             self.logger.info(m)
         return messages
 
-    def check_message(self, message, interval, count, add):
-        message_interval = message["interval"] / float(self.frequency)
-        message_add = message["add"] / float(self.frequency)
+    def check_message(self, message, count, add1, add2):
+        def to_s(v):
+            return (float(v) / float(1 << 16)) / float(self.frequency)
+        message_add1 = to_s(message["add1"])
+        message_add2 = to_s(message["add2"])
         assert message["#name"] == "queue_step"
-        assert message_interval == pytest.approx(interval)
         assert message["count"] == count
-        assert message_add == pytest.approx(add)
+        assert message_add1 == pytest.approx(add1)
+        assert message_add2 == pytest.approx(add2)
 
     def check_messages(self, messages, check):
         assert len(messages) == len(check)
@@ -325,8 +327,8 @@ def stepcompress(logger, plotter, request):
 
 
 def test_one_step(stepcompress):
-    stepcompress.set_input([1])
-    stepcompress.verify_output([(1, 1, 0)])
+    stepcompress.set_input([0.001])
+    stepcompress.verify_output([(1, 0.002, -0.001)])
 
 def test_two_linear_steps(stepcompress):
     stepcompress.set_input([0.1, 0.2])

@@ -41,6 +41,7 @@ class PT_uint32:
     is_dynamic_string = False
     max_length = 5
     signed = False
+    size = 4
     def encode(self, out, v):
         if v >= 0xc000000 or v < -0x4000000: out.append((v>>28) & 0x7f | 0x80)
         if v >= 0x180000 or v < -0x80000:    out.append((v>>21) & 0x7f | 0x80)
@@ -59,17 +60,26 @@ class PT_uint32:
             v = (v<<7) | (c & 0x7f)
         if not self.signed:
             v = int(v & 0xffffffff)
+        else:
+            sign_bit = 1 << (8 * self.size)
+            if v & sign_bit:
+                v = v ^ sign_bit
+                v = -v
         return v, pos
 
 class PT_int32(PT_uint32):
     signed = True
 class PT_uint16(PT_uint32):
     max_length = 3
+    size = 2
+    
 class PT_int16(PT_int32):
     signed = True
     max_length = 3
+    size = 2
 class PT_byte(PT_uint32):
     max_length = 2
+    size = 1
 
 class PT_string:
     is_int = False
