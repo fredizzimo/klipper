@@ -60,11 +60,6 @@ class PT_uint32:
             v = (v<<7) | (c & 0x7f)
         if not self.signed:
             v = int(v & 0xffffffff)
-        else:
-            sign_bit = 1 << (8 * self.size)
-            if v & sign_bit:
-                v = v ^ sign_bit
-                v = -v
         return v, pos
 
 class PT_int32(PT_uint32):

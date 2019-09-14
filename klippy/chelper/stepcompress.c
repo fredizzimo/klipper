@@ -237,7 +237,7 @@ generate_move(struct stepcompress *sc)
     float da2 = fixed_to_double(a2);
     float da3 = fixed_to_double(a3);
 
-    errorf("%ld, %ld, %ld, %i, %f, %f", a0, a1, a2, (uint32_t)a3, da2, da3);
+    errorf("%ld, %ld, %ld, %u, %f, %f", a0, a1, a2, (uint32_t)a3, da2, da3);
 
     uint32_t res1 = a1 + da2 + da3;
     uint32_t res2 = a1*2 + da2*4 + da3*8;

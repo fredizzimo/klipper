@@ -281,16 +281,16 @@ class StepCompress(object):
                 d = m["dir"]
                 step_dir = 1 if d == 0 else -1 
             elif name == "queue_step":
-                interval = m["interval"]
                 count = m["count"]
-                add = m["add"]
+                add1 = m["add1"]
+                add2 = m["add2"]
                 time = current_clock
                 d = step_dir
                 for _ in range(count):
+                    add1 += add2
+                    time += add1
                     current_step += d
-                    time += interval
-                    steps.append((time, current_step))
-                    interval += add
+                    steps.append(((time >> 16) & 0xFFFF, current_step))
                 current_clock = time
 
         output = []
@@ -331,8 +331,8 @@ def test_one_step(stepcompress):
     stepcompress.verify_output([(1, 0.002, -0.001)])
 
 def test_two_linear_steps(stepcompress):
-    stepcompress.set_input([0.1, 0.2])
-    stepcompress.verify_output([(0.1, 2, 0)])
+    stepcompress.set_input([0.001, 0.002])
+    stepcompress.verify_output([(2, 0.001, -0.00025)])
 
 def test_accelerating_third_step_encoded_as_single_message(stepcompress):
     stepcompress.set_input([0.1, 0.2, 0.3001])
