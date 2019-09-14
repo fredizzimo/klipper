@@ -29,11 +29,17 @@ encode_int(uint8_t *p, uint32_t v)
     if (sv < (3L<<12) && sv >= -(1L<<12)) goto f3;
     if (sv < (3L<<19) && sv >= -(1L<<19)) goto f2;
     if (sv < (3L<<26) && sv >= -(1L<<26)) goto f1;
-    *p++ = (v>>28) | 0x80;
-f1: *p++ = ((v>>21) & 0x7f) | 0x80;
-f2: *p++ = ((v>>14) & 0x7f) | 0x80;
-f3: *p++ = ((v>>7) & 0x7f) | 0x80;
-f4: *p++ = v & 0x7f;
+#if ((-1)>>1) == -1
+    *p++ = (sv>>28) | 0x80;
+f1: *p++ = ((sv>>21) & 0x7f) | 0x80;
+f2: *p++ = ((sv>>14) & 0x7f) | 0x80;
+f3: *p++ = ((sv>>7) & 0x7f) | 0x80;
+f4: *p++ = sv & 0x7f;
+#else
+// Arithmetic shift is needed, otherwise the value won't
+// be sign extended properly
+#error "The compiler does not support arithmetic right shift"
+#endif
     return p;
 }
 
