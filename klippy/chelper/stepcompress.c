@@ -237,13 +237,18 @@ generate_move(struct stepcompress *sc)
     float da2 = fixed_to_double(a2);
     float da3 = fixed_to_double(a3);
 
-    errorf("%ld, %ld, %ld, %u, %f, %f", a0, a1, a2, (uint32_t)a3, da2, da3);
+    errorf("%ld, %ld, %ld, %ld, %f, %f", a0, a1, a2, a3, da2, da3);
 
     uint32_t res1 = a1 + da2 + da3;
     uint32_t res2 = a1*2 + da2*4 + da3*8;
     uint32_t res3 = a1*3 + da2*9 + da3*27;
-    errorf("%u, %u %u", res1, res2, res3);
-    errorf("%u, %u %u", sc->queue_pos[0], sc->queue_pos[1], sc->queue_pos[2]);
+    for (int i=0;i<count;i++)
+    {
+        uint64_t res = a1*i + a2*i*i + a3*i*i*i;
+        errorf("step %i %ld %f", i, res >> 16, fixed_to_double(res));
+
+    }
+    errorf("%u, %u %u, %u", sc->queue_pos[0], sc->queue_pos[1], sc->queue_pos[2], sc->queue_pos[count-1]);
 
     // We need to recalculate the end time and ticks in case of precision loss
     end_time = a1 * 3 + fixed_multiply_by_integer(a2, count2) + fixed_multiply_by_integer(a3, count3);
