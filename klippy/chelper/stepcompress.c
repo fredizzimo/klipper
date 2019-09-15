@@ -185,9 +185,9 @@ static inline double fixed_to_double(int32_t fixed)
     return (double)fixed / (double)(1 << 16);
 }
 
-static inline int32_t fixed_divide_by_integer(int64_t dividend, uint32_t divisor)
+static inline int32_t fixed_divide_by_integer(int64_t dividend, int64_t divisor)
 {
-    int64_t v = dividend * (1u << 16);
+    int64_t v = dividend << 16;
     bool signa = v >=0;
     bool signb = divisor >=0;
     // Slightly improve the precision by rounding
@@ -225,11 +225,11 @@ generate_move(struct stepcompress *sc)
 
     int64_t a0 = sc->last_step_clock;
     int64_t a1 = start_speed;
-    int64_t a2 = (int64_t)3*end_time - 3*a0 - count*(2*a1 + end_speed);
-    int64_t a3 = 2*a0 - (int64_t)2*end_time + count*(a1 + end_speed); 
+    int64_t a2 = (int64_t)3*end_time - 3*a0 - (int64_t)count*(2*a1 + end_speed);
+    int64_t a3 = 2*a0 - (int64_t)2*end_time + (int64_t)count*(a1 + end_speed);
 
-    uint32_t count2 = (uint32_t)count*count;
-    uint32_t count3 = count2*count;
+    uint64_t count2 = (uint64_t)count*count;
+    uint64_t count3 = count2*count;
 
     a2 = fixed_divide_by_integer(a2, count2);
     a3 = fixed_divide_by_integer(a3, count3);
@@ -239,19 +239,18 @@ generate_move(struct stepcompress *sc)
 
     errorf("%ld, %ld, %ld, %ld, %f, %f", a0, a1, a2, a3, da2, da3);
 
-    uint32_t res1 = a1 + da2 + da3;
-    uint32_t res2 = a1*2 + da2*4 + da3*8;
-    uint32_t res3 = a1*3 + da2*9 + da3*27;
-    for (int i=0;i<count;i++)
+    for (int i=1;i<=count;i++)
     {
         uint64_t res = a1*i + a2*i*i + a3*i*i*i;
-        errorf("step %i %ld %f", i, res >> 16, fixed_to_double(res));
+        uint32_t res2 = a1*i + fixed_multiply_by_integer(a2,i*i) + fixed_multiply_by_integer(a3, i*i*i);
+        errorf("step %i %ld %f, %u", i, res >> 16, fixed_to_double(res), res2);
 
     }
     errorf("%u, %u %u, %u", sc->queue_pos[0], sc->queue_pos[1], sc->queue_pos[2], sc->queue_pos[count-1]);
 
     // We need to recalculate the end time and ticks in case of precision loss
-    end_time = a1 * 3 + fixed_multiply_by_integer(a2, count2) + fixed_multiply_by_integer(a3, count3);
+    end_time = a1 * count + fixed_multiply_by_integer(a2, count2) + fixed_multiply_by_integer(a3, count3);
+    errorf("End time %u", end_time);
     // TODO: Also recalculate the end speed
 
     return (struct step_move){ a2, a3, count, end_time, 0 };
