@@ -188,8 +188,10 @@ itersolve_gen_steps(struct stepper_kinematics *sk, struct move *m)
         // Find step
         double target = last.position + (sdir ? half_step : -half_step);
         struct timepos next = itersolve_find_step(sk, m, low, high, target);
+        // TODO: Fill in the actual speed
+        uint32_t speed = 0;
         // Add step at given time
-        int ret = queue_append(&qa, next.time * mcu_freq);
+        int ret = queue_append(&qa, next.time * mcu_freq, speed);
         if (ret)
             return ret;
         seek_time_delta = next.time - last.time;

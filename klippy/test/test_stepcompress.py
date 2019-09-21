@@ -54,7 +54,7 @@ class Plotter(object):
             fig.add_trace(go.Scatter(x=v_t, y=v, name="%s velocity" % base_name))
             fig.add_trace(go.Scatter(x=a_t, y=a, name="%s acceleration" % base_name))
 
-        add_traces(fig, input, "input")
+        add_traces(fig, [time for time, _ in input], "input")
         add_traces(fig, output, "output")
 
         fig.update_layout(
@@ -176,10 +176,11 @@ class StepCompress(object):
             self.ffi_finish = ffi.queue_append_finish
             self.tester = tester
         
-        def append(self, time):
+        def append(self, time, speed):
             new_time = time * self.tester.frequency
             self.tester.time = new_time
-            self.ffi_append(self.qa_address, new_time)
+            speed = (self.tester.frequency / speed) * self.tester.step_distance
+            self.ffi_append(self.qa_address, new_time, int(speed))
 
         def __enter__(self):
             return self
@@ -211,8 +212,8 @@ class StepCompress(object):
         start_time = self.time
         self.input = input
         with self.appender(self.time) as appender:
-            for i in input:
-                appender.append(i-start_time)
+            for time, speed in input:
+                appender.append(time-start_time, speed)
     
     def verify_output(self, expected_messages=None):
         messages = self.get_messages()
@@ -338,7 +339,7 @@ def stepcompress(logger, plotter, request):
 
 
 def test_one_step(stepcompress):
-    stepcompress.set_input([0.001])
+    stepcompress.set_input([(0.001, 0.0125 / 0.001)])
     stepcompress.verify_output([(1, 0.002, -0.001)])
 
 """
@@ -370,7 +371,7 @@ def test_fixed_speed(stepcompress):
     distance = 20.0
     step_distance = stepcompress.step_distance
     num_steps = int(distance / step_distance)
-    input = [step_distance * (step+1) / speed for step in range(num_steps)]
+    input = [(step_distance * (step+1) / speed, speed) for step in range(num_steps)]
     stepcompress.set_input(input)
     stepcompress.verify_output()
 
@@ -379,7 +380,8 @@ def test_fixed_acceleration(stepcompress):
     distance = 30.0
     step_distance = stepcompress.step_distance
     num_steps = int(distance / step_distance)
-    input = [sqrt(2.0 * step_distance * (step + 1) / acceleration) for step in range(num_steps)]
+    input = (sqrt(2.0 * step_distance * (step + 1) / acceleration) for step in range(num_steps))
+    input = [(time, acceleration*time) for time in input] 
     stepcompress.set_input(input)
     stepcompress.verify_output()
     assert False
@@ -389,6 +391,7 @@ def test_fixed_jerk(stepcompress):
     distance = 30.0
     step_distance = stepcompress.step_distance
     num_steps = int(distance / step_distance)
-    input = [(6.0 * step_distance * (step + 1) / jerk)**(1.0/3.0) for step in range(num_steps)]
+    input = ((6.0 * step_distance * (step + 1) / jerk)**(1.0/3.0) for step in range(num_steps))
+    input = [(time, 0.5*jerk*time**2) for time in input] 
     stepcompress.set_input(input)
     stepcompress.verify_output()

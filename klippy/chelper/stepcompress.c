@@ -27,9 +27,14 @@
 
 #define QUEUE_START_SIZE 1024
 
+struct queuestep {
+    uint32_t clock;
+    uint32_t inv_speed;
+};
+
 struct stepcompress {
     // Buffer management
-    uint32_t *queue, *queue_end, *queue_pos, *queue_next;
+    struct queuestep *queue, *queue_end, *queue_pos, *queue_next;
     // Internal tracking
     uint32_t max_error;
     double mcu_time_offset, mcu_freq;
@@ -45,6 +50,16 @@ struct stepcompress {
 /****************************************************************
  * Step compression
  ****************************************************************/
+
+struct step_move {
+    int32_t add1;
+    int32_t add2;
+    uint16_t count;
+    uint64_t end_time;
+    uint32_t end_speed;
+};
+
+#if 0
 
 static inline int32_t
 idiv_up(int32_t n, int32_t d)
@@ -75,15 +90,6 @@ minmax_point(struct stepcompress *sc, uint32_t *pos)
     return (struct points){ point - max_error, point };
 }
 
-struct step_move {
-    int32_t add1;
-    int32_t add2;
-    uint16_t count;
-    uint64_t end_time;
-    uint32_t end_speed;
-};
-
-#if 0
 // Find a 'step_move' that covers a series of step times
 static struct step_move
 compress_bisect_add(struct stepcompress *sc)
@@ -210,14 +216,14 @@ static inline int32_t fixed_multiply_by_integer(int32_t fixed, uint32_t integer)
 static struct step_move
 generate_move(struct stepcompress *sc)
 {
-    uint32_t start_time = *sc->queue_pos;
-    uint32_t end_time = sc->queue_next[-1];
+    uint32_t start_time = sc->queue_pos->clock;
+    uint32_t end_time = sc->queue_next[-1].clock;
 
     int32_t start_speed = sc->last_step_speed;
     uint16_t count = sc->queue_next - sc->queue_pos;
 
     // TODO: Handle timer wrap around
-    uint32_t end_speed = end_time - sc->queue_next[-2];
+    uint32_t end_speed = sc->queue_next[-1].inv_speed;
 
     errorf("start_time %u, end_time %u, start_speed %u end_speed %u",
         start_time, end_time, start_speed, end_speed);
@@ -246,7 +252,7 @@ generate_move(struct stepcompress *sc)
         errorf("step %i %ld %f, %u", i, res >> 16, fixed_to_double(res), res2);
 
     }
-    errorf("%u, %u %u, %u", sc->queue_pos[0], sc->queue_pos[1], sc->queue_pos[2], sc->queue_pos[count-1]);
+    errorf("%u, %u %u, %u", sc->queue_pos[0].clock, sc->queue_pos[1].clock, sc->queue_pos[2].clock, sc->queue_pos[count-1].clock);
 
     // We need to recalculate the end time and ticks in case of precision loss
     end_time = a1 * count + fixed_multiply_by_integer(a2, count2) + fixed_multiply_by_integer(a3, count3);
@@ -440,7 +446,7 @@ queue_append_finish(struct queue_append qa)
 
 // Slow path for queue_append()
 static int
-queue_append_slow(struct stepcompress *sc, double rel_sc)
+queue_append_slow(struct stepcompress *sc, double rel_sc, uint32_t inv_speed)
 {
     uint64_t abs_step_clock = (uint64_t)rel_sc + sc->last_step_clock;
     if (abs_step_clock >= sc->last_step_clock + CLOCK_DIFF_MAX) {
@@ -455,7 +461,7 @@ queue_append_slow(struct stepcompress *sc, double rel_sc)
 
     if (sc->queue_next - sc->queue_pos > 65535 + 2000) {
         // No point in keeping more than 64K steps in memory
-        uint32_t flush = (*(sc->queue_next-65535)
+        uint32_t flush = ((sc->queue_next-65535)->clock
                           - (uint32_t)sc->last_step_clock);
         int ret = stepcompress_flush(sc, sc->last_step_clock + flush);
         if (ret)
@@ -482,24 +488,24 @@ queue_append_slow(struct stepcompress *sc, double rel_sc)
         sc->queue_next = sc->queue + in_use;
     }
 
-    *sc->queue_next++ = abs_step_clock;
+    *sc->queue_next++ = (struct queuestep){abs_step_clock, inv_speed};
     return 0;
 }
 
 // Add a clock time to the queue (flushing the queue if needed)
 int __visible
-queue_append(struct queue_append *qa, double step_clock)
+queue_append(struct queue_append *qa, double step_clock, uint32_t speed)
 {
     double rel_sc = step_clock + qa->clock_offset;
     if (likely(!(qa->qnext >= qa->qend || rel_sc >= (double)CLOCK_DIFF_MAX))) {
-        *qa->qnext++ = qa->last_step_clock_32 + (uint32_t)rel_sc;
+        *qa->qnext++ = (struct queuestep){qa->last_step_clock_32 + (uint32_t)rel_sc, speed};
         return 0;
     }
     // Call queue_append_slow() to handle queue expansion and integer overflow
     struct stepcompress *sc = qa->sc;
     uint64_t old_last_step_clock = sc->last_step_clock;
     sc->queue_next = qa->qnext;
-    int ret = queue_append_slow(sc, rel_sc);
+    int ret = queue_append_slow(sc, rel_sc, speed);
     if (ret)
         return ret;
     qa->qnext = sc->queue_next;
