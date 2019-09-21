@@ -277,6 +277,7 @@ class StepCompress(object):
     def generate_output_trajectory(self, messages):
         current_clock = 0
         current_step = 0
+        current_speed = 0
         step_dir = 0
         steps = []
         def to_float(v):
@@ -291,10 +292,10 @@ class StepCompress(object):
                 count = m["count"]
                 add1 = m["add1"]
                 add2 = m["add2"]
-                s1 = add2 - add1
+                s1 = add2 - add1 + (current_speed << 16)
                 s2 = 2 * add1
                 s3 = 6 * add2
-                time = current_clock
+                time = current_clock << 16
                 d = step_dir
                 for _ in range(count):
                     s1 += s2
@@ -302,8 +303,11 @@ class StepCompress(object):
                     self.logger.info("%f %f, %f" % (to_float(s1), to_float(s2), to_float(time)))
                     s2 += s3
                     current_step += d
-                    steps.append(((time >> 16), current_step))
-                current_clock = time
+                    #steps.append(((time >> 16), current_step))
+                    steps.append((int(round(to_float(time))), current_step))
+                current_clock = time >> 16
+                current_speed = s1 >> 16 
+                self.logger.info("Move end %i, %i" % (current_clock, current_speed))
 
         output = []
         for step in steps:
@@ -374,6 +378,7 @@ def test_fixed_speed(stepcompress):
     input = [(step_distance * (step+1) / speed, speed) for step in range(num_steps)]
     stepcompress.set_input(input)
     stepcompress.verify_output()
+    assert False
 
 def test_fixed_acceleration(stepcompress):
     acceleration = 1000.0
