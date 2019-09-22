@@ -20,6 +20,7 @@
 #include <stdlib.h> // malloc
 #include <string.h> // memset
 #include <stdbool.h>
+#include <math.h> //sqrtf
 #include "compiler.h" // DIV_ROUND_UP
 #include "pyhelper.h" // errorf
 #include "serialqueue.h" // struct queue_message
@@ -251,13 +252,13 @@ generate_move(struct stepcompress *sc, uint16_t count)
 
     if (a2_addfactor > INT32_MAX || a2_addfactor < INT32_MIN)
     {
-        //errorf("a2 overflow");
+        errorf("a2 overflow");
         return (struct step_move){};
     }
     int64_t a3_addfactor = (a3*6);
     if (a3_addfactor > INT32_MAX || a3_addfactor < INT32_MIN)
     {
-        //errorf("a3 overflow");
+        errorf("a3 overflow");
         return (struct step_move){};
     }
 
@@ -281,7 +282,7 @@ generate_move(struct stepcompress *sc, uint16_t count)
     uint64_t count3_prev = count2_prev * count_prev;
 
     int64_t end_time2 = a2*count2 + a3*count3;
-    end_time = (uint32_t)(end_time2 >> 16);
+    end_time = (int32_t)(end_time2 >> 16);
     end_time += a0 + a1*count;
 
     int64_t end_time_prev = a2*count2_prev + a3*count3_prev;
@@ -294,12 +295,30 @@ generate_move(struct stepcompress *sc, uint16_t count)
     return (struct step_move){ a2, a3, count, end_time, end_speed };
 }
 
+static const float invphi = (sqrtf(5.0f) - 1.0f) / 2.0f;
+static const float invphi2 = (3.0f - sqrtf(5.0f)) / 2.0f;
+
+static uint32_t evaluate_error(struct stepcompress *sc, struct step_move *move, uint16_t pos)
+{
+    uint32_t start_speed = sc->last_step_speed;
+    uint32_t start_time = sc->last_step_clock;
+    uint64_t count = pos + 1; 
+    uint64_t count2 = count*count;
+    uint64_t count3 = count2*count;
+
+    int64_t time = move->add1*count2 + move->add2*count3;
+    time = (int32_t)(time >> 16);
+    time += start_time + start_speed*count;
+    errorf("%ld %u", time, sc->queue_pos[pos].clock);
+    return abs((int)(time - sc->queue_pos[pos].clock));
+}
+
 static bool validate_move(struct stepcompress *sc, struct step_move *move)
 {
     uint32_t max_error = sc->max_error;
     uint16_t count = move->count;
     uint32_t real_end_time = sc->queue_pos[count - 1].clock;
-    uint32_t error = abs(real_end_time - move->end_time);
+    uint32_t error = abs((int)(real_end_time - move->end_time));
     errorf("Error1 %u, max allowed %u %u", error, max_error, move->count);
     if (error > max_error)
     {
@@ -312,10 +331,34 @@ static bool validate_move(struct stepcompress *sc, struct step_move *move)
         uint32_t first_step_time = start_time + start_speed + ((move->add1 + move->add2) >> 16);
 
 
-        error = abs(first_step_time - sc->queue_pos[0].clock);
+        error = abs((int)(first_step_time - sc->queue_pos[0].clock));
         errorf("Error2 %u, max allowed %u %u %u, %u", error, max_error, first_step_time, sc->queue_pos[0].clock, move->count);
         if (error > max_error)
         {
+            return false;
+        }
+    }
+    if (count > 1)
+    {
+        // Perform a golden section search for the maximum error
+        float a = 0;
+        float b = count - 1;
+        float h = b; 
+
+        float c = a + invphi2 * h; 
+        float d = a + invphi * h; 
+        errorf("a: %f b: %f c: %f d: %f h: %f invphi2: %f, invphi: %f", a, b, c, d, h, invphi2, invphi);
+
+        uint32_t yc = evaluate_error(sc, move, (uint32_t)(c)); 
+        if (yc > max_error)
+        {
+            errorf("yc error %u %f", yc, c);
+            return false;
+        }
+        uint32_t yd = evaluate_error(sc, move, (uint32_t)(d)); 
+        if (yd > max_error)
+        {
+            errorf("yd error %u %f", yd, d);
             return false;
         }
     }

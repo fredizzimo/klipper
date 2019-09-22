@@ -394,7 +394,8 @@ def test_fixed_speed(stepcompress):
 
 def test_fixed_acceleration(stepcompress):
     acceleration = 1000.0
-    distance = 30.0
+    #distance = 30.0
+    distance = 100
     step_distance = stepcompress.step_distance
     num_steps = int(distance / step_distance)
     input = (sqrt(2.0 * step_distance * (step + 1) / acceleration) for step in range(num_steps))
