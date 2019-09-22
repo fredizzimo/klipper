@@ -101,8 +101,9 @@ class StepCompress(object):
 
         self.ffi_main, self.ffi_lib = chelper.get_ffi()
 
-        self.queue_step = ("queue_step oid=%c count=%hu add1=%i add2=%i", 1)
-        self.set_next_step_dir = ("set_next_step_dir oid=%c dir=%c", 2)
+        self.queue_step = ("queue_step oid=%c interval=%u", 1)
+        self.queue_steps = ("queue_steps oid=%c count=%hu add1=%i add2=%i", 2)
+        self.set_next_step_dir = ("set_next_step_dir oid=%c dir=%c", 3)
 
         self.parser = self.create_message_parser()
         self.stepcompress = self.init_stepcompress()
@@ -120,6 +121,7 @@ class StepCompress(object):
         data = {
             "commands": {
                 self.queue_step[0]: self.queue_step[1],
+                self.queue_steps[0]: self.queue_steps[1],
                 self.set_next_step_dir[0]: self.set_next_step_dir[1]
             },
             "responses": {}
@@ -206,7 +208,7 @@ class StepCompress(object):
         max_error_ticks = int(max_error * self.frequency)
         self.ffi_lib.stepcompress_fill(
             self.stepcompress, max_error_ticks, invert_dir,
-            self.queue_step[1], self.set_next_step_dir[1])
+            self.queue_step[1], self.queue_steps[1], self.set_next_step_dir[1])
 
     def set_input(self, input):
         start_time = self.time
@@ -288,7 +290,7 @@ class StepCompress(object):
             if name == "set_next_step_dir":
                 d = m["dir"]
                 step_dir = 1 if d == 0 else -1 
-            elif name == "queue_step":
+            elif name == "queue_steps":
                 count = m["count"]
                 add1 = m["add1"]
                 add2 = m["add2"]
@@ -308,6 +310,16 @@ class StepCompress(object):
                 current_clock = time >> 16
                 current_speed = s1 >> 16 
                 self.logger.info("Move end %i, %i" % (current_clock, current_speed))
+            elif name == "queue_step":
+                interval = m["interval"]
+                current_clock += interval
+                if interval > 0xFFFF:
+                    interval = 0xFFFF
+                current_speed = interval
+                current_step += step_dir
+                steps.append((current_clock, current_step))
+                self.logger.info("%i %i, %i" % (current_speed, 0, current_clock))
+
 
         output = []
         for step in steps:
