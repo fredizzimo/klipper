@@ -285,10 +285,21 @@ generate_move(struct stepcompress *sc, uint16_t count)
     end_time = (int32_t)(end_time2 >> 16);
     end_time += a0 + a1*count;
 
+#if 0
     int64_t end_time_prev = a2*count2_prev + a3*count3_prev;
     int32_t end_speed2 = (end_time2 - end_time_prev) >> 16;
     end_speed2 += a1; 
     end_speed = end_speed2;
+#endif
+
+    int64_t end_speed2 = 2*a2*count + 3*a3*count2;
+    end_speed = end_speed2 >> 16;
+    end_speed += a1;
+    if (end_speed > UINT16_MAX)
+    {
+        errorf("end_speed overflow");
+        return (struct step_move){};
+    }
 
     //errorf("End time %u, end_speed %u", end_time, end_speed);
 
@@ -315,11 +326,14 @@ static uint32_t evaluate_error(struct stepcompress *sc, struct step_move *move, 
 
 static bool validate_move(struct stepcompress *sc, struct step_move *move)
 {
+    //if (move->count > 40)
+    //    return false;
     uint32_t max_error = sc->max_error;
     uint16_t count = move->count;
     uint32_t real_end_time = sc->queue_pos[count - 1].clock;
     uint32_t error = abs((int)(real_end_time - move->end_time));
     errorf("Error1 %u, max allowed %u %u", error, max_error, move->count);
+    errorf("End speed %u %u", move->end_speed, sc->queue_pos[count-1].inv_speed);
     if (error > max_error)
     {
         return false;

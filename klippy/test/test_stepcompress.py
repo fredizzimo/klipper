@@ -305,10 +305,13 @@ class StepCompress(object):
                     self.logger.info("%f %f, %f" % (to_float(s1), to_float(s2), to_float(time)))
                     s2 += s3
                     current_step += d
-                    #steps.append(((time >> 16), current_step))
-                    steps.append((int(round(to_float(time))), current_step))
+                    steps.append(((time >> 16), current_step))
+                    #steps.append((int(round(to_float(time))), current_step))
                 current_clock = time >> 16
-                current_speed = s1 >> 16 
+                #current_speed = s1 >> 16 
+                speed_change = 2*add1*count + 3*add2*count**2
+                speed_change >>= 16
+                current_speed = speed_change + current_speed
                 self.logger.info("Move end %i, %i" % (current_clock, current_speed))
             elif name == "queue_step":
                 interval = m["interval"]
