@@ -219,23 +219,14 @@ class StepCompress(object):
     
     def verify_output(self, expected_messages=None):
         messages = self.get_messages()
-        if expected_messages:
-            self.check_messages(messages, expected_messages)
         self.output = self.generate_output_trajectory(messages)
 
         assert len(self.input) == len(self.output)
 
-        # allow one tick more max_error than what's set
-        # that shouldn't really be allowed, especially since the error is
-        # already rounded down when converted to ticks
-        # but the tests won't pass otherwise
-        max_error = self.max_error * self.frequency
-        max_error += 1
-        max_error = max_error / self.frequency
-        if False:
-            for i in range(len(self.output)):
-                assert self.input[i] == pytest.approx(self.output[i], abs=max_error), \
-                    "The input and output does not match for element number %i" % (i,)
+        max_error = self.max_error
+        for i in range(len(self.output)):
+            assert self.input[i][0] == pytest.approx(self.output[i], abs=max_error), \
+                "The input and output does not match for element number %i" % (i,)
         
 
     def get_messages(self, time=None):
@@ -260,21 +251,6 @@ class StepCompress(object):
         for m in messages:
             self.logger.info(m)
         return messages
-
-    def check_message(self, message, count, add1, add2):
-        def to_s(v):
-            return (float(v) / float(1 << 16)) / float(self.frequency)
-        message_add1 = to_s(message["add1"])
-        message_add2 = to_s(message["add2"])
-        assert message["#name"] == "queue_step"
-        assert message["count"] == count
-        assert message_add1 == pytest.approx(add1)
-        assert message_add2 == pytest.approx(add2)
-
-    def check_messages(self, messages, check):
-        assert len(messages) == len(check)
-        for m, c in zip(messages, check):
-            self.check_message(m, *c)
 
     def generate_output_trajectory(self, messages):
         current_clock = 0
@@ -359,7 +335,7 @@ def stepcompress(logger, plotter, request):
 
 def test_one_step(stepcompress):
     stepcompress.set_input([(0.001, 0.0125 / 0.001)])
-    stepcompress.verify_output([(1, 0.002, -0.001)])
+    stepcompress.verify_output()
 
 """
 def test_two_second_order_steps(stepcompress):
@@ -393,11 +369,9 @@ def test_fixed_speed(stepcompress):
     input = [(step_distance * (step+1) / speed, speed) for step in range(num_steps)]
     stepcompress.set_input(input)
     stepcompress.verify_output()
-    assert False
 
 def test_fixed_acceleration(stepcompress):
     acceleration = 1000.0
-    #distance = 30.0
     distance = 100
     step_distance = stepcompress.step_distance
     num_steps = int(distance / step_distance)
@@ -405,15 +379,13 @@ def test_fixed_acceleration(stepcompress):
     input = [(time, acceleration*time) for time in input] 
     stepcompress.set_input(input)
     stepcompress.verify_output()
-    assert False
 
 def test_fixed_jerk(stepcompress):
     jerk = 10000.0
-    distance = 30.0
+    distance = 100.0
     step_distance = stepcompress.step_distance
     num_steps = int(distance / step_distance)
     input = ((6.0 * step_distance * (step + 1) / jerk)**(1.0/3.0) for step in range(num_steps))
     input = [(time, 0.5*jerk*time**2) for time in input] 
     stepcompress.set_input(input)
     stepcompress.verify_output()
-    assert False

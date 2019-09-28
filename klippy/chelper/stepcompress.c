@@ -319,26 +319,35 @@ generate_move(struct stepcompress *sc, uint16_t count)
     return (struct step_move){ a2, a3, count, end_time, end_speed };
 }
 
-static const float invphi = (sqrtf(5.0f) - 1.0f) / 2.0f;
-static const float invphi2 = (3.0f - sqrtf(5.0f)) / 2.0f;
-
 static uint32_t evaluate_error(struct stepcompress *sc, struct step_move *move, uint16_t pos)
 {
     uint32_t start_speed = sc->last_step_speed;
     uint32_t start_time = sc->last_step_clock;
     uint64_t count = pos + 1; 
-    uint64_t count2 = count*count;
-    uint64_t count3 = count2*count;
 
-    int64_t time = move->add1*count2 + move->add2*count3;
-    time = (int32_t)(time >> 16);
-    time += start_time + start_speed*count;
-    errorf("%ld %u", time, sc->queue_pos[pos].clock);
-    return abs((int)(time - sc->queue_pos[pos].clock));
+    // TODO: This could use 32 bit values
+    int64_t time = move->add2*count;
+    time += move->add1;
+    time *= count;
+    time += start_speed << 16;
+    time *= count;
+    time >>= 16;
+    time += start_time;
+
+    //int64_t time = move->add1*count2 + move->add2*count3;
+    //time = (int32_t)(time >> 16);
+    //time += start_time + start_speed*count;
+    int error = abs((int)(time - sc->queue_pos[pos].clock));
+    errorf("%ld %u = %u", time, sc->queue_pos[pos].clock, error);
+    return error;
 }
 
 static bool validate_move(struct stepcompress *sc, struct step_move *move, uint16_t test_count)
 {
+    const float invphi = (sqrtf(5.0f) - 1.0f) / 2.0f;
+    const float invphi2 = (3.0f - sqrtf(5.0f)) / 2.0f;
+    const float loginvphi = log(invphi);
+
     uint16_t count = move->count;
     if (count == 0)
     {
@@ -378,6 +387,7 @@ static bool validate_move(struct stepcompress *sc, struct step_move *move, uint1
         float c = a + invphi2 * h; 
         float d = a + invphi * h; 
         errorf("a: %f b: %f c: %f d: %f h: %f invphi2: %f, invphi: %f", a, b, c, d, h, invphi2, invphi);
+        int n = (int)ceilf((logf(1 / h) / loginvphi));
 
         uint32_t yc = evaluate_error(sc, move, (uint32_t)(c)); 
         if (yc > max_error)
@@ -391,6 +401,38 @@ static bool validate_move(struct stepcompress *sc, struct step_move *move, uint1
             errorf("yd error %u %f", yd, d);
             return false;
         }
+
+        for (int i=0;i<n-1;i++)
+        {
+            uint32_t error;
+            if (yc > yd)    
+            {
+                b = d;
+                d = c;
+                yd = yc;
+                h = invphi*h;
+                c = a + invphi2 * h;
+                error = evaluate_error(sc, move, (uint32_t)(c));
+                yc = error;
+            }
+            else
+            {
+                a = c;
+                c = d;
+                yc = yd;
+                h = invphi*h;
+                d = a + invphi * h;
+                error = evaluate_error(sc, move, (uint32_t)(d));
+                yd = error;
+
+            }
+            if (error > max_error)
+            {
+                errorf("error %u %f %f", error, c, d);
+                return false;
+            }
+        }
+
     }
 
     return true;
