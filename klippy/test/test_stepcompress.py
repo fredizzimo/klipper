@@ -416,3 +416,4 @@ def test_fixed_jerk(stepcompress):
     input = [(time, 0.5*jerk*time**2) for time in input] 
     stepcompress.set_input(input)
     stepcompress.verify_output()
+    assert False
