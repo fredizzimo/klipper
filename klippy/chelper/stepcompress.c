@@ -248,20 +248,6 @@ generate_move(struct stepcompress *sc, uint16_t count)
 
     //errorf("%ld, %ld, %ld, %ld, %f, %f", a0, a1, a2, a3, da2, da3);
 
-    int64_t a2_addfactor = (a2*2);
-
-    if (a2_addfactor > INT32_MAX || a2_addfactor < INT32_MIN)
-    {
-        errorf("a2 overflow");
-        return (struct step_move){};
-    }
-    int64_t a3_addfactor = (a3*6);
-    if (a3_addfactor > INT32_MAX || a3_addfactor < INT32_MIN)
-    {
-        errorf("a3 overflow");
-        return (struct step_move){};
-    }
-
 #if 0
     for (int i=1;i<=count;i++)
     {
@@ -277,20 +263,9 @@ generate_move(struct stepcompress *sc, uint16_t count)
     // Note that the speed is not the real speed, but the number of ticks between the last 
     // two steps.
 
-    uint64_t count_prev = count - 1;
-    uint64_t count2_prev = count_prev * count_prev;
-    uint64_t count3_prev = count2_prev * count_prev;
-
     int64_t end_time2 = a2*count2 + a3*count3;
     end_time = (int32_t)(end_time2 >> 16);
     end_time += a0 + a1*count;
-
-#if 0
-    int64_t end_time_prev = a2*count2_prev + a3*count3_prev;
-    int32_t end_speed2 = (end_time2 - end_time_prev) >> 16;
-    end_speed2 += a1; 
-    end_speed = end_speed2;
-#endif
 
     int64_t end_speed2 = 2*a2*count + 3*a3*count2;
     end_speed = end_speed2 >> 16;
@@ -326,8 +301,8 @@ static uint32_t evaluate_error(struct stepcompress *sc, struct step_move *move, 
 
 static bool validate_move(struct stepcompress *sc, struct step_move *move)
 {
-    //if (move->count > 40)
-    //    return false;
+    if (move->count > 40)
+        return false;
     uint32_t max_error = sc->max_error;
     uint16_t count = move->count;
     uint32_t real_end_time = sc->queue_pos[count - 1].clock;
