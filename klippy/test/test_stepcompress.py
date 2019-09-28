@@ -294,24 +294,24 @@ class StepCompress(object):
                 count = m["count"]
                 add1 = m["add1"]
                 add2 = m["add2"]
-                s1 = add2 - add1 + (current_speed << 16)
-                s2 = 2 * add1
-                s3 = 6 * add2
-                time = current_clock << 16
+                self.logger.info("Move start %f %f %f" % (current_speed, to_float(add1), to_float(add2)))
+                current_speed <<= 16
                 d = step_dir
-                for _ in range(count):
-                    s1 += s2
-                    time += s1
-                    self.logger.info("%f %f, %f" % (to_float(s1), to_float(s2), to_float(time)))
-                    s2 += s3
+                for step in range(1, count+1):
+                    time = add2 * step
+                    time += add1
+                    time *= step
+                    time += current_speed
+                    time *= step
+                    time >>= 16
+                    time += current_clock
                     current_step += d
-                    steps.append(((time >> 16), current_step))
-                    #steps.append((int(round(to_float(time))), current_step))
-                current_clock = time >> 16
-                #current_speed = s1 >> 16 
+                    self.logger.info("%d" % (time))
+                    steps.append((time, current_step))
+                current_clock = time
                 speed_change = 2*add1*count + 3*add2*count**2
-                speed_change >>= 16
                 current_speed = speed_change + current_speed
+                current_speed >>= 16
                 self.logger.info("Move end %i, %i" % (current_clock, current_speed))
             elif name == "queue_step":
                 interval = m["interval"]
