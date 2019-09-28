@@ -43,7 +43,7 @@ struct stepcompress {
     uint64_t last_step_clock;
     uint32_t last_step_speed;
     struct list_head msg_queue;
-    uint32_t queue_step_msgid, queue_steps_msgid, set_next_step_dir_msgid, oid;
+    uint32_t queue_step_msgid, queue_steps_l_msgid, queue_steps_h_msgid, set_next_step_dir_msgid, oid;
     int sdir, invert_sdir;
 };
 
@@ -58,6 +58,7 @@ struct step_move {
     uint16_t count;
     uint64_t end_time;
     uint32_t end_speed;
+    bool high_precision;
 };
 
 #if 0
@@ -187,12 +188,13 @@ compress_bisect_add(struct stepcompress *sc)
 }
 #endif
 
-static inline double fixed_to_double(int64_t fixed)
+static inline double fixed16x32_to_double(int64_t fixed)
 {
-    return (double)fixed / (double)(1 << 16);
+    return (double)fixed / (double)(1ll << 32);
 }
 
-static inline int64_t fixed_divide_by_integer(int64_t dividend, int64_t divisor)
+
+static inline int64_t fixed16x16_divide_by_integer(int64_t dividend, int64_t divisor)
 {
     int64_t v = dividend << 16;
     bool signa = v >=0;
@@ -209,9 +211,21 @@ static inline int64_t fixed_divide_by_integer(int64_t dividend, int64_t divisor)
     return v / divisor;
 }
 
-static inline int64_t fixed_multiply_by_integer(int32_t fixed, uint32_t integer)
+static inline int64_t fixed8x24_divide_by_integer(int64_t dividend, int64_t divisor)
 {
-    return ((int64_t)(fixed) * integer) / (1 << 16);
+    int64_t v = dividend << 24;
+    bool signa = v >=0;
+    bool signb = divisor >=0;
+    // Slightly improve the precision by rounding
+    if (signa == signb)
+    {
+        v += divisor / 2;
+    }
+    else
+    {
+        v -= divisor / 2;        
+    }
+    return v / divisor;
 }
 
 static struct step_move
@@ -237,32 +251,45 @@ generate_move(struct stepcompress *sc, uint16_t count)
     int64_t a2 = (int64_t)3*end_time - 3*a0 - (int64_t)count*(2*a1 + end_speed);
     int64_t a3 = 2*a0 - (int64_t)2*end_time + (int64_t)count*(a1 + end_speed);
 
-    uint64_t count2 = (uint64_t)count*count;
-    uint64_t count3 = count2*count;
+    int64_t count2 = (int64_t)count*count;
+    int64_t count3 = count2*count;
 
-    a2 = fixed_divide_by_integer(a2, count2);
-    a3 = fixed_divide_by_integer(a3, count3);
+    a2 = (a2 << 32) / count2;
+    a3 = (a3 << 32) / count3;
 
-    float da2 = fixed_to_double(a2);
-    float da3 = fixed_to_double(a3);
+    float da2 = fixed16x32_to_double(a2);
+    float da3 = fixed16x32_to_double(a3);
 
-    if (a2 > INT32_MAX || a2 < INT32_MIN)
+    const int64_t minval = (int64_t)(INT32_MIN) << 16;
+    const int64_t maxval = (int64_t)(INT32_MAX) << 16;
+
+    if (a2 > maxval || a2 < minval)
     {
-        errorf("a2 overflow");
+        errorf("a2 overflow %ld %f", a2, fixed16x32_to_double(a2));
         return (struct step_move){};
     }
-    if (a3 > INT32_MAX || a3 < INT32_MIN)
+    if (a2 > maxval || a2 < minval)
     {
         errorf("a3 overflow");
         return (struct step_move){};
     }
-    if (((a1 << 16) + a2 + a3) < 0)
+    if (((a1 << 32) + a2 + a3) < 0)
     {
         errorf("first step wrong direction");
         return (struct step_move){};
     }
+    bool high_precision = true;
+    if (a3 > ((int64_t)(INT8_MAX) << 32) || a3 < ((int64_t)(INT8_MIN) << 32))
+    {
+        if (count > 40)
+        {
+            errorf("Only 40 steps (cube root of 2^16) supported for low precision");
+            return (struct step_move){};
+        }
+        high_precision = false;
+    }
 
-    //errorf("%ld, %ld, %ld, %ld, %f, %f", a0, a1, a2, a3, da2, da3);
+    //errorf("Before %ld, %ld, %ld, %ld, %f, %f", a0, a1, a2, a3, da2, da3);
 
 #if 0
     for (int i=1;i<=count;i++)
@@ -280,33 +307,33 @@ generate_move(struct stepcompress *sc, uint16_t count)
     // two steps.
 
     int64_t end_time2 = a3*count;
-    if (end_time2 < INT32_MIN || end_time2 > INT32_MAX)
+    if (end_time2 < minval || end_time2 > maxval)
     {
         errorf("Overflow1");
         return (struct step_move){};
     }
     end_time2 += a2;
     end_time2 *= count;
-    if (end_time2 < INT32_MIN || end_time2 > INT32_MAX)
+    if (end_time2 < minval || end_time2 > maxval)
     {
         errorf("Overflow2");
         return (struct step_move){};
     }
 
-    end_time2 += start_speed << 16;
-    if (end_time2 > UINT32_MAX || end_time2 < 0)
+    end_time2 += a1 << 32;
+    if (end_time2 > ((int64_t)(UINT32_MAX) << 16) || end_time2 < 0)
     {
         errorf("%ld, %ld, %ld, %ld, %f, %f", a0, a1, a2, a3, da2, da3);
-        errorf("Overflow3 %f, %i", fixed_to_double(end_time2), count);
+        errorf("Overflow3 %f, %i", fixed16x32_to_double(end_time2), count);
         return (struct step_move){};
     }
-    end_time = end_time2 >> 8;
+    end_time = end_time2 >> 24;
     end_time *= count;
     end_time >>= 8;
     end_time += a0;
 
     int64_t end_speed2 = 2*a2*count + 3*a3*count2;
-    end_speed = end_speed2 >> 16;
+    end_speed = end_speed2 >> 32;
     end_speed += a1;
     if (end_speed > UINT16_MAX)
     {
@@ -316,22 +343,45 @@ generate_move(struct stepcompress *sc, uint16_t count)
 
     //errorf("End time %u, end_speed %u", end_time, end_speed);
 
-    return (struct step_move){ a2, a3, count, end_time, end_speed };
+    a2 >>= 16;
+    if (high_precision)
+    {
+        a3 >>= 8;
+    }
+    else
+    {
+        a3 >>= 16;
+    }
+    //errorf("After %ld, %ld, %ld, %ld, %f, %f", a0, a1, a2, a3, da2, da3);
+
+    return (struct step_move){ a2, a3, count, end_time, end_speed, high_precision };
 }
 
 static uint32_t evaluate_error(struct stepcompress *sc, struct step_move *move, uint16_t pos)
 {
-    uint32_t start_speed = sc->last_step_speed;
+    int64_t start_speed = sc->last_step_speed;
     uint32_t start_time = sc->last_step_clock;
     uint64_t count = pos + 1; 
 
-    // TODO: This could use 32 bit values
-    int64_t time = move->add2*count;
-    time += move->add1;
+    int64_t add2 = move->add2;
+    int64_t add1 = move->add1;
+    add1 <<=16;
+    if (move->high_precision)
+    {
+        add2 <<= 8;
+    }
+    else
+    {
+        add2 <<= 16;
+    }
+    //errorf("Add1 %i %f, Add2 %i %f, %i", move->add1, fixed16x32_to_double(add1), move->add2, fixed16x32_to_double(add2), move->high_precision);
+
+    int64_t time = add2*count;
+    time += add1;
     time *= count;
-    time += start_speed << 16;
+    time += start_speed << 32;
     time *= count;
-    time >>= 16;
+    time >>= 32;
     time += start_time;
 
     //int64_t time = move->add1*count2 + move->add2*count3;
@@ -365,13 +415,8 @@ static bool validate_move(struct stepcompress *sc, struct step_move *move, uint1
     }
     else 
     {
-        uint32_t start_speed = sc->last_step_speed;
-        uint32_t start_time = sc->last_step_clock;
-        uint32_t first_step_time = start_time + start_speed + ((move->add1 + move->add2) >> 16);
-
-
-        error = abs((int)(first_step_time - sc->queue_pos[0].clock));
-        errorf("Error2 %u, max allowed %u %u %u, %u", error, max_error, first_step_time, sc->queue_pos[0].clock, move->count);
+        error = evaluate_error(sc, move, 0);
+        errorf("Error2 %u, max allowed %u %u", error, max_error, move->count);
         if (error > max_error)
         {
             return false;
@@ -442,9 +487,9 @@ static struct step_move
 find_move(struct stepcompress *sc)
 {
     uint16_t count = sc->queue_next - sc->queue_pos;
-    if (count > 40)
+    if (count > 255)
     {
-        count = 40;
+        count = 255;
     }
     int32_t low = 1;
     int32_t high = count + 1; 
@@ -472,7 +517,7 @@ find_move(struct stepcompress *sc)
             high = mid;
         }
     }
-    errorf("Add move %i, %u %u", best_move.count, best_move.end_time, best_move.end_speed);
+    errorf("Add move %i, %lu %u", best_move.count, best_move.end_time, best_move.end_speed);
     errorf("         %u %u", sc->queue_pos[best_move.count-1].clock, sc->queue_pos[best_move.count-1].inv_speed);
     return best_move;
 }
@@ -498,13 +543,15 @@ stepcompress_alloc(uint32_t oid)
 void __visible
 stepcompress_fill(struct stepcompress *sc, uint32_t max_error
                   , uint32_t invert_sdir, uint32_t queue_step_msgid
-                  , uint32_t queue_steps_msgid
+                  , uint32_t queue_steps_l_msgid
+                  , uint32_t queue_steps_h_msgid
                   , uint32_t set_next_step_dir_msgid)
 {
     sc->max_error = max_error;
     sc->invert_sdir = !!invert_sdir;
     sc->queue_step_msgid = queue_step_msgid;
-    sc->queue_steps_msgid = queue_steps_msgid;
+    sc->queue_steps_l_msgid = queue_steps_l_msgid;
+    sc->queue_steps_h_msgid = queue_steps_h_msgid;
     sc->set_next_step_dir_msgid = set_next_step_dir_msgid;
 }
 
@@ -546,8 +593,9 @@ stepcompress_flush(struct stepcompress *sc, uint64_t move_clock)
         }
         else
         {
+            uint32_t msg_id = move.high_precision ? sc->queue_steps_h_msgid : sc->queue_steps_l_msgid;
             uint32_t msg[] = {
-                sc->queue_steps_msgid, sc->oid, move.count, move.add1, move.add2
+                msg_id, sc->oid, move.count, move.add1, move.add2
             };
             struct queue_message *qm = message_alloc_and_encode(msg, sizeof(msg)/sizeof(uint32_t));
             qm->min_clock = qm->req_clock = sc->last_step_clock;

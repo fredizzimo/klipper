@@ -102,8 +102,9 @@ class StepCompress(object):
         self.ffi_main, self.ffi_lib = chelper.get_ffi()
 
         self.queue_step = ("queue_step oid=%c interval=%u", 1)
-        self.queue_steps = ("queue_steps oid=%c count=%hu add1=%i add2=%i", 2)
-        self.set_next_step_dir = ("set_next_step_dir oid=%c dir=%c", 3)
+        self.queue_steps_l = ("queue_steps_l oid=%c count=%hu add1=%i add2=%i", 2)
+        self.queue_steps_h = ("queue_steps_h oid=%c count=%hu add1=%i add2=%i", 3)
+        self.set_next_step_dir = ("set_next_step_dir oid=%c dir=%c", 4)
 
         self.parser = self.create_message_parser()
         self.stepcompress = self.init_stepcompress()
@@ -121,7 +122,8 @@ class StepCompress(object):
         data = {
             "commands": {
                 self.queue_step[0]: self.queue_step[1],
-                self.queue_steps[0]: self.queue_steps[1],
+                self.queue_steps_l[0]: self.queue_steps_l[1],
+                self.queue_steps_h[0]: self.queue_steps_h[1],
                 self.set_next_step_dir[0]: self.set_next_step_dir[1]
             },
             "responses": {}
@@ -208,7 +210,7 @@ class StepCompress(object):
         max_error_ticks = int(max_error * self.frequency)
         self.ffi_lib.stepcompress_fill(
             self.stepcompress, max_error_ticks, invert_dir,
-            self.queue_step[1], self.queue_steps[1], self.set_next_step_dir[1])
+            self.queue_step[1], self.queue_steps_l[1], self.queue_steps_h[1], self.set_next_step_dir[1])
 
     def set_input(self, input):
         start_time = self.time
@@ -259,19 +261,24 @@ class StepCompress(object):
         step_dir = 0
         steps = []
         def to_float(v):
-            return (float(v) / float(1 << 16))
+            return (float(v) / float(1 << 32))
 
         for m in messages:
             name = m["#name"]
             if name == "set_next_step_dir":
                 d = m["dir"]
                 step_dir = 1 if d == 0 else -1 
-            elif name == "queue_steps":
+            elif name == "queue_steps_h" or name == "queue_steps_l":
                 count = m["count"]
                 add1 = m["add1"]
                 add2 = m["add2"]
+                add1 <<= 16
+                if name == "queue_steps_l":
+                    add2 <<= 16
+                else:
+                    add2 <<= 8
                 self.logger.info("Move start %f %f %f" % (current_speed, to_float(add1), to_float(add2)))
-                current_speed <<= 16
+                current_speed <<= 32
                 d = step_dir
                 for step in range(1, count+1):
                     time = add2 * step
@@ -279,7 +286,7 @@ class StepCompress(object):
                     time *= step
                     time += current_speed
                     time *= step
-                    time >>= 16
+                    time >>= 32
                     time += current_clock
                     current_step += d
                     self.logger.info("%d" % (time))
@@ -287,7 +294,7 @@ class StepCompress(object):
                 current_clock = time
                 speed_change = 2*add1*count + 3*add2*count**2
                 current_speed = speed_change + current_speed
-                current_speed >>= 16
+                current_speed >>= 32
                 self.logger.info("Move end %i, %i" % (current_clock, current_speed))
             elif name == "queue_step":
                 interval = m["interval"]
@@ -379,6 +386,7 @@ def test_fixed_acceleration(stepcompress):
     input = [(time, acceleration*time) for time in input] 
     stepcompress.set_input(input)
     stepcompress.verify_output()
+    assert False
 
 def test_fixed_jerk(stepcompress):
     jerk = 10000.0
