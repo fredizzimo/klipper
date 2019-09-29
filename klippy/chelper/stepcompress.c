@@ -279,6 +279,7 @@ generate_move(struct stepcompress *sc, uint16_t count)
         return (struct step_move){};
     }
     bool high_precision = true;
+    a2 &= 0xFFFFFFFFFFFF0000ull;
     if (a3 > ((int64_t)(INT8_MAX) << 32) || a3 < ((int64_t)(INT8_MIN) << 32))
     {
         if (count > 40)
@@ -287,7 +288,13 @@ generate_move(struct stepcompress *sc, uint16_t count)
             return (struct step_move){};
         }
         high_precision = false;
+        a3 &= 0xFFFFFFFFFFFF0000ull;
     }
+    else
+    {
+        a3 &= 0xFFFFFFFFFFFFFF00ull;
+    }
+    
 
     //errorf("Before %ld, %ld, %ld, %ld, %f, %f", a0, a1, a2, a3, da2, da3);
 
@@ -374,21 +381,22 @@ static uint32_t evaluate_error(struct stepcompress *sc, struct step_move *move, 
     {
         add2 <<= 16;
     }
-    //errorf("Add1 %i %f, Add2 %i %f, %i", move->add1, fixed16x32_to_double(add1), move->add2, fixed16x32_to_double(add2), move->high_precision);
 
     int64_t time = add2*count;
     time += add1;
     time *= count;
     time += start_speed << 32;
     time *= count;
-    time >>= 32;
-    time += start_time;
+    // Use 32.8 format for better precision and more accurate golden section search
+    time >>= 24;
+    time += (int64_t)start_time << 8;
 
-    //int64_t time = move->add1*count2 + move->add2*count3;
-    //time = (int32_t)(time >> 16);
-    //time += start_time + start_speed*count;
-    int error = abs((int)(time - sc->queue_pos[pos].clock));
-    errorf("%ld %u = %u", time, sc->queue_pos[pos].clock, error);
+    int64_t expected = sc->queue_pos[pos].clock;
+    expected <<= 8;
+
+    int error = time - expected;
+    error = abs(error);
+    errorf("%u %ld %u = %u", pos, time >> 8, sc->queue_pos[pos].clock, error >> 8);
     return error;
 }
 
@@ -404,7 +412,7 @@ static bool validate_move(struct stepcompress *sc, struct step_move *move, uint1
         errorf("Overflow with %i steps", test_count);
         return false;
     }
-    uint32_t max_error = sc->max_error;
+    uint32_t max_error = sc->max_error << 8;
     uint32_t real_end_time = sc->queue_pos[count - 1].clock;
     uint32_t error = abs((int)(real_end_time - move->end_time));
     errorf("Error1 %u, max allowed %u %u", error, max_error, move->count);

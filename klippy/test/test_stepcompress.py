@@ -225,10 +225,18 @@ class StepCompress(object):
 
         assert len(self.input) == len(self.output)
 
-        max_error = self.max_error
+        max_error = int(self.max_error * self.frequency)
         for i in range(len(self.output)):
-            assert self.input[i][0] == pytest.approx(self.output[i], abs=max_error), \
-                "The input and output does not match for element number %i" % (i,)
+            # The input is rounded to the nearest clock cycle, so allow the error from that
+            input = self.input[i][0]
+            input_step = int(round(input * self.frequency))
+            output_step = int(round(self.output[i] * self.frequency))
+            input = float(input_step) / self.frequency
+            output = float(output_step) / self.frequency
+            if input_step != pytest.approx(output_step, abs=max_error):
+                pass
+            assert input_step == pytest.approx(output_step, abs=max_error), \
+                "The input and output does not match for element number %i, error: %i time: %f %f" % (i, output_step - input_step, input, output)
         
 
     def get_messages(self, time=None):
@@ -277,7 +285,8 @@ class StepCompress(object):
                     add2 <<= 16
                 else:
                     add2 <<= 8
-                self.logger.info("Move start %f %f %f" % (current_speed, to_float(add1), to_float(add2)))
+                self.logger.info("Move start at step:%d num %i %i %i %f %f" %
+                    (len(steps), count, current_clock, current_speed, to_float(add1), to_float(add2)))
                 current_speed <<= 32
                 d = step_dir
                 for step in range(1, count+1):
@@ -289,7 +298,7 @@ class StepCompress(object):
                     time >>= 32
                     time += current_clock
                     current_step += d
-                    self.logger.info("%d" % (time))
+                    #self.logger.info("%d" % (time))
                     steps.append((time, current_step))
                 current_clock = time
                 speed_change = 2*add1*count + 3*add2*count**2
@@ -386,7 +395,6 @@ def test_fixed_acceleration(stepcompress):
     input = [(time, acceleration*time) for time in input] 
     stepcompress.set_input(input)
     stepcompress.verify_output()
-    assert False
 
 def test_fixed_jerk(stepcompress):
     jerk = 10000.0
