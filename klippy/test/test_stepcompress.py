@@ -46,11 +46,10 @@ class Plotter(object):
             x = [step_distance * i for i in range(len(x_t))]
             v_t = [0] + [0.5 * (x_t[i-1] + x_t[i]) for i in range(1, len(x))]
             v = [0] + [(x[i] - x[i-1]) / (x_t[i] - x_t[i-1])  for i in range(1,len(x))]
-            a_t = [0] + [0.5 * (v_t[i-1] + v_t[i]) for i in range(1, len(x))]
-            a = [0] + [(v[i] - v[i-1]) / (v_t[i] - v_t[i-1]) for i in range(1,len(x))]
             fig.add_trace(go.Scatter(x=x_t, y=x, name="%s position" % base_name))
+            if base_name == "output":
+                fig.add_trace(go.Scatter(x=x_t, y=x, line_shape="hv", name="%s position stepped" % base_name))
             fig.add_trace(go.Scatter(x=v_t, y=v, name="%s velocity" % base_name))
-            fig.add_trace(go.Scatter(x=a_t, y=a, name="%s acceleration" % base_name))
 
         add_traces(fig, input, "input")
         add_traces(fig, output, "output")
