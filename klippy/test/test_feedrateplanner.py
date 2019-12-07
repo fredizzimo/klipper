@@ -6,9 +6,11 @@
 
 import pytest
 from toolhead import MoveQueue, Move
+from kinematics.extruder import DummyExtruder
 from math import sqrt, ceil
 import plotly.graph_objects as go
 import plotly.io as pio
+from plotly.colors import DEFAULT_PLOTLY_COLORS
 import os
 import numpy as np
 
@@ -41,33 +43,63 @@ class Plotter(object):
             vs.append(v)
             accs.append(a)
 
+        move_indices = [-1]
+
         for move in moves: 
+            num_ticks = 0 
             if move.accel_t > 0:
                 t = np.linspace(0.0, move.accel_t, int(ceil(move.accel_t / dt)), endpoint=True, dtype=np.float)
                 x = move.start_v * t + 0.5 * move.accel * t**2
                 v = move.start_v + move.accel * t
                 a = np.full(t.shape[0], move.accel)
                 add_move(t, x, v, a)
+                num_ticks += t.shape[0]
             if move.cruise_t > 0:
                 t = np.linspace(0.0, move.cruise_t, int(ceil(move.cruise_t / dt)), endpoint=True, dtype=np.float)
                 x = move.cruise_v * t
-                v = move.start_v + np.full(t.shape[0], move.cruise_v)
+                v = np.full(t.shape[0], move.cruise_v)
                 a = np.zeros(t.shape[0])
                 add_move(t, x, v, a)
+                num_ticks += t.shape[0]
             if move.decel_t > 0:
                 t = np.linspace(0.0, move.decel_t, int(ceil(move.decel_t / dt)), endpoint=True, dtype=np.float)
                 x = move.cruise_v * t - 0.5 * move.accel * t**2
                 v = move.cruise_v - move.accel * t
                 a = np.full(t.shape[0], -move.accel)
                 add_move(t, x, v, a)
+                num_ticks += t.shape[0]
+            move_indices.append(move_indices[-1] + num_ticks)
 
+        move_indices[0] = 0
         times = np.concatenate(times)
         x = np.concatenate(xs)
         v = np.concatenate(vs)
         a = np.concatenate(accs)
-        fig.add_trace(go.Scatter(x=times, y=x, name="position"))
-        fig.add_trace(go.Scatter(x=times, y=v, name="velocity", yaxis="y2"))
-        fig.add_trace(go.Scatter(x=times, y=a, name="acceleration", yaxis="y3"))
+        x_color = DEFAULT_PLOTLY_COLORS[0]
+        v_color = DEFAULT_PLOTLY_COLORS[1]
+        a_color = DEFAULT_PLOTLY_COLORS[2]
+
+        fig.add_trace(go.Scatter(x=times, y=x, name="position",
+            legendgroup="position",
+            line=go.scatter.Line(color=x_color)))
+        fig.add_trace(go.Scatter(x=times, y=v, name="velocity", yaxis="y2",
+            legendgroup="velocity",
+            line=go.scatter.Line(color=v_color)))
+        fig.add_trace(go.Scatter(x=times, y=a, name="acceleration", yaxis="y3",
+            legendgroup="acceleration",
+            line=go.scatter.Line(color=a_color)))
+        fig.add_trace(go.Scatter(x=times[move_indices], y=x[move_indices], mode="markers",
+            showlegend=False,
+            legendgroup="position",
+            marker=go.scatter.Marker(color=x_color)))
+        fig.add_trace(go.Scatter(x=times[move_indices], y=v[move_indices], mode="markers", yaxis="y2",
+            showlegend=False,
+            legendgroup="velocity",
+            marker=go.scatter.Marker(color=v_color)))
+        fig.add_trace(go.Scatter(x=times[move_indices], y=a[move_indices], mode="markers", yaxis="y3",
+            showlegend=False,
+            legendgroup="acceleration",
+            marker=go.scatter.Marker(color=a_color)))
 
         fig.update_layout(
             title=go.layout.Title(
@@ -127,11 +159,16 @@ class ToolHead(object):
         self.max_accel = None
         self.max_velocity = None
         self.max_accel_to_decel = None
+        self.square_corner_velocity = None
+        self.junction_deviation = None
+        self.extruder = DummyExtruder()
 
-    def set_limits(self, max_vel, max_acc, max_acc_to_dec):
+    def set_limits(self, max_vel, max_acc, max_acc_to_dec, square_corner_velocity):
         self.max_accel = max_acc
         self.max_velocity = max_vel
         self.max_accel_to_decel = max_acc_to_dec
+        scv2 = square_corner_velocity**2
+        self.junction_deviation = scv2 * (sqrt(2.) - 1.) / self.max_accel
 
     def _process_moves(self, moves):
         self.moves += moves
@@ -154,8 +191,7 @@ class ToolHead(object):
         assert pytest.approx(get_distance(move)) == distance
 
 def get_distance(move):
-    total_time = move.accel_t + move.cruise_t + move.decel_t
-    return (move.start_v * total_time +
+    return (move.start_v * move.accel_t +
         0.5 * move.accel * move.accel_t**2 +
         move.cruise_v * (move.cruise_t + move.decel_t) -
         0.5 * move.accel * move.decel_t**2)
@@ -175,7 +211,7 @@ def toolhead(plotter, request):
 
 # A move long enough to accelerate to cruise_v
 def test_single_long_move(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000)
+    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
     toolhead.move1d(0, 100, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
@@ -189,7 +225,7 @@ def test_single_long_move(toolhead):
 
 # A move short enough to not accelerate to the cruise_v
 def test_single_short_move(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000)
+    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
     toolhead.move1d(0, 4, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
@@ -204,7 +240,7 @@ def test_single_short_move(toolhead):
 
 # A move the exact lenght to accelerate to cruise_v, but no cruise_phase
 def test_single_no_cruise_move(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000)
+    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
     toolhead.move1d(0, 5, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
@@ -218,7 +254,7 @@ def test_single_no_cruise_move(toolhead):
         distance=5)
 
 def test_move_with_accel_decel_limit(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=1000)
+    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=1000, square_corner_velocity=5)
     toolhead.move1d(0, 5, max_speed=100)
     toolhead.flush()
     virt_accel_t = sqrt(2.5 / (0.5*1000))
@@ -234,7 +270,7 @@ def test_move_with_accel_decel_limit(toolhead):
         distance=5)
 
 def test_move_with_accel_decel_limit_longer_distance(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=1000)
+    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=1000, square_corner_velocity=5)
     toolhead.move1d(0, 6, max_speed=100)
     toolhead.flush()
     virt_accel_t = sqrt(3 / (0.5*1000))
@@ -250,7 +286,7 @@ def test_move_with_accel_decel_limit_longer_distance(toolhead):
         distance=6)
 
 def test_move_with_long_enough_distance_fo_no_accel_decel_limit(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=1000)
+    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=1000, square_corner_velocity=5)
     toolhead.move1d(0, 10, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
@@ -261,3 +297,69 @@ def test_move_with_long_enough_distance_fo_no_accel_decel_limit(toolhead):
         accel_t=0.05,
         decel_t=0.05,
         distance=10)
+
+def test_two_long_moves(toolhead):
+    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.move1d(0, 100, max_speed=100)
+    toolhead.move1d(100, 200, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=100,
+        accel_t=0.05,
+        decel_t=0,
+        distance=100)
+    toolhead.check_move(1,
+        pos=100,
+        start_v=100,
+        cruise_v=100,
+        accel_t=0,
+        decel_t=0.05,
+        distance=100)
+
+def test_short_and_long_move(toolhead):
+    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.move1d(0, 2, max_speed=100)
+    toolhead.move1d(2, 20, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    accel1_t=sqrt(2 / (0.5*2000))
+    cruise1_v=2000 * accel1_t
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=cruise1_v,
+        accel_t=accel1_t,
+        decel_t=0,
+        distance=2)
+    accel2_t = (100 - cruise1_v) / 2000
+    toolhead.check_move(1,
+        pos=2,
+        start_v=cruise1_v,
+        cruise_v=100,
+        accel_t=accel2_t,
+        decel_t=0.05,
+        distance=18)
+
+def test_long_and_short_move(toolhead):
+    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.move1d(0, 20, max_speed=100)
+    toolhead.move1d(20, 22, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=100,
+        accel_t=0.05,
+        decel_t=0.00527864045,
+        distance=20)
+    toolhead.check_move(1,
+        pos=20,
+        start_v=89.4427191,
+        cruise_v=89.4427191,
+        accel_t=0,
+        decel_t=0.04472135955,
+        distance=2)
