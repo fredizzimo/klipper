@@ -27,8 +27,9 @@ class Plotter(object):
         xs = []
         vs = []
         accs = []
+        allowed_vs = []
 
-        def add_move(t, x, v, a):
+        def add_move(t, x, v, a, allowed_v):
             current_time = 0
             current_x = 0
             if len(times) > 0:
@@ -42,6 +43,7 @@ class Plotter(object):
             xs.append(x)
             vs.append(v)
             accs.append(a)
+            allowed_vs.append(allowed_v)
 
         move_indices = [-1]
 
@@ -52,21 +54,24 @@ class Plotter(object):
                 x = move.start_v * t + 0.5 * move.accel * t**2
                 v = move.start_v + move.accel * t
                 a = np.full(t.shape[0], move.accel)
-                add_move(t, x, v, a)
+                allowed_v = np.full(t.shape[0], sqrt(move.max_cruise_v2))
+                add_move(t, x, v, a, allowed_v)
                 num_ticks += t.shape[0]
             if move.cruise_t > 0:
                 t = np.linspace(0.0, move.cruise_t, int(ceil(move.cruise_t / dt)), endpoint=True, dtype=np.float)
                 x = move.cruise_v * t
                 v = np.full(t.shape[0], move.cruise_v)
                 a = np.zeros(t.shape[0])
-                add_move(t, x, v, a)
+                allowed_v = np.full(t.shape[0], sqrt(move.max_cruise_v2))
+                add_move(t, x, v, a, allowed_v)
                 num_ticks += t.shape[0]
             if move.decel_t > 0:
                 t = np.linspace(0.0, move.decel_t, int(ceil(move.decel_t / dt)), endpoint=True, dtype=np.float)
                 x = move.cruise_v * t - 0.5 * move.accel * t**2
                 v = move.cruise_v - move.accel * t
                 a = np.full(t.shape[0], -move.accel)
-                add_move(t, x, v, a)
+                allowed_v = np.full(t.shape[0], sqrt(move.max_cruise_v2))
+                add_move(t, x, v, a, allowed_v)
                 num_ticks += t.shape[0]
             move_indices.append(move_indices[-1] + num_ticks)
 
@@ -75,9 +80,11 @@ class Plotter(object):
         x = np.concatenate(xs)
         v = np.concatenate(vs)
         a = np.concatenate(accs)
+        allowed_v = np.concatenate(allowed_vs)
         x_color = DEFAULT_PLOTLY_COLORS[0]
         v_color = DEFAULT_PLOTLY_COLORS[1]
         a_color = DEFAULT_PLOTLY_COLORS[2]
+        av_color = DEFAULT_PLOTLY_COLORS[3]
 
         fig.add_trace(go.Scatter(x=times, y=x, name="position",
             legendgroup="position",
@@ -88,6 +95,9 @@ class Plotter(object):
         fig.add_trace(go.Scatter(x=times, y=a, name="acceleration", yaxis="y3",
             legendgroup="acceleration",
             line=go.scatter.Line(color=a_color)))
+        fig.add_trace(go.Scatter(x=times, y=allowed_v, name="allowed velocity", yaxis="y2",
+            legendgroup="allowedvelocity",
+            line=go.scatter.Line(color=av_color, dash="dot")))
         fig.add_trace(go.Scatter(x=times[move_indices], y=x[move_indices], mode="markers",
             showlegend=False,
             legendgroup="position",
@@ -100,6 +110,10 @@ class Plotter(object):
             showlegend=False,
             legendgroup="acceleration",
             marker=go.scatter.Marker(color=a_color)))
+        fig.add_trace(go.Scatter(x=times[move_indices], y=allowed_v[move_indices], mode="markers", yaxis="y2",
+            showlegend=False,
+            legendgroup="allowedvelocity",
+            marker=go.scatter.Marker(color=av_color)))
 
         fig.update_layout(
             title=go.layout.Title(
@@ -363,3 +377,53 @@ def test_long_and_short_move(toolhead):
         accel_t=0,
         decel_t=0.04472135955,
         distance=2)
+
+def test_required_decelerate_due_to_upcoming_slow_segment(toolhead):
+    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.move1d(0, 10, max_speed=100)
+    toolhead.move1d(10, 12, max_speed=100)
+    toolhead.move1d(12, 20, max_speed=20)
+    toolhead.flush()
+    assert len(toolhead.moves) == 3
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=100,
+        accel_t=0.05,
+        decel_t=0.00417424305044,
+        distance=10)
+    toolhead.check_move(1,
+        pos=10,
+        start_v=91.6515138991,
+        cruise_v=91.6515138991,
+        accel_t=0,
+        decel_t=0.0358257569496,
+        distance=2)
+    toolhead.check_move(2,
+        pos=12,
+        start_v=20,
+        cruise_v=20,
+        accel_t=0,
+        decel_t=0.01,
+        distance=8)
+
+def test_accelerate_to_a_faster_segment(toolhead):
+    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.move1d(0, 10, max_speed=50)
+    toolhead.move1d(10, 20, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=50,
+        accel_t=0.025,
+        decel_t=0,
+        distance=10)
+    toolhead.check_move(1,
+        pos=10,
+        start_v=50,
+        cruise_v=100,
+        accel_t=0.025,
+        decel_t=0.05,
+        distance=10)
