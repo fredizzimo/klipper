@@ -87,3 +87,48 @@ def test_single_no_cruise_move():
         cruise_t=0.0,
         decel_t=0.05,
         distance=5)
+
+def test_move_with_accel_decel_limit():
+    toolhead = ToolHead(max_vel=100, max_acc=2000, max_acc_to_dec=1000)
+    toolhead.move1d(0, 5, max_speed=100)
+    toolhead.flush()
+    virt_accel_t = sqrt(2.5 / (0.5*1000))
+    cruise_v = 1000 * virt_accel_t
+    accel_t = cruise_v / 2000
+    assert len(toolhead.moves) == 1
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=cruise_v,
+        accel_t=accel_t,
+        decel_t=accel_t,
+        distance=5)
+
+def test_move_with_accel_decel_limit_longer_distance():
+    toolhead = ToolHead(max_vel=100, max_acc=2000, max_acc_to_dec=1000)
+    toolhead.move1d(0, 6, max_speed=100)
+    toolhead.flush()
+    virt_accel_t = sqrt(3 / (0.5*1000))
+    cruise_v = 1000 * virt_accel_t
+    accel_t = cruise_v / 2000
+    assert len(toolhead.moves) == 1
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=cruise_v,
+        accel_t=accel_t,
+        decel_t=accel_t,
+        distance=6)
+
+def test_move_with_long_enough_distance_fo_no_accel_decel_limit():
+    toolhead = ToolHead(max_vel=100, max_acc=2000, max_acc_to_dec=1000)
+    toolhead.move1d(0, 10, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 1
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=100,
+        accel_t=0.05,
+        decel_t=0.05,
+        distance=10)
