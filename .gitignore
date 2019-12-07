@@ -7,3 +7,4 @@ klippy/.version
 .pytest_cache/
 .venv/
 .vscode/
+klippy/test/output/
