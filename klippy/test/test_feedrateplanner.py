@@ -55,6 +55,8 @@ class Plotter(object):
                 v = move.start_v + move.accel * t
                 a = np.full(t.shape[0], move.accel)
                 allowed_v = np.full(t.shape[0], sqrt(move.max_cruise_v2))
+                if num_ticks == 0:
+                    allowed_v[0] = sqrt(move.max_start_v2)
                 add_move(t, x, v, a, allowed_v)
                 num_ticks += t.shape[0]
             if move.cruise_t > 0:
@@ -63,6 +65,8 @@ class Plotter(object):
                 v = np.full(t.shape[0], move.cruise_v)
                 a = np.zeros(t.shape[0])
                 allowed_v = np.full(t.shape[0], sqrt(move.max_cruise_v2))
+                if num_ticks == 0:
+                    allowed_v[0] = sqrt(move.max_start_v2)
                 add_move(t, x, v, a, allowed_v)
                 num_ticks += t.shape[0]
             if move.decel_t > 0:
@@ -71,6 +75,8 @@ class Plotter(object):
                 v = move.cruise_v - move.accel * t
                 a = np.full(t.shape[0], -move.accel)
                 allowed_v = np.full(t.shape[0], sqrt(move.max_cruise_v2))
+                if num_ticks == 0:
+                    allowed_v[0] = sqrt(move.max_start_v2)
                 add_move(t, x, v, a, allowed_v)
                 num_ticks += t.shape[0]
             move_indices.append(move_indices[-1] + num_ticks)
@@ -176,6 +182,7 @@ class ToolHead(object):
         self.square_corner_velocity = None
         self.junction_deviation = None
         self.extruder = DummyExtruder()
+        self.pos = np.zeros(4)
 
     def set_limits(self, max_vel, max_acc, max_acc_to_dec, square_corner_velocity):
         self.max_accel = max_acc
@@ -187,15 +194,24 @@ class ToolHead(object):
     def _process_moves(self, moves):
         self.moves += moves
 
-    def move1d(self, start, end, max_speed):
-        self.queue.add_move(Move(self, (start,0,0,0), (end, 0, 0, 0), max_speed))
+    def move(self, end_pos, max_speed):
+        if type(end_pos) == tuple:
+            end = np.array([p for p in end_pos] + [0] * (4-len(end_pos)))
+        else:
+            end = np.array((end_pos, 0, 0, 0))
+        self.queue.add_move(Move(self, self.pos, end, max_speed))
+        self.pos = end
 
     def flush(self):
         self.queue.flush()
 
     def check_move(self, idx, pos, start_v, cruise_v, accel_t, decel_t, distance, cruise_t = None):
         move = self.moves[idx]
-        assert move.start_pos == (pos, 0, 0, 0)
+        if type(pos) == tuple:
+            pos = tuple([p for p in pos] + [0] * (4-len(pos)))
+        else:
+            pos = (pos, 0, 0, 0)
+        assert move.start_pos == pos
         assert pytest.approx(move.start_v) == start_v
         assert pytest.approx(move.cruise_v) == cruise_v
         assert pytest.approx(move.accel_t) == accel_t
@@ -226,7 +242,7 @@ def toolhead(plotter, request):
 # A move long enough to accelerate to cruise_v
 def test_single_long_move(toolhead):
     toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
-    toolhead.move1d(0, 100, max_speed=100)
+    toolhead.move(100, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
     toolhead.check_move(0,
@@ -240,7 +256,7 @@ def test_single_long_move(toolhead):
 # A move short enough to not accelerate to the cruise_v
 def test_single_short_move(toolhead):
     toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
-    toolhead.move1d(0, 4, max_speed=100)
+    toolhead.move(4, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
     toolhead.check_move(0,
@@ -255,7 +271,7 @@ def test_single_short_move(toolhead):
 # A move the exact lenght to accelerate to cruise_v, but no cruise_phase
 def test_single_no_cruise_move(toolhead):
     toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
-    toolhead.move1d(0, 5, max_speed=100)
+    toolhead.move(5, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
     toolhead.check_move(0,
@@ -269,7 +285,7 @@ def test_single_no_cruise_move(toolhead):
 
 def test_move_with_accel_decel_limit(toolhead):
     toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=1000, square_corner_velocity=5)
-    toolhead.move1d(0, 5, max_speed=100)
+    toolhead.move(5, max_speed=100)
     toolhead.flush()
     virt_accel_t = sqrt(2.5 / (0.5*1000))
     cruise_v = 1000 * virt_accel_t
@@ -285,7 +301,7 @@ def test_move_with_accel_decel_limit(toolhead):
 
 def test_move_with_accel_decel_limit_longer_distance(toolhead):
     toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=1000, square_corner_velocity=5)
-    toolhead.move1d(0, 6, max_speed=100)
+    toolhead.move(6, max_speed=100)
     toolhead.flush()
     virt_accel_t = sqrt(3 / (0.5*1000))
     cruise_v = 1000 * virt_accel_t
@@ -301,7 +317,7 @@ def test_move_with_accel_decel_limit_longer_distance(toolhead):
 
 def test_move_with_long_enough_distance_fo_no_accel_decel_limit(toolhead):
     toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=1000, square_corner_velocity=5)
-    toolhead.move1d(0, 10, max_speed=100)
+    toolhead.move(10, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
     toolhead.check_move(0,
@@ -314,8 +330,8 @@ def test_move_with_long_enough_distance_fo_no_accel_decel_limit(toolhead):
 
 def test_two_long_moves(toolhead):
     toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
-    toolhead.move1d(0, 100, max_speed=100)
-    toolhead.move1d(100, 200, max_speed=100)
+    toolhead.move(100, max_speed=100)
+    toolhead.move(200, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 2
     toolhead.check_move(0,
@@ -335,8 +351,8 @@ def test_two_long_moves(toolhead):
 
 def test_short_and_long_move(toolhead):
     toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
-    toolhead.move1d(0, 2, max_speed=100)
-    toolhead.move1d(2, 20, max_speed=100)
+    toolhead.move(2, max_speed=100)
+    toolhead.move(20, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 2
     accel1_t=sqrt(2 / (0.5*2000))
@@ -359,8 +375,8 @@ def test_short_and_long_move(toolhead):
 
 def test_long_and_short_move(toolhead):
     toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
-    toolhead.move1d(0, 20, max_speed=100)
-    toolhead.move1d(20, 22, max_speed=100)
+    toolhead.move(20, max_speed=100)
+    toolhead.move(22, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 2
     toolhead.check_move(0,
@@ -380,9 +396,9 @@ def test_long_and_short_move(toolhead):
 
 def test_required_decelerate_due_to_upcoming_slow_segment(toolhead):
     toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
-    toolhead.move1d(0, 10, max_speed=100)
-    toolhead.move1d(10, 12, max_speed=100)
-    toolhead.move1d(12, 20, max_speed=20)
+    toolhead.move(10, max_speed=100)
+    toolhead.move(12, max_speed=100)
+    toolhead.move(20, max_speed=20)
     toolhead.flush()
     assert len(toolhead.moves) == 3
     toolhead.check_move(0,
@@ -409,8 +425,8 @@ def test_required_decelerate_due_to_upcoming_slow_segment(toolhead):
 
 def test_accelerate_to_a_faster_segment(toolhead):
     toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
-    toolhead.move1d(0, 10, max_speed=50)
-    toolhead.move1d(10, 20, max_speed=100)
+    toolhead.move(10, max_speed=50)
+    toolhead.move(20, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 2
     toolhead.check_move(0,
@@ -427,3 +443,61 @@ def test_accelerate_to_a_faster_segment(toolhead):
         accel_t=0.025,
         decel_t=0.05,
         distance=10)
+
+def test_square_corner(toolhead):
+    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.move((10, 0), max_speed=100)
+    toolhead.move((10, 10), max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=100,
+        accel_t=0.05,
+        decel_t=0.0475,
+        distance=10)
+    toolhead.check_move(1,
+        pos=10,
+        start_v=5,
+        cruise_v=100,
+        accel_t=0.0475,
+        decel_t=0.05,
+        distance=10)
+
+def test_lookahead_slow_corner(toolhead):
+    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.move((10, 0), max_speed=100)
+    toolhead.move((11, 0.01), max_speed=100)
+    toolhead.move((12, 0.02), max_speed=100)
+    toolhead.move((10, 0.02), max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 4
+    toolhead.check_move(0,
+        pos=(0, 0),
+        start_v=0,
+        cruise_v=100,
+        accel_t=0.05,
+        decel_t=0.00527737701979,
+        distance=10)
+    toolhead.check_move(1,
+        pos=(10, 0),
+        start_v=89.4452459604,
+        cruise_v=89.4452459604,
+        accel_t=0,
+        decel_t=0.0130988501585,
+        distance=sqrt(1.0**2 + 0.01**2))
+    toolhead.check_move(2,
+        pos=(11, 0.01),
+        start_v=63.2475456434,
+        cruise_v=63.2475456434,
+        accel_t=0,
+        decel_t=0.0315097170036,
+        distance=sqrt(1.0**2 + 0.01**2))
+    toolhead.check_move(3,
+        pos=(12, 0.02),
+        start_v=0.228111636339,
+        cruise_v=63.2457588891,
+        accel_t=0.0315088236264,
+        decel_t=0.0316228794446,
+        distance=2)
