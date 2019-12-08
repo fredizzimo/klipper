@@ -8,3 +8,5 @@ klippy/.version
 .venv/
 .vscode/
 klippy/test/output/
+travis_build/
+travis_cache/
