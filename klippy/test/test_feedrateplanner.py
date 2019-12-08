@@ -205,7 +205,7 @@ class ToolHead(object):
     def flush(self):
         self.queue.flush()
 
-    def check_move(self, idx, pos, start_v, cruise_v, accel_t, decel_t, distance, cruise_t = None):
+    def check_move(self, idx, pos, start_v, cruise_v, accel_t, cruise_t, decel_t, distance):
         move = self.moves[idx]
         if type(pos) == tuple:
             pos = tuple([p for p in pos] + [0] * (4-len(pos)))
@@ -215,8 +215,7 @@ class ToolHead(object):
         assert pytest.approx(move.start_v) == start_v
         assert pytest.approx(move.cruise_v) == cruise_v
         assert pytest.approx(move.accel_t) == accel_t
-        if cruise_t is not None:
-            assert pytest.approx(move.cruise_t) == cruise_t
+        assert pytest.approx(move.cruise_t) == cruise_t
         assert pytest.approx(move.decel_t) == decel_t
         assert pytest.approx(get_distance(move)) == distance
 
@@ -250,6 +249,7 @@ def test_single_long_move(toolhead):
         start_v=0,
         cruise_v=100,
         accel_t=0.05,
+        cruise_t=0.95,
         decel_t=0.05,
         distance=100)
 
@@ -296,6 +296,7 @@ def test_move_with_accel_decel_limit(toolhead):
         start_v=0,
         cruise_v=cruise_v,
         accel_t=accel_t,
+        cruise_t=0.0353553390593,
         decel_t=accel_t,
         distance=5)
 
@@ -312,6 +313,7 @@ def test_move_with_accel_decel_limit_longer_distance(toolhead):
         start_v=0,
         cruise_v=cruise_v,
         accel_t=accel_t,
+        cruise_t=0.0387298334621,
         decel_t=accel_t,
         distance=6)
 
@@ -325,6 +327,7 @@ def test_move_with_long_enough_distance_fo_no_accel_decel_limit(toolhead):
         start_v=0,
         cruise_v=100,
         accel_t=0.05,
+        cruise_t=0.05,
         decel_t=0.05,
         distance=10)
 
@@ -339,6 +342,7 @@ def test_two_long_moves(toolhead):
         start_v=0,
         cruise_v=100,
         accel_t=0.05,
+        cruise_t=0.975,
         decel_t=0,
         distance=100)
     toolhead.check_move(1,
@@ -346,6 +350,7 @@ def test_two_long_moves(toolhead):
         start_v=100,
         cruise_v=100,
         accel_t=0,
+        cruise_t=0.975,
         decel_t=0.05,
         distance=100)
 
@@ -362,6 +367,7 @@ def test_short_and_long_move(toolhead):
         start_v=0,
         cruise_v=cruise1_v,
         accel_t=accel1_t,
+        cruise_t=0,
         decel_t=0,
         distance=2)
     accel2_t = (100 - cruise1_v) / 2000
@@ -370,6 +376,7 @@ def test_short_and_long_move(toolhead):
         start_v=cruise1_v,
         cruise_v=100,
         accel_t=accel2_t,
+        cruise_t=0.15,
         decel_t=0.05,
         distance=18)
 
@@ -384,12 +391,14 @@ def test_long_and_short_move(toolhead):
         start_v=0,
         cruise_v=100,
         accel_t=0.05,
+        cruise_t=0.17,
         decel_t=0.00527864045,
         distance=20)
     toolhead.check_move(1,
         pos=20,
         start_v=89.4427191,
         cruise_v=89.4427191,
+        cruise_t=0,
         accel_t=0,
         decel_t=0.04472135955,
         distance=2)
@@ -406,6 +415,7 @@ def test_required_decelerate_due_to_upcoming_slow_segment(toolhead):
         start_v=0,
         cruise_v=100,
         accel_t=0.05,
+        cruise_t=0.071,
         decel_t=0.00417424305044,
         distance=10)
     toolhead.check_move(1,
@@ -413,6 +423,7 @@ def test_required_decelerate_due_to_upcoming_slow_segment(toolhead):
         start_v=91.6515138991,
         cruise_v=91.6515138991,
         accel_t=0,
+        cruise_t=0,
         decel_t=0.0358257569496,
         distance=2)
     toolhead.check_move(2,
@@ -420,6 +431,7 @@ def test_required_decelerate_due_to_upcoming_slow_segment(toolhead):
         start_v=20,
         cruise_v=20,
         accel_t=0,
+        cruise_t=0.395,
         decel_t=0.01,
         distance=8)
 
@@ -434,6 +446,7 @@ def test_accelerate_to_a_faster_segment(toolhead):
         start_v=0,
         cruise_v=50,
         accel_t=0.025,
+        cruise_t=0.1875,
         decel_t=0,
         distance=10)
     toolhead.check_move(1,
@@ -441,6 +454,7 @@ def test_accelerate_to_a_faster_segment(toolhead):
         start_v=50,
         cruise_v=100,
         accel_t=0.025,
+        cruise_t=0.05625,
         decel_t=0.05,
         distance=10)
 
@@ -455,6 +469,7 @@ def test_square_corner(toolhead):
         start_v=0,
         cruise_v=100,
         accel_t=0.05,
+        cruise_t=0.0500625,
         decel_t=0.0475,
         distance=10)
     toolhead.check_move(1,
@@ -462,6 +477,7 @@ def test_square_corner(toolhead):
         start_v=5,
         cruise_v=100,
         accel_t=0.0475,
+        cruise_t=0.0500625,
         decel_t=0.05,
         distance=10)
 
@@ -478,6 +494,7 @@ def test_lookahead_slow_corner(toolhead):
         start_v=0,
         cruise_v=100,
         accel_t=0.05,
+        cruise_t=0.0700011300623,
         decel_t=0.00527737701979,
         distance=10)
     toolhead.check_move(1,
@@ -485,6 +502,7 @@ def test_lookahead_slow_corner(toolhead):
         start_v=89.4452459604,
         cruise_v=89.4452459604,
         accel_t=0,
+        cruise_t=0,
         decel_t=0.0130988501585,
         distance=sqrt(1.0**2 + 0.01**2))
     toolhead.check_move(2,
@@ -492,6 +510,7 @@ def test_lookahead_slow_corner(toolhead):
         start_v=63.2475456434,
         cruise_v=63.2475456434,
         accel_t=0,
+        cruise_t=0,
         decel_t=0.0315097170036,
         distance=sqrt(1.0**2 + 0.01**2))
     toolhead.check_move(3,
@@ -499,5 +518,6 @@ def test_lookahead_slow_corner(toolhead):
         start_v=0.228111636339,
         cruise_v=63.2457588891,
         accel_t=0.0315088236264,
+        cruise_t=0,
         decel_t=0.0316228794446,
         distance=2)
