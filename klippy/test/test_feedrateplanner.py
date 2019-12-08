@@ -47,10 +47,11 @@ class Plotter(object):
 
         move_indices = [-1]
 
-        for move in moves: 
-            num_ticks = 0 
+        for move in moves:
+            num_ticks = 0
             if move.accel_t > 0:
-                t = np.linspace(0.0, move.accel_t, int(ceil(move.accel_t / dt)), endpoint=True, dtype=np.float)
+                t = np.linspace(0.0, move.accel_t, int(ceil(move.accel_t / dt)),
+                    endpoint=True, dtype=np.float)
                 x = move.start_v * t + 0.5 * move.accel * t**2
                 v = move.start_v + move.accel * t
                 a = np.full(t.shape[0], move.accel)
@@ -60,7 +61,9 @@ class Plotter(object):
                 add_move(t, x, v, a, allowed_v)
                 num_ticks += t.shape[0]
             if move.cruise_t > 0:
-                t = np.linspace(0.0, move.cruise_t, int(ceil(move.cruise_t / dt)), endpoint=True, dtype=np.float)
+                t = np.linspace(0.0, move.cruise_t,
+                    int(ceil(move.cruise_t / dt)),
+                    endpoint=True, dtype=np.float)
                 x = move.cruise_v * t
                 v = np.full(t.shape[0], move.cruise_v)
                 a = np.zeros(t.shape[0])
@@ -70,7 +73,9 @@ class Plotter(object):
                 add_move(t, x, v, a, allowed_v)
                 num_ticks += t.shape[0]
             if move.decel_t > 0:
-                t = np.linspace(0.0, move.decel_t, int(ceil(move.decel_t / dt)), endpoint=True, dtype=np.float)
+                t = np.linspace(0.0, move.decel_t,
+                    int(ceil(move.decel_t / dt)), endpoint=True,
+                    dtype=np.float)
                 x = move.cruise_v * t - 0.5 * move.accel * t**2
                 v = move.cruise_v - move.accel * t
                 a = np.full(t.shape[0], -move.accel)
@@ -92,31 +97,41 @@ class Plotter(object):
         a_color = DEFAULT_PLOTLY_COLORS[2]
         av_color = DEFAULT_PLOTLY_COLORS[3]
 
-        fig.add_trace(go.Scatter(x=times, y=x, name="position",
+        fig.add_trace(go.Scatter(
+            x=times, y=x, name="position",
             legendgroup="position",
             line=go.scatter.Line(color=x_color)))
-        fig.add_trace(go.Scatter(x=times, y=v, name="velocity", yaxis="y2",
+        fig.add_trace(go.Scatter(
+            x=times, y=v, name="velocity", yaxis="y2",
             legendgroup="velocity",
             line=go.scatter.Line(color=v_color)))
         fig.add_trace(go.Scatter(x=times, y=a, name="acceleration", yaxis="y3",
             legendgroup="acceleration",
             line=go.scatter.Line(color=a_color)))
-        fig.add_trace(go.Scatter(x=times, y=allowed_v, name="allowed velocity", yaxis="y2",
+        fig.add_trace(go.Scatter(
+            x=times, y=allowed_v, name="allowed velocity", yaxis="y2",
             legendgroup="allowedvelocity",
             line=go.scatter.Line(color=av_color, dash="dot")))
-        fig.add_trace(go.Scatter(x=times[move_indices], y=x[move_indices], mode="markers",
+        fig.add_trace(go.Scatter(
+            x=times[move_indices], y=x[move_indices], mode="markers",
             showlegend=False,
             legendgroup="position",
             marker=go.scatter.Marker(color=x_color)))
-        fig.add_trace(go.Scatter(x=times[move_indices], y=v[move_indices], mode="markers", yaxis="y2",
+        fig.add_trace(go.Scatter(
+            x=times[move_indices], y=v[move_indices], mode="markers",
+            yaxis="y2",
             showlegend=False,
             legendgroup="velocity",
             marker=go.scatter.Marker(color=v_color)))
-        fig.add_trace(go.Scatter(x=times[move_indices], y=a[move_indices], mode="markers", yaxis="y3",
+        fig.add_trace(go.Scatter(
+            x=times[move_indices], y=a[move_indices], mode="markers",
+            yaxis="y3",
             showlegend=False,
             legendgroup="acceleration",
             marker=go.scatter.Marker(color=a_color)))
-        fig.add_trace(go.Scatter(x=times[move_indices], y=allowed_v[move_indices], mode="markers", yaxis="y2",
+        fig.add_trace(go.Scatter(
+            x=times[move_indices], y=allowed_v[move_indices], mode="markers",
+            yaxis="y2",
             showlegend=False,
             legendgroup="allowedvelocity",
             marker=go.scatter.Marker(color=av_color)))
@@ -162,7 +177,7 @@ class Plotter(object):
             self.html = plot_html
         else:
             self.html = self.html.replace("</body>", plot_html + "\n</body>")
-    
+
     def write(self):
         output_dir = os.path.dirname(os.path.realpath(__file__))
         output_dir = os.path.join(output_dir, "output")
@@ -184,7 +199,8 @@ class ToolHead(object):
         self.extruder = DummyExtruder()
         self.pos = np.zeros(4)
 
-    def set_limits(self, max_vel, max_acc, max_acc_to_dec, square_corner_velocity):
+    def set_limits(self, max_vel, max_acc, max_acc_to_dec,
+        square_corner_velocity):
         self.max_accel = max_acc
         self.max_velocity = max_vel
         self.max_accel_to_decel = max_acc_to_dec
@@ -205,7 +221,8 @@ class ToolHead(object):
     def flush(self):
         self.queue.flush()
 
-    def check_move(self, idx, pos, start_v, cruise_v, accel_t, cruise_t, decel_t, distance):
+    def check_move(self, idx, pos, start_v, cruise_v, accel_t, cruise_t,
+        decel_t, distance):
         move = self.moves[idx]
         if type(pos) == tuple:
             pos = tuple([p for p in pos] + [0] * (4-len(pos)))
@@ -240,7 +257,11 @@ def toolhead(plotter, request):
 
 # A move long enough to accelerate to cruise_v
 def test_single_long_move(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
     toolhead.move(100, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
@@ -255,7 +276,11 @@ def test_single_long_move(toolhead):
 
 # A move short enough to not accelerate to the cruise_v
 def test_single_short_move(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
     toolhead.move(4, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
@@ -270,7 +295,11 @@ def test_single_short_move(toolhead):
 
 # A move the exact lenght to accelerate to cruise_v, but no cruise_phase
 def test_single_no_cruise_move(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
     toolhead.move(5, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
@@ -284,7 +313,11 @@ def test_single_no_cruise_move(toolhead):
         distance=5)
 
 def test_move_with_accel_decel_limit(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=1000, square_corner_velocity=5)
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5)
     toolhead.move(5, max_speed=100)
     toolhead.flush()
     virt_accel_t = sqrt(2.5 / (0.5*1000))
@@ -301,7 +334,11 @@ def test_move_with_accel_decel_limit(toolhead):
         distance=5)
 
 def test_move_with_accel_decel_limit_longer_distance(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=1000, square_corner_velocity=5)
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5)
     toolhead.move(6, max_speed=100)
     toolhead.flush()
     virt_accel_t = sqrt(3 / (0.5*1000))
@@ -318,7 +355,11 @@ def test_move_with_accel_decel_limit_longer_distance(toolhead):
         distance=6)
 
 def test_move_with_long_enough_distance_fo_no_accel_decel_limit(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=1000, square_corner_velocity=5)
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5)
     toolhead.move(10, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
@@ -332,7 +373,11 @@ def test_move_with_long_enough_distance_fo_no_accel_decel_limit(toolhead):
         distance=10)
 
 def test_two_long_moves(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
     toolhead.move(100, max_speed=100)
     toolhead.move(200, max_speed=100)
     toolhead.flush()
@@ -355,7 +400,11 @@ def test_two_long_moves(toolhead):
         distance=100)
 
 def test_short_and_long_move(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
     toolhead.move(2, max_speed=100)
     toolhead.move(20, max_speed=100)
     toolhead.flush()
@@ -381,7 +430,11 @@ def test_short_and_long_move(toolhead):
         distance=18)
 
 def test_long_and_short_move(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
     toolhead.move(20, max_speed=100)
     toolhead.move(22, max_speed=100)
     toolhead.flush()
@@ -404,7 +457,11 @@ def test_long_and_short_move(toolhead):
         distance=2)
 
 def test_required_decelerate_due_to_upcoming_slow_segment(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
     toolhead.move(10, max_speed=100)
     toolhead.move(12, max_speed=100)
     toolhead.move(20, max_speed=20)
@@ -436,7 +493,11 @@ def test_required_decelerate_due_to_upcoming_slow_segment(toolhead):
         distance=8)
 
 def test_accelerate_to_a_faster_segment(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
     toolhead.move(10, max_speed=50)
     toolhead.move(20, max_speed=100)
     toolhead.flush()
@@ -459,7 +520,11 @@ def test_accelerate_to_a_faster_segment(toolhead):
         distance=10)
 
 def test_square_corner(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
     toolhead.move((10, 0), max_speed=100)
     toolhead.move((10, 10), max_speed=100)
     toolhead.flush()
@@ -482,7 +547,11 @@ def test_square_corner(toolhead):
         distance=10)
 
 def test_lookahead_slow_corner(toolhead):
-    toolhead.set_limits(max_vel=100, max_acc=2000, max_acc_to_dec=2000, square_corner_velocity=5)
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
     toolhead.move((10, 0), max_speed=100)
     toolhead.move((11, 0.01), max_speed=100)
     toolhead.move((12, 0.02), max_speed=100)
