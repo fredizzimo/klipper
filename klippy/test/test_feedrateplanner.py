@@ -590,3 +590,120 @@ def test_lookahead_slow_corner(toolhead):
         cruise_t=0,
         decel_t=0.0316228794446,
         distance=2)
+
+def test_accel_decel_limit_over_multiple_moves_at_end(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5)
+    toolhead.move(1, max_speed=100)
+    toolhead.move(2, max_speed=100)
+    toolhead.move(3, max_speed=100)
+    toolhead.move(4, max_speed=100)
+    toolhead.move(5, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 5
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=63.2455532034,
+        accel_t=0.0316227766017,
+        cruise_t=0,
+        decel_t=0,
+        distance=1)
+    toolhead.check_move(1,
+        pos=1,
+        start_v=63.2455532034,
+        cruise_v=70.7106781187,
+        accel_t=0.00373256245764,
+        cruise_t=0.0106066017178,
+        decel_t=0,
+        distance=1)
+    toolhead.check_move(2,
+        pos=2,
+        start_v=70.7106781187,
+        cruise_v=70.7106781187,
+        accel_t=0,
+        cruise_t=0.0141421356237,
+        decel_t=0,
+        distance=1)
+    toolhead.check_move(3,
+        pos=3,
+        start_v=70.7106781187,
+        cruise_v=70.7106781187,
+        accel_t=0,
+        cruise_t=0.0106066017178,
+        decel_t=0.00373256245764,
+        distance=1)
+    toolhead.check_move(4,
+        pos=4,
+        start_v=63.2455532034,
+        cruise_v=63.2455532034,
+        accel_t=0,
+        cruise_t=0,
+        decel_t=0.0316227766017,
+        distance=1)
+
+def test_accel_decel_limit_over_multiple_moves_at_start(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5)
+    toolhead.move(1, max_speed=100)
+    toolhead.move(2, max_speed=100)
+    toolhead.move(3, max_speed=100)
+    toolhead.move(4, max_speed=100)
+    toolhead.move(5, max_speed=10)
+    toolhead.move(15, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 6
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=63.2455532034,
+        accel_t=0.0316227766017,
+        cruise_t=0,
+        decel_t=0,
+        distance=1)
+    toolhead.check_move(1,
+        pos=1,
+        start_v=63.2455532034,
+        cruise_v=63.6396103068,
+        accel_t=0.000197028551711,
+        cruise_t=0.015517065476,
+        decel_t=0,
+        distance=1)
+    toolhead.check_move(2,
+        pos=2,
+        start_v=63.6396103068,
+        cruise_v=63.6396103068,
+        accel_t=0,
+        cruise_t=0.0157134840264,
+        decel_t=0,
+        distance=1)
+    toolhead.check_move(3,
+        pos=3,
+        start_v=63.6396103068,
+        cruise_v=63.6396103068,
+        accel_t=0,
+        cruise_t=0.00019641855033,
+        decel_t=0.0268198051534,
+        distance=1)
+    toolhead.check_move(4,
+        pos=4,
+        start_v=10,
+        cruise_v=10,
+        accel_t=0,
+        cruise_t=0.1,
+        decel_t=0,
+        distance=1)
+    toolhead.check_move(5,
+        pos=5,
+        start_v=10,
+        cruise_v=100,
+        accel_t=90.0 / 2000,
+        cruise_t=0.05025,
+        decel_t=100.0 / 2000,
+        distance=10)
