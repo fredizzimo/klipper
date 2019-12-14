@@ -218,8 +218,8 @@ class ToolHead(object):
         self.queue.add_move(Move(self, self.pos, end, max_speed))
         self.pos = end
 
-    def flush(self):
-        self.queue.flush()
+    def flush(self, lazy=False):
+        self.queue.flush(lazy)
 
     def check_move(self, idx, pos, start_v, cruise_v, accel_t, cruise_t,
         decel_t, distance):
@@ -707,3 +707,140 @@ def test_accel_decel_limit_over_multiple_moves_at_start(toolhead):
         cruise_t=0.05025,
         decel_t=100.0 / 2000,
         distance=10)
+
+def test_a_single_move_is_not_lazily_flushed(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
+    toolhead.move(100, max_speed=100)
+    toolhead.flush(True)
+    assert len(toolhead.moves) == 0
+    toolhead.flush()
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=100,
+        accel_t=0.05,
+        cruise_t=0.95,
+        decel_t=0.05,
+        distance=100)
+
+def test_flushing_with_top_speed_reached(
+    toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
+    toolhead.move(10, max_speed=100)
+    toolhead.move(20, max_speed=100)
+    toolhead.move(30, max_speed=100)
+    toolhead.flush(True)
+    # Note, the code is conservative, it could flush the two first moves
+    assert len(toolhead.moves) == 1
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=100,
+        accel_t=0.05,
+        cruise_t=0.075,
+        decel_t=0,
+        distance=10)
+    toolhead.move(40, max_speed=100)
+    toolhead.flush(True)
+    assert len(toolhead.moves) == 2
+    toolhead.check_move(1,
+        pos=10,
+        start_v=100,
+        cruise_v=100,
+        accel_t=0,
+        cruise_t=0.1,
+        decel_t=0,
+        distance=10)
+    toolhead.flush()
+    assert len(toolhead.moves) == 4
+    toolhead.check_move(2,
+        pos=20,
+        start_v=100,
+        cruise_v=100,
+        accel_t=0,
+        cruise_t=0.1,
+        decel_t=0,
+        distance=10)
+    toolhead.check_move(3,
+        pos=30,
+        start_v=100,
+        cruise_v=100,
+        accel_t=0,
+        cruise_t=0.075,
+        decel_t=0.05,
+        distance=10)
+
+def test_flushing_with_speed_peak_reached(
+    toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
+    toolhead.move(10, max_speed=100)
+    toolhead.move(20, max_speed=10)
+    toolhead.move(22, max_speed=100)
+    toolhead.flush(True)
+    # Note, the code is conservative, it could flush the two first moves
+    assert len(toolhead.moves) == 1
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=100,
+        accel_t=0.05,
+        cruise_t=0.05025,
+        decel_t=0.045,
+        distance=10)
+    # Still conservative, one extra move after the peak is needed
+    # So no new move is generated
+    toolhead.move(23, max_speed=100)
+    toolhead.flush(True)
+    assert len(toolhead.moves) == 1
+    # This creates a new peak at the end, but only one move is flushed
+    # Because moves are delayed until the move following the next peak
+    toolhead.move(30, max_speed=10)
+    toolhead.flush(True)
+    assert len(toolhead.moves) == 2
+    toolhead.flush()
+    assert len(toolhead.moves) == 5
+
+def test_flushing_with_speed_peak_reached2(
+    toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
+    toolhead.move(10, max_speed=100)
+    toolhead.move(20, max_speed=10)
+    toolhead.move(21, max_speed=100)
+    toolhead.flush(True)
+    assert len(toolhead.moves) == 1
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=100,
+        accel_t=0.05,
+        cruise_t=0.05025,
+        decel_t=0.045,
+        distance=10)
+    # Still conservative, one extra move after the peak is needed
+    # So no new move is generated
+    toolhead.move(23, max_speed=100)
+    toolhead.flush(True)
+    assert len(toolhead.moves) == 1
+    # This creates a new peak at the end, and therefore two new moves are
+    # flushed (until the second last peak)
+    toolhead.move(30, max_speed=10)
+    toolhead.flush(True)
+    assert len(toolhead.moves) == 3
+    toolhead.flush()
+    assert len(toolhead.moves) == 5
