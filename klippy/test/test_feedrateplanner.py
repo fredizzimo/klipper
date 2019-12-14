@@ -5,7 +5,7 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 
 import pytest
-from toolhead import MoveQueue, Move
+from feedrateplanner import TrapezoidalFeedratePlanner, Move
 from kinematics.extruder import DummyExtruder
 from math import sqrt, ceil
 import plotly.graph_objects as go
@@ -190,7 +190,7 @@ class Plotter(object):
 class ToolHead(object):
     def __init__(self):
         self.moves = []
-        self.queue = MoveQueue(self)
+        self.feedrate_planner = TrapezoidalFeedratePlanner(self)
         self.max_accel = None
         self.max_velocity = None
         self.max_accel_to_decel = None
@@ -215,11 +215,11 @@ class ToolHead(object):
             end = np.array([p for p in end_pos] + [0] * (4-len(end_pos)))
         else:
             end = np.array((end_pos, 0, 0, 0))
-        self.queue.add_move(Move(self, self.pos, end, max_speed))
+        self.feedrate_planner.add_move(Move(self, self.pos, end, max_speed))
         self.pos = end
 
     def flush(self, lazy=False):
-        self.queue.flush(lazy)
+        self.feedrate_planner.flush(lazy)
 
     def check_move(self, idx, pos, start_v, cruise_v, accel_t, cruise_t,
         decel_t, distance):
