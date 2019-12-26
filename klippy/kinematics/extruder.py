@@ -133,16 +133,17 @@ class PrinterExtruder:
         return move.max_cruise_v2
     def move(self, print_time, move):
         axis_r = move.axes_r[3]
-        accel = move.accel * axis_r
-        start_v = move.start_v * axis_r
-        cruise_v = move.cruise_v * axis_r
+        accel = move.profile.accel * axis_r
+        start_v = move.profile.start_v * axis_r
+        cruise_v = move.profile.cruise_v * axis_r
         pressure_advance = 0.
         if axis_r > 0. and (move.axes_d[0] or move.axes_d[1]):
             pressure_advance = self.pressure_advance
         # Queue movement (x is extruder movement, y is pressure advance)
         self.trapq_append(self.trapq, print_time,
-                          move.accel_t, move.cruise_t, move.decel_t,
-                          move.start_pos[3], 0., 0.,
+                          move.profile.accel_t, move.profile.cruise_t,
+                          move.profile.decel_t,
+                          move.profile.start_pos[3], 0., 0.,
                           1., pressure_advance, 0.,
                           start_v, cruise_v, accel)
     def cmd_M104(self, params, wait=False):

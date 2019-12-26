@@ -49,36 +49,37 @@ class Plotter(object):
 
         for move in moves:
             num_ticks = 0
-            if move.accel_t > 0:
-                t = np.linspace(0.0, move.accel_t, int(ceil(move.accel_t / dt)),
-                    endpoint=True, dtype=np.float)
-                x = move.start_v * t + 0.5 * move.accel * t**2
-                v = move.start_v + move.accel * t
-                a = np.full(t.shape[0], move.accel)
+            if move.profile.accel_t > 0:
+                t = np.linspace(0.0, move.profile.accel_t,
+                        int(ceil(move.profile.accel_t / dt)),
+                        endpoint=True, dtype=np.float)
+                x = move.profile.start_v * t + 0.5 * move.profile.accel * t**2
+                v = move.profile.start_v + move.profile.accel * t
+                a = np.full(t.shape[0], move.profile.accel)
                 allowed_v = np.full(t.shape[0], sqrt(move.max_cruise_v2))
                 if num_ticks == 0:
                     allowed_v[0] = sqrt(move.max_start_v2)
                 add_move(t, x, v, a, allowed_v)
                 num_ticks += t.shape[0]
-            if move.cruise_t > 0:
-                t = np.linspace(0.0, move.cruise_t,
-                    int(ceil(move.cruise_t / dt)),
-                    endpoint=True, dtype=np.float)
-                x = move.cruise_v * t
-                v = np.full(t.shape[0], move.cruise_v)
+            if move.profile.cruise_t > 0:
+                t = np.linspace(0.0, move.profile.cruise_t,
+                        int(ceil(move.profile.cruise_t / dt)),
+                        endpoint=True, dtype=np.float)
+                x = move.profile.cruise_v * t
+                v = np.full(t.shape[0], move.profile.cruise_v)
                 a = np.zeros(t.shape[0])
                 allowed_v = np.full(t.shape[0], sqrt(move.max_cruise_v2))
                 if num_ticks == 0:
                     allowed_v[0] = sqrt(move.max_start_v2)
                 add_move(t, x, v, a, allowed_v)
                 num_ticks += t.shape[0]
-            if move.decel_t > 0:
-                t = np.linspace(0.0, move.decel_t,
-                    int(ceil(move.decel_t / dt)), endpoint=True,
-                    dtype=np.float)
-                x = move.cruise_v * t - 0.5 * move.accel * t**2
-                v = move.cruise_v - move.accel * t
-                a = np.full(t.shape[0], -move.accel)
+            if move.profile.decel_t > 0:
+                t = np.linspace(0.0, move.profile.decel_t,
+                        int(ceil(move.profile.decel_t / dt)), endpoint=True,
+                        dtype=np.float)
+                x = move.profile.cruise_v * t - 0.5 * move.profile.accel * t**2
+                v = move.profile.cruise_v - move.profile.accel * t
+                a = np.full(t.shape[0], -move.profile.accel)
                 allowed_v = np.full(t.shape[0], sqrt(move.max_cruise_v2))
                 if num_ticks == 0:
                     allowed_v[0] = sqrt(move.max_start_v2)
@@ -229,18 +230,18 @@ class ToolHead(object):
         else:
             pos = (pos, 0, 0, 0)
         assert move.start_pos == pos
-        assert pytest.approx(move.start_v) == start_v
-        assert pytest.approx(move.cruise_v) == cruise_v
-        assert pytest.approx(move.accel_t) == accel_t
-        assert pytest.approx(move.cruise_t) == cruise_t
-        assert pytest.approx(move.decel_t) == decel_t
+        assert pytest.approx(move.profile.start_v) == start_v
+        assert pytest.approx(move.profile.cruise_v) == cruise_v
+        assert pytest.approx(move.profile.accel_t) == accel_t
+        assert pytest.approx(move.profile.cruise_t) == cruise_t
+        assert pytest.approx(move.profile.decel_t) == decel_t
         assert pytest.approx(get_distance(move)) == distance
 
 def get_distance(move):
-    return (move.start_v * move.accel_t +
-        0.5 * move.accel * move.accel_t**2 +
-        move.cruise_v * (move.cruise_t + move.decel_t) -
-        0.5 * move.accel * move.decel_t**2)
+    return (move.profile.start_v * move.profile.accel_t +
+        0.5 * move.profile.accel * move.profile.accel_t**2 +
+        move.profile.cruise_v * (move.profile.cruise_t + move.profile.decel_t) -
+        0.5 * move.profile.accel * move.profile.decel_t**2)
 
 @pytest.fixture(scope="module")
 def plotter():
