@@ -11,6 +11,36 @@ import math
 #   mm/second), _v2 is velocity squared (mm^2/s^2), _t is time (in
 #   seconds), _r is ratio (scalar between 0.0 and 1.0)
 
+
+class MoveProfile(object):
+    def __init__(self):
+        self.start_v = 0.0
+        self.cruise_v = 0.0
+        self.end_v = 0.0
+
+        self.accel_t = 0.0
+        self.cruise_t = 0.0
+        self.decel_t = 0.0
+
+    def calculate_trapezoidal(self, distance, start_v2, cruise_v2, end_v2,
+                              accel):
+        self.accel = accel
+        # Determine accel, cruise, and decel portions of the move distance
+        half_inv_accel = .5 / accel
+        accel_d = (cruise_v2 - start_v2) * half_inv_accel
+        decel_d = (cruise_v2 - end_v2) * half_inv_accel
+        cruise_d = distance - accel_d - decel_d
+        # Determine move velocities
+        self.start_v = start_v = math.sqrt(start_v2)
+        self.cruise_v = cruise_v = math.sqrt(cruise_v2)
+        self.end_v = end_v = math.sqrt(end_v2)
+        # Determine time spent in each portion of move (time is the
+        # distance divided by average velocity)
+        self.accel_t = accel_d / ((start_v + cruise_v) * 0.5)
+        self.cruise_t = cruise_d / cruise_v
+        self.decel_t = decel_d / ((end_v + cruise_v) * 0.5)
+
+
 # Class to track each move request
 class Move:
     def __init__(self, toolhead, start_pos, end_pos, speed):
@@ -46,6 +76,8 @@ class Move:
         self.delta_v2 = 2.0 * move_d * self.accel
         self.max_smoothed_v2 = 0.
         self.smooth_delta_v2 = 2.0 * move_d * toolhead.max_accel_to_decel
+
+        self.profile = MoveProfile()
     def limit_speed(self, speed, accel):
         speed2 = speed**2
         if speed2 < self.max_cruise_v2:
@@ -83,21 +115,6 @@ class Move:
         self.max_smoothed_v2 = min(
             self.max_start_v2
             , prev_move.max_smoothed_v2 + prev_move.smooth_delta_v2)
-    def set_junction(self, start_v2, cruise_v2, end_v2):
-        # Determine accel, cruise, and decel portions of the move distance
-        half_inv_accel = .5 / self.accel
-        accel_d = (cruise_v2 - start_v2) * half_inv_accel
-        decel_d = (cruise_v2 - end_v2) * half_inv_accel
-        cruise_d = self.move_d - accel_d - decel_d
-        # Determine move velocities
-        self.start_v = start_v = math.sqrt(start_v2)
-        self.cruise_v = cruise_v = math.sqrt(cruise_v2)
-        self.end_v = end_v = math.sqrt(end_v2)
-        # Determine time spent in each portion of move (time is the
-        # distance divided by average velocity)
-        self.accel_t = accel_d / ((start_v + cruise_v) * 0.5)
-        self.cruise_t = cruise_d / cruise_v
-        self.decel_t = decel_d / ((end_v + cruise_v) * 0.5)
 
 LOOKAHEAD_FLUSH_TIME = 0.250
 
@@ -146,14 +163,16 @@ class TrapezoidalFeedratePlanner:
                             mc_v2 = peak_cruise_v2
                             for m, ms_v2, me_v2 in reversed(delayed):
                                 mc_v2 = min(mc_v2, ms_v2)
-                                m.set_junction(min(ms_v2, mc_v2), mc_v2
-                                               , min(me_v2, mc_v2))
+                                m.profile.calculate_trapezoidal(m.move_d,
+                                    min(ms_v2, mc_v2), mc_v2, min(me_v2, mc_v2),
+                                    m.accel)
                         del delayed[:]
                 if not update_flush_count and i < flush_count:
                     cruise_v2 = min((start_v2 + reachable_start_v2) * .5
                                     , move.max_cruise_v2, peak_cruise_v2)
-                    move.set_junction(min(start_v2, cruise_v2), cruise_v2
-                                      , min(next_end_v2, cruise_v2))
+                    move.profile.calculate_trapezoidal(move.move_d,
+                        min(start_v2, cruise_v2), cruise_v2, min(next_end_v2,
+                        cruise_v2), move.accel)
             else:
                 # Delay calculating this move until peak_cruise_v2 is known
                 delayed.append((move, start_v2, next_end_v2))
