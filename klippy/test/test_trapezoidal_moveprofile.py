@@ -1,4 +1,4 @@
-# Tests for the MoveProfile
+# Tests for the MoveProfile with trapezoidal movement
 #
 # Copyright (C) 2019  Fred Sundvik <fsundvik@gmail.com>
 #
