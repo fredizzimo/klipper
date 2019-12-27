@@ -34,6 +34,16 @@ class MoveProfile(object):
         accel_d = (cruise_v2 - start_v2) * half_inv_accel
         decel_d = (cruise_v2 - end_v2) * half_inv_accel
         cruise_d = distance - accel_d - decel_d
+        # Make sure that all distances and therefore the times are positive
+        # Clamp to zero if close to it, so that the whole segment is removed
+        tolerance = 1e-12
+        if accel_d < tolerance:
+            accel_d = 0
+        if decel_d < tolerance:
+            decel_d = 0
+        if cruise_d < tolerance:
+            cruise_d = 0
+
         # Determine move velocities
         self.start_v = start_v = math.sqrt(start_v2)
         self.cruise_v = cruise_v = math.sqrt(cruise_v2)
