@@ -22,6 +22,8 @@ class MoveProfile(object):
         self.cruise_t = 0.0
         self.decel_t = 0.0
 
+        self.accel = 0
+
     def set_trapezoidal_times(self, distance, start_v2, cruise_v2, end_v2,
                              accel):
         start_v2 = min(start_v2, cruise_v2)
