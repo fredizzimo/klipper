@@ -5,6 +5,8 @@ import os
 import numpy as np
 from math import ceil, sqrt
 import pytest
+from feedrateplanner import Move
+import collections
 
 
 class MovePlotter(object):
@@ -17,6 +19,8 @@ class MovePlotter(object):
         self.test_name = name
 
     def plot(self, moves, name=None):
+        if not isinstance(moves, collections.Sequence):
+            moves = (moves,)
         if name is None:
             name = self.test_name
         first = self.html == ""
@@ -43,46 +47,55 @@ class MovePlotter(object):
             xs.append(x)
             vs.append(v)
             accs.append(a)
-            allowed_vs.append(allowed_v)
+            if allowed_v is not None:
+                allowed_vs.append(allowed_v)
 
         move_indices = [-1]
 
         for move in moves:
+            if type(move) is Move:
+                profile = move.profile
+            else:
+                profile = move
+                allowed_v = None
             num_ticks = 0
-            if move.profile.accel_t > 0:
-                t = np.linspace(0.0, move.profile.accel_t,
-                        int(ceil(move.profile.accel_t / dt)),
+            if profile.accel_t > 0:
+                t = np.linspace(0.0, profile.accel_t,
+                        int(ceil(profile.accel_t / dt)),
                         endpoint=True, dtype=np.float)
-                x = move.profile.start_v * t + 0.5 * move.profile.accel * t**2
-                v = move.profile.start_v + move.profile.accel * t
-                a = np.full(t.shape[0], move.profile.accel)
-                allowed_v = np.full(t.shape[0], sqrt(move.max_cruise_v2))
-                if num_ticks == 0:
-                    allowed_v[0] = sqrt(move.max_start_v2)
+                x = profile.start_v * t + 0.5 * profile.accel * t**2
+                v = profile.start_v + profile.accel * t
+                a = np.full(t.shape[0], profile.accel)
+                if type(move) is Move:
+                    allowed_v = np.full(t.shape[0], sqrt(move.max_cruise_v2))
+                    if num_ticks == 0:
+                        allowed_v[0] = sqrt(move.max_start_v2)
                 add_move(t, x, v, a, allowed_v)
                 num_ticks += t.shape[0]
-            if move.profile.cruise_t > 0:
-                t = np.linspace(0.0, move.profile.cruise_t,
-                        int(ceil(move.profile.cruise_t / dt)),
+            if profile.cruise_t > 0:
+                t = np.linspace(0.0, profile.cruise_t,
+                        int(ceil(profile.cruise_t / dt)),
                         endpoint=True, dtype=np.float)
-                x = move.profile.cruise_v * t
-                v = np.full(t.shape[0], move.profile.cruise_v)
+                x = profile.cruise_v * t
+                v = np.full(t.shape[0], profile.cruise_v)
                 a = np.zeros(t.shape[0])
-                allowed_v = np.full(t.shape[0], sqrt(move.max_cruise_v2))
-                if num_ticks == 0:
-                    allowed_v[0] = sqrt(move.max_start_v2)
+                if type(move) is Move:
+                    allowed_v = np.full(t.shape[0], sqrt(move.max_cruise_v2))
+                    if num_ticks == 0:
+                        allowed_v[0] = sqrt(move.max_start_v2)
                 add_move(t, x, v, a, allowed_v)
                 num_ticks += t.shape[0]
-            if move.profile.decel_t > 0:
-                t = np.linspace(0.0, move.profile.decel_t,
-                        int(ceil(move.profile.decel_t / dt)), endpoint=True,
+            if profile.decel_t > 0:
+                t = np.linspace(0.0, profile.decel_t,
+                        int(ceil(profile.decel_t / dt)), endpoint=True,
                         dtype=np.float)
-                x = move.profile.cruise_v * t - 0.5 * move.profile.accel * t**2
-                v = move.profile.cruise_v - move.profile.accel * t
-                a = np.full(t.shape[0], -move.profile.accel)
-                allowed_v = np.full(t.shape[0], sqrt(move.max_cruise_v2))
-                if num_ticks == 0:
-                    allowed_v[0] = sqrt(move.max_start_v2)
+                x = profile.cruise_v * t - 0.5 * profile.accel * t**2
+                v = profile.cruise_v - profile.accel * t
+                a = np.full(t.shape[0], -profile.accel)
+                if type(move) is Move:
+                    allowed_v = np.full(t.shape[0], sqrt(move.max_cruise_v2))
+                    if num_ticks == 0:
+                        allowed_v[0] = sqrt(move.max_start_v2)
                 add_move(t, x, v, a, allowed_v)
                 num_ticks += t.shape[0]
             move_indices.append(move_indices[-1] + num_ticks)
@@ -92,7 +105,8 @@ class MovePlotter(object):
         x = np.concatenate(xs)
         v = np.concatenate(vs)
         a = np.concatenate(accs)
-        allowed_v = np.concatenate(allowed_vs)
+        if allowed_vs:
+            allowed_v = np.concatenate(allowed_vs)
         x_color = DEFAULT_PLOTLY_COLORS[0]
         v_color = DEFAULT_PLOTLY_COLORS[1]
         a_color = DEFAULT_PLOTLY_COLORS[2]
@@ -109,10 +123,11 @@ class MovePlotter(object):
         fig.add_trace(go.Scatter(x=times, y=a, name="acceleration", yaxis="y3",
             legendgroup="acceleration",
             line=go.scatter.Line(color=a_color)))
-        fig.add_trace(go.Scatter(
-            x=times, y=allowed_v, name="allowed velocity", yaxis="y2",
-            legendgroup="allowedvelocity",
-            line=go.scatter.Line(color=av_color, dash="dot")))
+        if allowed_vs:
+            fig.add_trace(go.Scatter(
+                x=times, y=allowed_v, name="allowed velocity", yaxis="y2",
+                legendgroup="allowedvelocity",
+                line=go.scatter.Line(color=av_color, dash="dot")))
         fig.add_trace(go.Scatter(
             x=times[move_indices], y=x[move_indices], mode="markers",
             showlegend=False,
@@ -130,12 +145,13 @@ class MovePlotter(object):
             showlegend=False,
             legendgroup="acceleration",
             marker=go.scatter.Marker(color=a_color)))
-        fig.add_trace(go.Scatter(
-            x=times[move_indices], y=allowed_v[move_indices], mode="markers",
-            yaxis="y2",
-            showlegend=False,
-            legendgroup="allowedvelocity",
-            marker=go.scatter.Marker(color=av_color)))
+        if allowed_vs:
+            fig.add_trace(go.Scatter(
+                x=times[move_indices], y=allowed_v[move_indices], mode="markers",
+                yaxis="y2",
+                showlegend=False,
+                legendgroup="allowedvelocity",
+                marker=go.scatter.Marker(color=av_color)))
 
         fig.update_layout(
             title=go.layout.Title(
