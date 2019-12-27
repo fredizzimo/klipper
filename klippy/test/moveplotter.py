@@ -79,7 +79,7 @@ class MovePlotter(object):
             for segment in segments:
                 segment_t = segment[0]
                 ts = np.linspace(0.0, segment_t,
-                        int(ceil(segment_t / dt)),
+                        max(int(ceil(segment_t / dt)), 2),
                         endpoint=True, dtype=np.float)
                 if not np.isnan(segment[1]):
                     a = segment[1]
