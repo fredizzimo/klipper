@@ -5,6 +5,7 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 
+from __future__ import division
 import math
 
 # Common suffixes: _d is distance (in mm), _v is velocity (in
@@ -23,6 +24,11 @@ class MoveProfile(object):
         self.decel_t = 0.0
 
         self.accel = 0
+
+        self.is_jerk = False
+
+        self.jerk_t = [0.0] * 7
+        self. jerk = 0
 
     def set_trapezoidal_times(self, distance, start_v2, cruise_v2, end_v2,
                              accel):
@@ -61,6 +67,22 @@ class MoveProfile(object):
         cruise_v2 = distance * accel + 0.5 * (start_v2 + end_v2)
         cruise_v2 = min(max_v2, cruise_v2)
         self.set_trapezoidal_times(distance, start_v2, cruise_v2, end_v2, accel)
+
+    def calculate_jerk(self, distance, start_v, max_v, end_v, accel, jerk):
+        self.jerk = jerk
+        jerk_t = accel / jerk
+        self.calculate_trapezoidal(distance, start_v, max_v, end_v, accel)
+        t1 = self.accel_t - jerk_t
+        t3 = self.cruise_t - jerk_t
+        t5 = self.decel_t - jerk_t
+
+        self.jerk_t[0] = jerk_t
+        self.jerk_t[1] = t1
+        self.jerk_t[2] = jerk_t
+        self.jerk_t[3] = t3
+        self.jerk_t[4] = jerk_t
+        self.jerk_t[5] = t5
+        self.jerk_t[6] = jerk_t
 
 
 # Class to track each move request

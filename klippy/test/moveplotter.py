@@ -31,12 +31,24 @@ class MovePlotter(object):
         xs = []
         vs = []
         accs = []
+        jerks = []
 
         move_indices = [-1]
 
         x = 0
         a = 0
         t = 0
+        j = 0
+        jerk_multipliers = [
+            1,
+            0,
+            -1,
+            0,
+            -1,
+            0,
+            1
+        ]
+
         for move in moves:
             if type(move) is Move:
                 profile = move.profile
@@ -45,12 +57,21 @@ class MovePlotter(object):
             
             segments = []
 
-            if profile.accel_t:
-                segments.append((profile.accel_t, profile.accel, 0))
-            if profile.cruise_t:
-                segments.append((profile.cruise_t, 0, 0))
-            if profile.decel_t:
-                segments.append((profile.decel_t, -profile.accel, 0))
+            if profile.jerk == 0:
+                if profile.accel_t:
+                    segments.append((profile.accel_t, profile.accel, 0))
+                if profile.cruise_t:
+                    segments.append((profile.cruise_t, 0, 0))
+                if profile.decel_t:
+                    segments.append((profile.decel_t, -profile.accel, 0))
+            else:
+                acceleration = 0
+                for index, t in enumerate(profile.jerk_t):
+                    if t:
+                        segments.append((t, acceleration,
+                            profile.jerk * jerk_multipliers[index]))
+                        acceleration = np.nan
+                    
 
             v = profile.start_v
 
@@ -60,10 +81,13 @@ class MovePlotter(object):
                 ts = np.linspace(0.0, segment_t,
                         int(ceil(segment_t / dt)),
                         endpoint=True, dtype=np.float)
-                a = segment[1]
-                xs.append(x + v * ts + 0.5 * a * ts**2)
-                vs.append(v + a * ts)
-                accs.append(np.full(ts.shape[0], a))
+                if not np.isnan(segment[1]):
+                    a = segment[1]
+                j = segment[2]
+                xs.append(x + v * ts + 0.5 * a * ts**2 + j * ts**3 / 6.0)
+                vs.append(v + a * ts + 0.5 * j * ts**2)
+                accs.append(a + j * ts)
+                jerks.append(np.full(ts.shape[0], j))
                 ts += t
                 times.append(ts)
                 x = xs[-1][-1]
@@ -79,9 +103,11 @@ class MovePlotter(object):
         x = np.concatenate(xs)
         v = np.concatenate(vs)
         a = np.concatenate(accs)
+        j = np.concatenate(jerks)
         x_color = DEFAULT_PLOTLY_COLORS[0]
         v_color = DEFAULT_PLOTLY_COLORS[1]
         a_color = DEFAULT_PLOTLY_COLORS[2]
+        j_color = DEFAULT_PLOTLY_COLORS[3]
 
         fig.add_trace(go.Scatter(
             x=times, y=x, name="position",
@@ -94,6 +120,9 @@ class MovePlotter(object):
         fig.add_trace(go.Scatter(x=times, y=a, name="acceleration", yaxis="y3",
             legendgroup="acceleration",
             line=go.scatter.Line(color=a_color)))
+        fig.add_trace(go.Scatter(x=times, y=j, name="jerk", yaxis="y4",
+            legendgroup="jerk",
+            line=go.scatter.Line(color=j_color)))
         fig.add_trace(go.Scatter(
             x=times[move_indices], y=x[move_indices], mode="markers",
             showlegend=False,
@@ -110,6 +139,12 @@ class MovePlotter(object):
             yaxis="y3",
             showlegend=False,
             legendgroup="acceleration",
+            marker=go.scatter.Marker(color=a_color)))
+        fig.add_trace(go.Scatter(
+            x=times[move_indices], y=j[move_indices], mode="markers",
+            yaxis="y4",
+            showlegend=False,
+            legendgroup="jerk",
             marker=go.scatter.Marker(color=a_color)))
 
         fig.update_layout(
@@ -145,7 +180,17 @@ class MovePlotter(object):
                 anchor="free",
                 overlaying="y",
                 side="left",
-                position=0.05            )
+                position=0.05
+            ),
+            yaxis4=go.layout.YAxis(
+                title=go.layout.yaxis.Title(
+                    text="mm/s^3"
+                ),
+                anchor="free",
+                overlaying="y",
+                side="left",
+                position=0.0
+            )
         )
 
         plot_html = pio.to_html(fig, include_plotlyjs=first, full_html=first)
