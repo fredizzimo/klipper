@@ -26,6 +26,12 @@ def calculate_distance(profile):
         0.5 * profile.accel * profile.decel_t**2)
 
 def check_profile(profile, distance, start_v, cruise_v, end_v):
+    assert profile.start_v >= 0
+    assert profile.cruise_v >= 0
+    assert profile.end_v >= 0
+    assert profile.accel_t >= 0
+    assert profile.cruise_t >= 0
+    assert profile.decel_t >= 0
     assert pytest.approx(profile.start_v) == start_v
     assert pytest.approx(profile.cruise_v) == cruise_v
     assert pytest.approx(profile.end_v) == end_v
@@ -54,6 +60,7 @@ def test_zero_to_zero_with_no_cruise(move_plotter):
         cruise_v=94.86832980505137,
         end_v=0,
     )
+    assert profile.cruise_t == 0
 
 def test_higher_to_lower_with_cruise(move_plotter):
     profile = MoveProfile()
@@ -76,6 +83,7 @@ def test_higher_to_lower_with_no_cruise(move_plotter):
         cruise_v=88.8819441732,
         end_v=30,
     )
+    assert profile.cruise_t == 0
 
 def test_lower_to_higher_with_cruise(move_plotter):
     profile = MoveProfile()
@@ -98,6 +106,7 @@ def test_lower_to_higher_with_no_cruise(move_plotter):
         cruise_v=88.8819441732,
         end_v=70,
     )
+    assert profile.cruise_t == 0
 
 def test_start_at_cruise_speed(move_plotter):
     profile = MoveProfile()
@@ -109,6 +118,7 @@ def test_start_at_cruise_speed(move_plotter):
         cruise_v=100,
         end_v=20,
     )
+    assert profile.accel_t == 0
 
 def test_end_at_cruise_speed(move_plotter):
     profile = MoveProfile()
@@ -120,6 +130,7 @@ def test_end_at_cruise_speed(move_plotter):
         cruise_v=100,
         end_v=100,
     )
+    assert profile.decel_t == 0
 
 def test_full_accel(move_plotter):
     profile = MoveProfile()
@@ -133,6 +144,8 @@ def test_full_accel(move_plotter):
         cruise_v=60,
         end_v=60,
     )
+    assert profile.cruise_t == 0
+    assert profile.decel_t == 0
 
 def test_full_decel(move_plotter):
     profile = MoveProfile()
@@ -146,35 +159,47 @@ def test_full_decel(move_plotter):
         cruise_v=60,
         end_v=10,
     )
+    assert profile.accel_t == 0
+    assert profile.cruise_t == 0
 
 def test_too_short_accel(move_plotter):
-    # Note that the end speed is modified, so these kind of profiles should not
-    # really be generated, however it's good to supports speeds being slightly
-    # off due to precision issues
+    # Test an acceleration that is very slightly too short for the given
+    # conditions. The algorithm should correctly handle that, and clamp the
+    # times to zero instead of returning negative times (at the cost of slightly
+    # wrong travel distance)
+    # The condition tested could occur because of precision loss in other
+    # calculations
     profile = MoveProfile()
     time = 50.0 / 1000
-    distance = 10 * time + 0.5 * 1000.0 * time**2 - 1
+    distance = 10 * time + 0.5 * 1000.0 * time**2 - 1e-10
     profile.calculate_trapezoidal(distance, 10, 100, 60, 1000)
     move_plotter.plot(profile)
     check_profile(profile,
         distance=distance,
         start_v=10,
-        cruise_v=50.9901951359,
-        end_v=50.9901951359,
+        cruise_v=60,
+        end_v=60,
     )
+    assert profile.cruise_t == 0
+    assert profile.decel_t == 0
 
 def test_too_short_decel(move_plotter):
-    # Note that the start speed is modified, so these kind of profiles should
-    # not really be generated, however it's good to supports speeds being
-    # slightly off due to precision issues
+    # Test an deleration that is very slightly too short for the given
+    # conditions. The algorithm should correctly handle that, and clamp the
+    # times to zero instead of returning negative times (at the cost of slightly
+    # wrong travel distance)
+    # The condition tested could occur because of precision loss in other
+    # calculations
     profile = MoveProfile()
     time = 50.0 / 1000
-    distance = 10 * time + 0.5 * 1000.0 * time**2 - 1
+    distance = 10 * time + 0.5 * 1000.0 * time**2 - 1e-10
     profile.calculate_trapezoidal(distance, 60, 100, 10, 1000)
     move_plotter.plot(profile)
     check_profile(profile,
         distance=distance,
-        start_v=50.9901951359,
-        cruise_v=50.9901951359,
+        start_v=60,
+        cruise_v=60,
         end_v=10,
     )
+    assert profile.accel_t == 0
+    assert profile.cruise_t == 0
