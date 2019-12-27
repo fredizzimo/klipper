@@ -22,8 +22,10 @@ class MoveProfile(object):
         self.cruise_t = 0.0
         self.decel_t = 0.0
 
-    def calculate_trapezoidal(self, distance, start_v2, cruise_v2, end_v2,
-                              accel):
+    def set_trapezoidal_times(self, distance, start_v2, cruise_v2, end_v2,
+                             accel):
+        start_v2 = min(start_v2, cruise_v2)
+        end_v2 = min(end_v2, cruise_v2)
         self.accel = accel
         # Determine accel, cruise, and decel portions of the move distance
         half_inv_accel = .5 / accel
@@ -40,9 +42,17 @@ class MoveProfile(object):
         self.cruise_t = cruise_d / cruise_v
         self.decel_t = decel_d / ((end_v + cruise_v) * 0.5)
 
+    def calculate_trapezoidal(self, distance, start_v, max_v, end_v, accel):
+        max_v2 = max_v**2
+        start_v2 = start_v**2
+        end_v2 = end_v**2
+        cruise_v2 = distance * accel + 0.5 * (start_v2 + end_v2)
+        cruise_v2 = min(max_v2, cruise_v2)
+        self.set_trapezoidal_times(distance, start_v2, cruise_v2, end_v2, accel)
+
 
 # Class to track each move request
-class Move:
+class Move(object):
     def __init__(self, toolhead, start_pos, end_pos, speed):
         self.toolhead = toolhead
         self.start_pos = tuple(start_pos)
@@ -167,16 +177,14 @@ class TrapezoidalFeedratePlanner:
                             mc_v2 = peak_cruise_v2
                             for m, ms_v2, me_v2 in reversed(delayed):
                                 mc_v2 = min(mc_v2, ms_v2)
-                                m.profile.calculate_trapezoidal(m.move_d,
-                                    min(ms_v2, mc_v2), mc_v2, min(me_v2, mc_v2),
-                                    m.accel)
+                                m.profile.set_trapezoidal_times(m.move_d,
+                                    ms_v2, mc_v2, me_v2, m.accel)
                         del delayed[:]
                 if not update_flush_count and i < flush_count:
                     cruise_v2 = min((start_v2 + reachable_start_v2) * .5
                                     , move.max_cruise_v2, peak_cruise_v2)
-                    move.profile.calculate_trapezoidal(move.move_d,
-                        min(start_v2, cruise_v2), cruise_v2, min(next_end_v2,
-                        cruise_v2), move.accel)
+                    move.profile.set_trapezoidal_times(move.move_d, start_v2,
+                        cruise_v2, next_end_v2, move.accel)
             else:
                 # Delay calculating this move until peak_cruise_v2 is known
                 delayed.append((move, start_v2, next_end_v2))
