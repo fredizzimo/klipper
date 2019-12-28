@@ -42,6 +42,8 @@ def calculate_move(profile):
 
 def check_profile(profile, distance, start_v, cruise_v, end_v, max_accel, max_decel, jerk):
     distances, speeds, accs, _ = calculate_move(profile)
+    for t in profile.jerk_t:
+        assert t >= 0, str(profile.jerk_t)
     assert profile.jerk == jerk
     assert profile.start_v >= 0
     assert pytest.approx(profile.start_v) == start_v
@@ -89,6 +91,20 @@ def test_lower_to_higher_with_cruise(move_plotter):
         start_v=30,
         cruise_v=100,
         end_v=70,
+        max_accel=1000,
+        max_decel=1000,
+        jerk=100000
+    )
+
+def test_cruise_to_type2_adaptation(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(10.5, 0, 100, 0, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=10.5,
+        start_v=0,
+        cruise_v=97.5914226434,
+        end_v=0,
         max_accel=1000,
         max_decel=1000,
         jerk=100000
