@@ -14,6 +14,7 @@ import math
 
 
 class MoveProfile(object):
+    tolerance = 1e-12
     def __init__(self):
         self.start_v = 0.0
         self.cruise_v = 0.0
@@ -42,12 +43,11 @@ class MoveProfile(object):
         cruise_d = distance - accel_d - decel_d
         # Make sure that all distances and therefore the times are positive
         # Clamp to zero if close to it, so that the whole segment is removed
-        tolerance = 1e-12
-        if accel_d < tolerance:
+        if accel_d < MoveProfile.tolerance:
             accel_d = 0
-        if decel_d < tolerance:
+        if decel_d < MoveProfile.tolerance:
             decel_d = 0
-        if cruise_d < tolerance:
+        if cruise_d < MoveProfile.tolerance:
             cruise_d = 0
 
         # Determine move velocities
@@ -76,6 +76,12 @@ class MoveProfile(object):
         t1 = self.accel_t - jerk_t
         t3 = self.cruise_t - jerk_t
         t5 = self.decel_t - jerk_t
+
+        if t3 <= -MoveProfile.tolerance:
+            max_v = math.sqrt((accel*jerk_t)**2.0 + 4.0*accel*distance + 2.0*start_v**2.0 + 2.0*end_v**2.0)
+            max_v -= jerk_t * accel
+            max_v /= 2.0
+            return self.calculate_jerk(distance, start_v, max_v, end_v, accel, jerk)
 
         self.jerk_t[0] = jerk_t
         self.jerk_t[1] = t1
