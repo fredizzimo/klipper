@@ -71,7 +71,8 @@ class MoveProfile(object):
     def calculate_jerk(self, distance, start_v, max_v, end_v, accel, jerk):
         self.jerk = jerk
         jerk_t = accel / jerk
-        self.calculate_trapezoidal(distance, start_v, max_v, end_v, accel)
+        delta_distance = start_v * (jerk_t / 2) + end_v * (jerk_t / 2)
+        self.calculate_trapezoidal(distance - delta_distance, start_v, max_v, end_v, accel)
         t1 = self.accel_t - jerk_t
         t3 = self.cruise_t - jerk_t
         t5 = self.decel_t - jerk_t
