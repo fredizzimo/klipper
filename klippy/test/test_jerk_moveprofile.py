@@ -65,3 +65,31 @@ def test_zero_to_zero_with_cruise(move_plotter):
         max_decel=1000,
         jerk=100000
     )
+
+def test_higher_to_lower_with_cruise(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(20, 70, 100, 30, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=20,
+        start_v=70,
+        cruise_v=100,
+        end_v=30,
+        max_accel=1000,
+        max_decel=1000,
+        jerk=100000
+    )
+
+def test_lower_to_higher_with_cruise(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(20, 30, 100, 70, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=20,
+        start_v=30,
+        cruise_v=100,
+        end_v=70,
+        max_accel=1000,
+        max_decel=1000,
+        jerk=100000
+    )
