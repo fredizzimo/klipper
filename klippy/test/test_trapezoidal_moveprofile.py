@@ -228,3 +228,33 @@ def test_zero_to_zero_with_no_cruise_asymetric(move_plotter):
         end_v=30,
     )
     assert profile.cruise_t == 0
+
+def test_full_asymetric_accel(move_plotter):
+    profile = MoveProfile()
+    time = 50.0 / 500
+    distance = 10 * time + 0.5 * 500.0 * time**2
+    profile.calculate_trapezoidal(distance, 10, 100, 60, 500, 1000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=distance,
+        start_v=10,
+        cruise_v=60,
+        end_v=60,
+    )
+    assert profile.cruise_t == 0
+    assert profile.decel_t == 0
+
+def test_full_asymetric_decel(move_plotter):
+    profile = MoveProfile()
+    time = 50.0 / 500
+    distance = 10 * time + 0.5 * 500.0 * time**2
+    profile.calculate_trapezoidal(distance, 60, 100, 10, 1000, 500)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=distance,
+        start_v=60,
+        cruise_v=60,
+        end_v=10,
+    )
+    assert profile.accel_t == 0
+    assert profile.cruise_t == 0
