@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Plans the feedrate with lookahead functionality
 #
 # Copyright (C) 2019  Fred Sundvik <fsundvik@gmail.com>
@@ -69,19 +70,40 @@ class MoveProfile(object):
         self.set_trapezoidal_times(distance, start_v2, cruise_v2, end_v2, accel)
 
     def calculate_jerk(self, distance, start_v, max_v, end_v, accel, jerk):
+        # Calculate a jerk limited profile based on the paper
+        # FIR filter-based online jerk-constrained trajectory generation
+        # by Pierre Besset and Richard Béarée
         self.jerk = jerk
         jerk_t = accel / jerk
+        # The distance needs fixup
         delta_distance = start_v * (jerk_t / 2) + end_v * (jerk_t / 2)
-        self.calculate_trapezoidal(distance - delta_distance, start_v, max_v, end_v, accel)
+        fixed_distance = distance - delta_distance
+        # Start by a trapezoidal profile
+        self.calculate_trapezoidal(fixed_distance, start_v, max_v, end_v, accel)
         t1 = self.accel_t - jerk_t
         t3 = self.cruise_t - jerk_t
         t5 = self.decel_t - jerk_t
 
+        # Case II
         if t3 <= -MoveProfile.tolerance:
-            max_v = math.sqrt((accel*jerk_t)**2.0 + 4.0*accel*distance + 2.0*start_v**2.0 + 2.0*end_v**2.0)
+            # Generate a trapezoidal profile with a cruise time of exactly
+            # jerk_t, by solving for cruise_v from
+            # distance = accel_d + cruise_d + decel_d
+            # which gives 
+            max_v = math.sqrt((accel*jerk_t)**2.0 + 4.0*accel*fixed_distance +
+                2.0*start_v**2.0 + 2.0*end_v**2.0)
             max_v -= jerk_t * accel
             max_v /= 2.0
-            return self.calculate_jerk(distance, start_v, max_v, end_v, accel, jerk)
+            return self.calculate_jerk(distance, start_v, max_v, end_v, accel,
+                jerk)
+
+        # Clamp to zero to remove empty segments
+        if t1 < MoveProfile.tolerance:
+            t1 = 0
+        if t3 < MoveProfile.tolerance:
+            t3 = 0
+        if t5 < MoveProfile.tolerance:
+            t5 = 0
 
         self.jerk_t[0] = jerk_t
         self.jerk_t[1] = t1
