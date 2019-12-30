@@ -16,14 +16,14 @@ def calculate_cruise_speed(profile):
         profile.accel_t)
 
 def calculate_end_speed(profile):
-    return calculate_speed(profile.cruise_v, -profile.accel,
+    return calculate_speed(profile.cruise_v, -profile.decel,
         profile.decel_t)
 
 def calculate_distance(profile):
     return (profile.start_v * profile.accel_t +
         0.5 * profile.accel * profile.accel_t**2 +
         profile.cruise_v * (profile.cruise_t + profile.decel_t) -
-        0.5 * profile.accel * profile.decel_t**2)
+        0.5 * profile.decel * profile.decel_t**2)
 
 def check_profile(profile, distance, start_v, cruise_v, end_v):
     assert profile.start_v >= 0
@@ -202,4 +202,29 @@ def test_too_short_decel(move_plotter):
         end_v=10,
     )
     assert profile.accel_t == 0
+    assert profile.cruise_t == 0
+
+    
+def test_zero_to_zero_with_cruise_asymetric(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_trapezoidal(20, 20, 100, 30, 1000, 500)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=20,
+        start_v=20,
+        cruise_v=100,
+        end_v=30,
+    )
+    assert profile.accel_t < profile.decel_t
+
+def test_zero_to_zero_with_no_cruise_asymetric(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_trapezoidal(10, 20, 100, 30, 1000, 500)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=10,
+        start_v=20,
+        cruise_v=86.0232526704,
+        end_v=30,
+    )
     assert profile.cruise_t == 0

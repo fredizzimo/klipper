@@ -63,7 +63,7 @@ class MovePlotter(object):
                 if profile.cruise_t:
                     segments.append((profile.cruise_t, 0, 0))
                 if profile.decel_t:
-                    segments.append((profile.decel_t, -profile.accel, 0))
+                    segments.append((profile.decel_t, -profile.decel, 0))
             else:
                 acceleration = 0
                 for index, t in enumerate(profile.jerk_t):

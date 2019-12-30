@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 # Plans the feedrate with lookahead functionality
 #
 # Copyright (C) 2019  Fred Sundvik <fsundvik@gmail.com>
@@ -26,6 +27,7 @@ class MoveProfile(object):
         self.decel_t = 0.0
 
         self.accel = 0
+        self.decel = 0
 
         self.is_jerk = False
 
@@ -33,14 +35,18 @@ class MoveProfile(object):
         self. jerk = 0
 
     def set_trapezoidal_times(self, distance, start_v2, cruise_v2, end_v2,
-                             accel):
+                             accel, decel=None):
+        if decel is None:
+            decel = accel
         start_v2 = min(start_v2, cruise_v2)
         end_v2 = min(end_v2, cruise_v2)
         self.accel = accel
+        self.decel = decel
         # Determine accel, cruise, and decel portions of the move distance
         half_inv_accel = .5 / accel
+        half_inv_decel = .5 / decel
         accel_d = (cruise_v2 - start_v2) * half_inv_accel
-        decel_d = (cruise_v2 - end_v2) * half_inv_accel
+        decel_d = (cruise_v2 - end_v2) * half_inv_decel
         cruise_d = distance - accel_d - decel_d
         # Make sure that all distances and therefore the times are positive
         # Clamp to zero if close to it, so that the whole segment is removed
@@ -61,13 +67,26 @@ class MoveProfile(object):
         self.cruise_t = cruise_d / cruise_v
         self.decel_t = decel_d / ((end_v + cruise_v) * 0.5)
 
-    def calculate_trapezoidal(self, distance, start_v, max_v, end_v, accel):
+    def calculate_trapezoidal(self, distance, start_v, max_v, end_v, accel,
+            decel=None):
+
         max_v2 = max_v**2
         start_v2 = start_v**2
         end_v2 = end_v**2
-        cruise_v2 = distance * accel + 0.5 * (start_v2 + end_v2)
+        # The formula is calculated by solving cruise_v2 from
+        # distance = (cruise_v2 - start_v2) / 2 + (cruise_v2 - end_v2) / 2
+        # which is derived from the standard timeless kinematic formula
+        if decel is None:
+            decel = accel
+            cruise_v2 = distance * accel + 0.5 * (start_v2 + end_v2)
+        else:
+            cruise_v2 = 2.0 * accel * decel * distance
+            cruise_v2 += accel * end_v2
+            cruise_v2 += decel * start_v2
+            cruise_v2 /= accel + decel
         cruise_v2 = min(max_v2, cruise_v2)
-        self.set_trapezoidal_times(distance, start_v2, cruise_v2, end_v2, accel)
+        self.set_trapezoidal_times(distance, start_v2, cruise_v2, end_v2, accel,
+            decel)
 
     def calculate_jerk(self, distance, start_v, max_v, end_v, accel, jerk):
         # Calculate a jerk limited profile based on the paper
@@ -84,7 +103,7 @@ class MoveProfile(object):
         t3 = self.cruise_t - jerk_t
         t5 = self.decel_t - jerk_t
 
-        # Case II
+        # Type II
         if t3 <= -MoveProfile.tolerance:
             # Generate a trapezoidal profile with a cruise time of exactly
             # jerk_t, by solving for cruise_v from
@@ -96,6 +115,7 @@ class MoveProfile(object):
             max_v /= 2.0
             return self.calculate_jerk(distance, start_v, max_v, end_v, accel,
                 jerk)
+        
 
         # Clamp to zero to remove empty segments
         if t1 < MoveProfile.tolerance:
