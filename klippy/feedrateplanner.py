@@ -128,10 +128,17 @@ class MoveProfile(object):
             max_v /= 2.0
             return self.calculate_jerk(distance, start_v, max_v, end_v, accel,
                 jerk)
-
+        # Type III-a
         if t1 <= -MoveProfile.tolerance:
             delta_v = max_v - start_v
             accel = math.sqrt(jerk * delta_v)
+            return self.calculate_jerk(distance, start_v, max_v, end_v, accel,
+                jerk, decel)
+
+        # Type III-b
+        if t5 <= -MoveProfile.tolerance:
+            delta_v = max_v - end_v
+            decel = math.sqrt(jerk * delta_v)
             return self.calculate_jerk(distance, start_v, max_v, end_v, accel,
                 jerk, decel)
         
