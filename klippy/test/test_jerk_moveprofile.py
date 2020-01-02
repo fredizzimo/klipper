@@ -155,3 +155,18 @@ def test_type_III_a_adaptation(move_plotter):
         jerk=100000
     )
     assert profile.jerk_t[1] == 0
+
+def test_type_III_b_adaptation(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(20, 30, 100, 95, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=20,
+        start_v=30,
+        cruise_v=100,
+        end_v=95,
+        max_accel=1000,
+        max_decel=707.106781187,
+        jerk=100000
+    )
+    assert profile.jerk_t[5] == 0
