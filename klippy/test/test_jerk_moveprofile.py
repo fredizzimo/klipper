@@ -126,7 +126,7 @@ def test_cruise_to_type2_adaptation_to_higher(move_plotter):
     )
     assert profile.jerk_t[3] == 0
 
-def test_no_cruise_to_type2_adaptation(move_plotter):
+def test_no_cruise_to_II_adaptation(move_plotter):
     profile = MoveProfile()
     profile.calculate_jerk(5, 50, 100, 30, 1000, 100000)
     move_plotter.plot(profile)
@@ -140,3 +140,18 @@ def test_no_cruise_to_type2_adaptation(move_plotter):
         jerk=100000
     )
     assert profile.jerk_t[3] == 0
+
+def test_type_III_a_adaptation(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(20, 95, 100, 30, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=20,
+        start_v=95,
+        cruise_v=100,
+        end_v=30,
+        max_accel=707.106781187,
+        max_decel=1000,
+        jerk=100000
+    )
+    assert profile.jerk_t[1] == 0
