@@ -26,7 +26,7 @@ class MovePlotter(object):
         first = self.html == ""
         fig = go.Figure()
 
-        dt = 0.001
+        dt = 0.0001
         times = []
         xs = []
         vs = []
@@ -66,9 +66,9 @@ class MovePlotter(object):
                     segments.append((profile.decel_t, -profile.decel, 0))
             else:
                 acceleration = 0
-                for index, t in enumerate(profile.jerk_t):
-                    if t:
-                        segments.append((t, acceleration,
+                for index, jt in enumerate(profile.jerk_t):
+                    if jt:
+                        segments.append((jt, acceleration,
                             profile.jerk * jerk_multipliers[index]))
                         acceleration = np.nan
                     
