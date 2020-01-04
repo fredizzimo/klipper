@@ -29,8 +29,6 @@ class MoveProfile(object):
         self.accel = 0
         self.decel = 0
 
-        self.is_jerk = False
-
         self.jerk_t = [0.0] * 7
         self. jerk = 0
 
@@ -88,11 +86,40 @@ class MoveProfile(object):
         self.set_trapezoidal_times(distance, start_v2, cruise_v2, end_v2, accel,
             decel)
 
+
+    def get_min_allowed_jerk_distance(self, v1, v2, a_max, jerk):
+        a_max = 1000.0
+        v_s = min(v1, v2)
+        v_e = max(v1, v2)
+        jerk = 100000.0
+        distance = v_s*a_max**2 + v_e*a_max**2 - jerk*v_s**2 + jerk*v_e**2
+        distance /= 2.0 * a_max*jerk
+        return distance
+
     def calculate_jerk(self, distance, start_v, max_v, end_v, accel, jerk,
                        decel=None, last_type=0):
         # Calculate a jerk limited profile based on the paper
         # FIR filter-based online jerk-constrained trajectory generation
         # by Pierre Besset and Richard Béarée
+
+        # Return a trapezoidal profile with no speed change, if the distance
+        # is too short
+        if distance < self.get_min_allowed_jerk_distance(
+                start_v, end_v, max(accel, decel), jerk):
+            self.jerk = 0
+            self.start_v = start_v
+            self.cruise_v = start_v
+            self.end_v = start_v
+
+            self.accel_t = 0
+            self.cruise_t = distance / start_v
+            self.decel_t = 0
+
+            self.accel = 0
+            self.decel = 0
+            
+            return
+
         if decel is None:
             decel = accel
         self.jerk = jerk
