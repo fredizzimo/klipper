@@ -6,6 +6,7 @@
 from moveplotter import move_plotter, move_plotter_module
 from feedrateplanner import MoveProfile
 import pytest
+from math import sqrt
 
 def calculate_move(profile):
     x = 0
@@ -52,6 +53,16 @@ def check_profile(profile, distance, start_v, cruise_v, end_v, max_accel, max_de
     assert pytest.approx(accs[0]) == max_accel
     assert pytest.approx(accs[4]) == -max_decel
     assert pytest.approx(distances[-1]) == distance
+
+
+def get_min_allowed_distance(v1, v2, a_max, jerk):
+    a_max = 1000.0
+    v_s = min(v1, v2)
+    v_e = max(v1, v2)
+    jerk = 100000.0
+    distance = v_s*a_max**2 + v_e*a_max**2 - jerk*v_s**2 + jerk*v_e**2
+    distance /= 2.0 * a_max*jerk
+    return distance
 
 def test_zero_to_zero_with_cruise(move_plotter):
     profile = MoveProfile()
@@ -355,13 +366,8 @@ def test_lower_to_higher_with_no_initial_cruise_II_b_adaptation(move_plotter):
 
 def test_no_deceleration_max_a_reached(move_plotter):
     profile = MoveProfile()
-    a_max = 1000.0
-    v_s = 30.0
-    v_e = 70.0
-    jerk = 100000.0
-    distance = v_s*a_max**2 + v_e*a_max**2 - jerk*v_s**2 + jerk*v_e**2
-    distance /= 2.0 * a_max*jerk
-    profile.calculate_jerk(distance, v_s, 100, v_e, a_max, jerk)
+    distance = get_min_allowed_distance(30, 70, 1000, 100000)
+    profile.calculate_jerk(distance, 30, 100, 70, 1000, 100000)
     move_plotter.plot(profile)
     check_profile(profile,
         distance=distance,
@@ -373,15 +379,94 @@ def test_no_deceleration_max_a_reached(move_plotter):
         jerk=100000
     )
 
+def test_no_deceleration_max_a_reached_and_dist_slightly_longer(move_plotter):
+    # Note that this seems to be slightly sub-optimal, see the comment in 
+    # the implementation type II adapatation for an explanation
+    profile = MoveProfile()
+    distance = get_min_allowed_distance(30, 70, 1000, 100000)
+    distance += 0.1
+    profile.calculate_jerk(distance, 30, 100, 70, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=distance,
+        start_v=30,
+        cruise_v=70,
+        end_v=70,
+        max_accel=1000,
+        max_decel=0,
+        jerk=100000
+    )
+
+def test_no_deceleration_max_a_exactly_reached(move_plotter):
+    profile = MoveProfile()
+    distance = get_min_allowed_distance(30, 40, 1000, 100000)
+    profile.calculate_jerk(distance, 30, 100, 40, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=distance,
+        start_v=30,
+        cruise_v=40,
+        end_v=40,
+        max_accel=1000,
+        max_decel=0,
+        jerk=100000
+    )
+
+def test_no_deceleration_max_a_not_reached(move_plotter):
+    profile = MoveProfile()
+    distance = get_min_allowed_distance(30, 35, 1000, 100000)
+    profile.calculate_jerk(distance, 30, 100, 35, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=distance,
+        start_v=30,
+        cruise_v=35,
+        end_v=35,
+        max_accel=707.106781187,
+        max_decel=0,
+        jerk=100000
+    )
+
+def test_no_deceleration_max_a_not_reached_dist_slightly_longer(move_plotter):
+    # Note that this seems to be slightly sub-optimal, see the comment in 
+    # the implementation type II adapatation for an explanation
+    profile = MoveProfile()
+    distance = get_min_allowed_distance(30, 35, 1000, 100000)
+    distance += 0.1
+    profile.calculate_jerk(distance, 30, 100, 35, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=distance,
+        start_v=30,
+        cruise_v=35,
+        end_v=35,
+        max_accel=707.106781187,
+        max_decel=0,
+        jerk=100000
+    )
+
+def test_no_deceleration_max_a_not_reached_dist_even_longer(move_plotter):
+    # In this case the distance is long enough for an actual acceleration above
+    # v_e
+    profile = MoveProfile()
+    distance = get_min_allowed_distance(30, 35, 1000, 100000)
+    distance += 0.2
+    profile.calculate_jerk(distance, 30, 100, 35, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=distance,
+        start_v=30,
+        cruise_v=35.3297131117,
+        end_v=35,
+        max_accel=730.048841635,
+        max_decel=181.580040677,
+        jerk=100000
+    )
+
 def test_no_acceleration_max_a_reached(move_plotter):
     profile = MoveProfile()
-    a_max = 1000.0
-    v_s = 70.0
-    v_e = 30.0
-    jerk = 100000.0
-    distance = v_s*a_max**2 + v_e*a_max**2 + jerk*v_s**2 - jerk*v_e**2
-    distance /= 2.0 * a_max*jerk
-    profile.calculate_jerk(distance, v_s, 100, v_e, a_max, jerk)
+    distance = get_min_allowed_distance(70, 30, 1000, 100000)
+    profile.calculate_jerk(distance, 70, 100, 30, 1000, 100000)
     move_plotter.plot(profile)
     check_profile(profile,
         distance=distance,
@@ -390,5 +475,89 @@ def test_no_acceleration_max_a_reached(move_plotter):
         end_v=30,
         max_accel=0,
         max_decel=1000,
+        jerk=100000
+    )
+
+def test_no_acceleration_max_a_reached_and_dist_slightly_longer(move_plotter):
+    # Note that this seems to be slightly sub-optimal, see the comment in 
+    # the implementation type II adapatation for an explanation
+    profile = MoveProfile()
+    distance = get_min_allowed_distance(70, 30, 1000, 100000)
+    distance += 0.1
+    profile.calculate_jerk(distance, 70, 100, 30, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=distance,
+        start_v=70,
+        cruise_v=70,
+        end_v=30,
+        max_accel=0,
+        max_decel=1000,
+        jerk=100000
+    )
+
+def test_no_acceleration_max_a_exactly_reached(move_plotter):
+    profile = MoveProfile()
+    distance = get_min_allowed_distance(40, 30, 1000, 100000)
+    profile.calculate_jerk(distance, 40, 100, 30, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=distance,
+        start_v=40,
+        cruise_v=40,
+        end_v=30,
+        max_accel=0,
+        max_decel=1000,
+        jerk=100000
+    )
+
+def test_no_acceleration_max_a_not_reached(move_plotter):
+    profile = MoveProfile()
+    distance = get_min_allowed_distance(35, 30, 1000, 100000)
+    profile.calculate_jerk(distance, 35, 100, 30, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=distance,
+        start_v=35,
+        cruise_v=35,
+        end_v=30,
+        max_accel=0,
+        max_decel=707.106781187,
+        jerk=100000
+    )
+
+def test_no_acceleration_max_a_not_reached_dist_slightly_longer(move_plotter):
+    # Note that this seems to be slightly sub-optimal, see the comment in 
+    # the implementation type II adapatation for an explanation
+    profile = MoveProfile()
+    distance = get_min_allowed_distance(35, 30, 1000, 100000)
+    distance += 0.1
+    profile.calculate_jerk(distance, 35, 100, 30, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=distance,
+        start_v=35,
+        cruise_v=35,
+        end_v=30,
+        max_accel=0,
+        max_decel=707.106781187,
+        jerk=100000
+    )
+
+def test_no_acceleration_max_a_not_reached_dist_even_longer(move_plotter):
+    # In this case the distance is long enough for an actual acceleration above
+    # v_e
+    profile = MoveProfile()
+    distance = get_min_allowed_distance(35, 30, 1000, 100000)
+    distance += 0.2
+    profile.calculate_jerk(distance, 35, 100, 30, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=distance,
+        start_v=35,
+        cruise_v=35.2661134255,
+        end_v=30,
+        max_accel=163.129833424,
+        max_decel=725.679917424,
         jerk=100000
     )

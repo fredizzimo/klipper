@@ -116,7 +116,7 @@ class MoveProfile(object):
         t1 = self.accel_t - accel_jerk_t
         t3 = self.cruise_t - accel_jerk_t
         t5 = self.decel_t - decel_jerk_t
-        if self.cruise_v < max_v:
+        if max_v - self.cruise_v > self.tolerance:
             return self.calculate_jerk(distance, start_v, self.cruise_v, end_v,
                 accel, jerk, decel, last_type)
 
@@ -154,6 +154,13 @@ class MoveProfile(object):
             max_v = math.sqrt(max_v)
             max_v -= jerk_t*ad
             max_v /= (accel + decel)
+            # If the calculated max_v can't be reached, then set it to either
+            # the start or end velocity. This is an indication that either the
+            # start acceleration or end deceleration is missing
+            # A type III adaptation will follow, which changes the fixup
+            # distance, so that the velocity actually is reached
+            # Note: This case is slightly suboptimal since the move ends with a
+            # constant speed segement, rather than deceleration
             max_v = max(max_v, start_v, end_v)
             return self.calculate_jerk(distance, start_v, max_v, end_v, accel,
                 jerk, decel, 2)
