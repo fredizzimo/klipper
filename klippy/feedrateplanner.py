@@ -89,7 +89,7 @@ class MoveProfile(object):
             decel)
 
     def calculate_jerk(self, distance, start_v, max_v, end_v, accel, jerk,
-                       decel=None):
+                       decel=None, last_type=0):
         # Calculate a jerk limited profile based on the paper
         # FIR filter-based online jerk-constrained trajectory generation
         # by Pierre Besset and Richard Béarée
@@ -114,22 +114,8 @@ class MoveProfile(object):
         t3 = self.cruise_t - accel_jerk_t
         t5 = self.decel_t - decel_jerk_t
 
-        # Type II
-        if t3 <= -MoveProfile.tolerance:
-            # Generate a trapezoidal profile with a cruise time of exactly
-            # jerk_t, by solving for cruise_v from
-            # distance = accel_d + cruise_d + decel_d
-            # which gives 
-            # TODO: This needs fixup for type II adaptation after a type III one
-            jerk_t = accel_jerk_t
-            max_v = math.sqrt((accel*jerk_t)**2.0 + 4.0*accel*fixed_distance +
-                2.0*start_v**2.0 + 2.0*end_v**2.0)
-            max_v -= jerk_t * accel
-            max_v /= 2.0
-            return self.calculate_jerk(distance, start_v, max_v, end_v, accel,
-                jerk)
-
-        if t1 <= -MoveProfile.tolerance or t5 <= -MoveProfile.tolerance:
+        if (last_type != 3 and
+            t1 <= -MoveProfile.tolerance or t5 <= -MoveProfile.tolerance):
             # Type III-a
             if t1 <= -MoveProfile.tolerance:
                 delta_v = max_v - start_v
@@ -139,10 +125,31 @@ class MoveProfile(object):
             if t5 <= -MoveProfile.tolerance:
                 delta_v = max_v - end_v
                 decel = math.sqrt(jerk * delta_v)
-
+            
             return self.calculate_jerk(distance, start_v, max_v, end_v, accel,
-                jerk, decel)
-        
+                jerk, decel, 3)
+
+        # Type II
+        if t3 <= -MoveProfile.tolerance:
+            # Generate a trapezoidal profile with a cruise time of exactly
+            # jerk_t, by solving for cruise_v from
+            # distance = accel_d + cruise_d + decel_d
+            jerk_t = accel_jerk_t
+            jerk_t2 = jerk_t**2
+            ad = accel*decel
+            start_v2 = start_v**2
+            end_v2 = end_v**2
+            accel2 = accel**2
+            decel2 = decel**2
+            distance2 = fixed_distance*2
+            max_v = ad*(start_v2 + end_v2)
+            max_v += accel2*(decel*distance2 + end_v2)
+            max_v += decel2*(accel*distance2 + jerk_t2*accel2 + start_v2)
+            max_v = math.sqrt(max_v)
+            max_v -= jerk_t*ad
+            max_v /= (accel + decel)
+            return self.calculate_jerk(distance, start_v, max_v, end_v, accel,
+                jerk, decel, 2)
 
         # Clamp to zero to remove empty segments
         if t1 < MoveProfile.tolerance:
