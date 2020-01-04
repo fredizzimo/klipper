@@ -186,3 +186,127 @@ def test_type_III_c_adaptation(move_plotter):
     )
     assert profile.jerk_t[1] == 0
     assert profile.jerk_t[5] == 0
+
+def test_type_ii_adaptation_not_needed_after_type_iii_a(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(6.6, 95, 100, 30, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=6.6,
+        start_v=95,
+        cruise_v=100,
+        end_v=30,
+        max_accel=707.106781187,
+        max_decel=1000,
+        jerk=100000
+    )
+    assert profile.jerk_t[1] == 0
+
+def test_type_ii_adaptation_not_needed_after_type_iii_b(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(6.6, 30, 100, 95, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=6.6,
+        start_v=30,
+        cruise_v=100,
+        end_v=95,
+        max_accel=1000,
+        max_decel=707.106781187,
+        jerk=100000
+    )
+    assert profile.jerk_t[5] == 0
+
+def test_type_ii_adaptation_not_needed_after_type_iii_c(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(2.8, 95, 100, 95, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=2.8,
+        start_v=95,
+        cruise_v=100,
+        end_v=95,
+        max_accel=707.106781187,
+        max_decel=707.106781187,
+        jerk=100000
+    )
+    assert profile.jerk_t[1] == 0
+    assert profile.jerk_t[5] == 0
+
+def test_type_III_a_to_type_IIII_a_adaptation(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(6.4, 95, 100, 30, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=6.4,
+        start_v=95,
+        cruise_v=99.2776922435,
+        end_v=30,
+        max_accel=654.040690135,
+        max_decel=1000,
+        jerk=100000
+    )
+    assert profile.jerk_t[1] == 0
+
+def test_type_III_b_to_type_IIII_b_adaptation(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(6.4, 30, 100, 95, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=6.4,
+        start_v=30,
+        cruise_v=99.286165187,
+        end_v=95,
+        max_accel=1000,
+        max_decel=654.688107957,
+        jerk=100000
+    )
+    assert profile.jerk_t[5] == 0
+
+def test_type_III_c_to_type_IIII_c_adaptation(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(2.7, 95, 100, 95, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=2.7,
+        start_v=95,
+        cruise_v=99.8007248714,
+        end_v=95,
+        max_accel=692.872634136,
+        max_decel=692.872634136,
+        jerk=100000
+    )
+    assert profile.jerk_t[1] == 0
+    assert profile.jerk_t[5] == 0
+
+def test_type_III_c_to_type_IIII_c_adaptation_increasing(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(2.6, 95, 100, 96, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=2.6,
+        start_v=95,
+        cruise_v=99.9397386669,
+        end_v=96,
+        max_accel=702.832744463,
+        max_decel=627.673375801,
+        jerk=100000
+    )
+    assert profile.jerk_t[1] == 0
+    assert profile.jerk_t[5] == 0
+
+def test_type_III_c_to_type_IIII_c_adaptation_decreasing(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(2.6, 96, 100, 95, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=2.6,
+        start_v=96,
+        cruise_v=99.9395915,
+        end_v=95,
+        max_accel=627.661652485,
+        max_decel=702.822274832,
+        jerk=100000
+    )
+    assert profile.jerk_t[1] == 0
+    assert profile.jerk_t[5] == 0
