@@ -107,15 +107,21 @@ class MoveProfile(object):
         delta_distance /= 2.0 * jerk
         fixed_distance = distance - delta_distance
 
+        # Avoid zeros, for the rest of the calculations
+        accel = max(accel, self.tolerance)
+        decel = max(decel, self.tolerance)
         # Start by a trapezoidal profile
         self.calculate_trapezoidal(fixed_distance, start_v, max_v, end_v, accel,
                                    decel)
         t1 = self.accel_t - accel_jerk_t
         t3 = self.cruise_t - accel_jerk_t
         t5 = self.decel_t - decel_jerk_t
+        if self.cruise_v < max_v:
+            return self.calculate_jerk(distance, start_v, self.cruise_v, end_v,
+                accel, jerk, decel, last_type)
 
         if (last_type != 3 and
-            t1 <= -MoveProfile.tolerance or t5 <= -MoveProfile.tolerance):
+            (t1 <= -MoveProfile.tolerance or t5 <= -MoveProfile.tolerance)):
             # Type III-a
             if t1 <= -MoveProfile.tolerance:
                 delta_v = max_v - start_v
@@ -148,6 +154,7 @@ class MoveProfile(object):
             max_v = math.sqrt(max_v)
             max_v -= jerk_t*ad
             max_v /= (accel + decel)
+            max_v = max(max_v, start_v, end_v)
             return self.calculate_jerk(distance, start_v, max_v, end_v, accel,
                 jerk, decel, 2)
 
