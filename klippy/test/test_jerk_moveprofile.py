@@ -310,3 +310,31 @@ def test_type_III_c_to_type_IIII_c_adaptation_decreasing(move_plotter):
     )
     assert profile.jerk_t[1] == 0
     assert profile.jerk_t[5] == 0
+    
+def test_lower_to_higher_with_no_initial_cruise(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(5, 30, 100, 70, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=5,
+        start_v=30,
+        cruise_v=81.1684396981,
+        end_v=70,
+        max_accel=1000,
+        max_decel=1000,
+        jerk=100000
+    )
+
+def test_higher_to_lower_with_no_initial_cruise(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(5, 70, 100, 30, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=5,
+        start_v=70,
+        cruise_v=81.1684396981,
+        end_v=30,
+        max_accel=1000,
+        max_decel=1000,
+        jerk=100000
+    )
