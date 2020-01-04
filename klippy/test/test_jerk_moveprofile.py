@@ -338,3 +338,57 @@ def test_higher_to_lower_with_no_initial_cruise(move_plotter):
         max_decel=1000,
         jerk=100000
     )
+
+def test_lower_to_higher_with_no_initial_cruise_II_b_adaptation(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(3.5, 30, 100, 70, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=3.5,
+        start_v=30,
+        cruise_v=72.5544399189,
+        end_v=70,
+        max_accel=1000,
+        max_decel=505.414673203,
+        jerk=100000
+    )
+
+def test_no_deceleration_max_a_reached(move_plotter):
+    profile = MoveProfile()
+    a_max = 1000.0
+    v_s = 30.0
+    v_e = 70.0
+    jerk = 100000.0
+    distance = v_s*a_max**2 + v_e*a_max**2 - jerk*v_s**2 + jerk*v_e**2
+    distance /= 2.0 * a_max*jerk
+    profile.calculate_jerk(distance, v_s, 100, v_e, a_max, jerk)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=distance,
+        start_v=30,
+        cruise_v=70,
+        end_v=70,
+        max_accel=1000,
+        max_decel=0,
+        jerk=100000
+    )
+
+def test_no_acceleration_max_a_reached(move_plotter):
+    profile = MoveProfile()
+    a_max = 1000.0
+    v_s = 70.0
+    v_e = 30.0
+    jerk = 100000.0
+    distance = v_s*a_max**2 + v_e*a_max**2 + jerk*v_s**2 - jerk*v_e**2
+    distance /= 2.0 * a_max*jerk
+    profile.calculate_jerk(distance, v_s, 100, v_e, a_max, jerk)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=distance,
+        start_v=70,
+        cruise_v=70,
+        end_v=30,
+        max_accel=0,
+        max_decel=1000,
+        jerk=100000
+    )
