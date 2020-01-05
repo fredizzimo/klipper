@@ -31,6 +31,7 @@ class MoveProfile(object):
 
         self.jerk_t = [0.0] * 7
         self. jerk = 0
+        self.start_accel = 0
 
     def set_trapezoidal_times(self, distance, start_v2, cruise_v2, end_v2,
                              accel, decel=None):
@@ -96,16 +97,18 @@ class MoveProfile(object):
         distance /= 2.0 * a_max*jerk
         return distance
 
-    def calculate_jerk(self, distance, start_v, max_v, end_v, accel, jerk,
-                       decel=None, last_type=0):
+    def calculate_jerk(self, distance, start_v, max_v, end_v, max_accel, jerk,
+                       max_decel=None, start_accel=0, end_decel=0, last_type=0):
         # Calculate a jerk limited profile based on the paper
         # FIR filter-based online jerk-constrained trajectory generation
         # by Pierre Besset and Richard Béarée
 
         # Return a trapezoidal profile with no speed change, if the distance
         # is too short
+        if max_decel is None:
+            max_decel = max_accel
         if distance < self.get_min_allowed_jerk_distance(
-                start_v, end_v, max(accel, decel), jerk):
+                start_v, end_v, max(max_accel, max_decel), jerk):
             self.jerk = 0
             self.start_v = start_v
             self.cruise_v = start_v
@@ -120,47 +123,65 @@ class MoveProfile(object):
             
             return
 
-        if decel is None:
-            decel = accel
         self.jerk = jerk
-        accel_jerk_t = accel / jerk
-        decel_jerk_t = decel / jerk
+        self.start_accel = start_accel
+        accel_jerk_t = (max_accel-start_accel) / jerk
+        cruise_jerk_t = max_accel / jerk
+        decel_jerk_t = max_decel / jerk
 
         # The distance needs fixup
         # The delta is calculated as the difference between the distance
         # traveled by the jerk profile and the actual segment distance
-        delta_distance = accel * start_v + decel * max_v + decel * end_v
-        delta_distance -= accel * max_v
-        delta_distance /= 2.0 * jerk
+        x0 = 1.0 / jerk
+        x1 = 6.0 * max_accel
+        x2 = 6.0 * max_decel
+        x3 = 3.0*max_accel - 2.0*start_accel
+        x3 *= x0
+        x3 *= start_accel**2
+        x4 = start_v - max_v
+        x4 *= x1
+        x5 = max_v + end_v
+        x5 *= x2
+        delta_distance = x3 + x4 + x5
+        delta_distance *= x0
+        delta_distance /= 12
+
         fixed_distance = distance - delta_distance
 
+        delta_v = 2.0 * max_accel - start_accel
+        delta_v *=  start_accel
+        delta_v /= 2.0 * jerk
+
+        fixed_v = start_v + delta_v
+
         # Avoid zeros, for the rest of the calculations
-        accel = max(accel, self.tolerance)
-        decel = max(decel, self.tolerance)
+        max_accel = max(max_accel, self.tolerance)
+        max_decel = max(max_decel, self.tolerance)
         # Start by a trapezoidal profile
-        self.calculate_trapezoidal(fixed_distance, start_v, max_v, end_v, accel,
-                                   decel)
+        self.calculate_trapezoidal(fixed_distance, fixed_v, max_v, end_v,
+            max_accel, max_decel)
         t1 = self.accel_t - accel_jerk_t
-        t3 = self.cruise_t - accel_jerk_t
+        t3 = self.cruise_t - cruise_jerk_t
         t5 = self.decel_t - decel_jerk_t
         if max_v - self.cruise_v > self.tolerance:
             return self.calculate_jerk(distance, start_v, self.cruise_v, end_v,
-                accel, jerk, decel, last_type)
+                max_accel, jerk, max_decel, start_accel, end_decel,
+                last_type)
 
         if (last_type != 3 and
             (t1 <= -MoveProfile.tolerance or t5 <= -MoveProfile.tolerance)):
             # Type III-a
             if t1 <= -MoveProfile.tolerance:
                 delta_v = max_v - start_v
-                accel = math.sqrt(jerk * delta_v)
+                max_accel = math.sqrt(jerk * delta_v)
 
             # Type III-b
             if t5 <= -MoveProfile.tolerance:
                 delta_v = max_v - end_v
-                decel = math.sqrt(jerk * delta_v)
+                max_decel = math.sqrt(jerk * delta_v)
             
-            return self.calculate_jerk(distance, start_v, max_v, end_v, accel,
-                jerk, decel, 3)
+            return self.calculate_jerk(distance, start_v, max_v, end_v,
+                max_accel, jerk, max_decel, start_accel, end_decel, 3)
 
         # Type II
         if t3 <= -MoveProfile.tolerance:
@@ -169,18 +190,18 @@ class MoveProfile(object):
             # distance = accel_d + cruise_d + decel_d
             jerk_t = accel_jerk_t
             jerk_t2 = jerk_t**2
-            ad = accel*decel
+            ad = max_accel * max_decel
             start_v2 = start_v**2
             end_v2 = end_v**2
-            accel2 = accel**2
-            decel2 = decel**2
+            accel2 = max_accel**2
+            decel2 = max_decel**2
             distance2 = fixed_distance*2
             max_v = ad*(start_v2 + end_v2)
-            max_v += accel2*(decel*distance2 + end_v2)
-            max_v += decel2*(accel*distance2 + jerk_t2*accel2 + start_v2)
+            max_v += accel2*(max_decel*distance2 + end_v2)
+            max_v += decel2*(max_accel*distance2 + jerk_t2*accel2 + start_v2)
             max_v = math.sqrt(max_v)
             max_v -= jerk_t*ad
-            max_v /= (accel + decel)
+            max_v /= (max_accel + max_decel)
             # If the calculated max_v can't be reached, then set it to either
             # the start or end velocity. This is an indication that either the
             # start acceleration or end deceleration is missing
@@ -189,8 +210,8 @@ class MoveProfile(object):
             # Note: This case is slightly suboptimal since the move ends with a
             # constant speed segement, rather than deceleration
             max_v = max(max_v, start_v, end_v)
-            return self.calculate_jerk(distance, start_v, max_v, end_v, accel,
-                jerk, decel, 2)
+            return self.calculate_jerk(distance, start_v, max_v, end_v,
+                max_accel, jerk, max_decel, start_accel, end_decel, 2)
 
         # Clamp to zero to remove empty segments
         if t1 < MoveProfile.tolerance:
@@ -202,11 +223,12 @@ class MoveProfile(object):
 
         self.jerk_t[0] = accel_jerk_t
         self.jerk_t[1] = t1
-        self.jerk_t[2] = accel_jerk_t
+        self.jerk_t[2] = cruise_jerk_t
         self.jerk_t[3] = t3
         self.jerk_t[4] = decel_jerk_t
         self.jerk_t[5] = t5
         self.jerk_t[6] = decel_jerk_t
+        self.start_v = start_v
 
 
 # Class to track each move request
