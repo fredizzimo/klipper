@@ -18,7 +18,10 @@ import math
 
 class MoveProfile(object):
     tolerance = 1e-12
-    def __init__(self):
+    def __init__(self, start_pos=0, is_kinematic_move=True, axes_r=None,
+                 axes_d=None, end_pos=None):
+        self.start_pos = start_pos
+
         self.start_v = 0.0
         self.cruise_v = 0.0
         self.end_v = 0.0
@@ -31,7 +34,12 @@ class MoveProfile(object):
         self.decel = 0
 
         self.jerk_t = [0.0] * 7
-        self. jerk = 0
+        self.jerk = 0
+
+        self.is_kinematic_move = is_kinematic_move
+        self.axes_r = axes_r
+        self.axes_d = axes_d
+        self.end_pos = end_pos
 
     def set_trapezoidal_times(self, distance, start_v2, cruise_v2, end_v2,
                              accel, decel=None):
@@ -246,7 +254,8 @@ class Move(object):
         self.max_smoothed_v2 = 0.
         self.smooth_delta_v2 = 2.0 * move_d * toolhead.max_accel_to_decel
 
-        self.profile = MoveProfile()
+        self.profile = MoveProfile(self.start_pos, self.is_kinematic_move,
+            self.axes_r, self.axes_d, self.end_pos)
     def limit_speed(self, speed, accel):
         speed2 = speed**2
         if speed2 < self.max_cruise_v2:
@@ -315,7 +324,7 @@ class FeedratePlanner(object):
 class TrapezoidalFeedratePlanner(FeedratePlanner):
     def __init__(self, toolhead):
         super(TrapezoidalFeedratePlanner, self).__init__(toolhead)
-    def flush(self, lazy):
+    def flush(self, lazy=False):
         self.junction_flush = LOOKAHEAD_FLUSH_TIME
         update_flush_count = lazy
         queue = self.queue
@@ -363,8 +372,10 @@ class TrapezoidalFeedratePlanner(FeedratePlanner):
             next_smoothed_v2 = smoothed_v2
         if update_flush_count or not flush_count:
             return
+        
+        profiles = (move.profile for move in queue[:flush_count])
         # Generate step times for all moves ready to be flushed
-        self.toolhead._process_moves(queue[:flush_count])
+        self.toolhead._process_moves(profiles)
         # Remove processed moves from the queue
         del queue[:flush_count]
 
@@ -373,7 +384,7 @@ class JerkFeedratePlanner(FeedratePlanner):
     def __init__(self, toolhead):
         super(JerkFeedratePlanner, self).__init__(toolhead)
 
-    def flush(self, lazy):
+    def flush(self, lazy=False):
         for move in self.queue:
             distance = move.move_d
             start_v = math.sqrt(move.max_start_v2)
@@ -384,5 +395,6 @@ class JerkFeedratePlanner(FeedratePlanner):
             jerk = 100000
             move.profile.calculate_jerk(distance, start_v, cruise_v, end_v,
                 accel, jerk)
-        self.toolhead._process_moves(self.queue)
+        profiles = (move.profile for move in self.queue)
+        self.toolhead._process_moves(profiles)
         del self.queue[:]
