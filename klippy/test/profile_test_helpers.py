@@ -4,6 +4,7 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import pytest
+from pytest import assume
 
 def calculate_move(profile):
     x = 0
@@ -42,13 +43,13 @@ def check_jerk_profile(profile, distance, start_v, cruise_v, end_v, max_accel,
                        max_decel, jerk):
     distances, speeds, accs, _ = calculate_move(profile)
     for t in profile.jerk_t:
-        assert t >= 0, str(profile.jerk_t)
-    assert profile.jerk == jerk
-    assert profile.start_v >= 0
-    assert pytest.approx(profile.start_v) == start_v
-    assert pytest.approx(speeds[2]) == cruise_v
-    assert pytest.approx(speeds[-1]) == end_v
-    assert pytest.approx(accs[0]) == max_accel
-    assert pytest.approx(accs[4]) == -max_decel
-    assert pytest.approx(distances[-1]) == distance
+        with assume: assert t >= 0, str(profile.jerk_t)
+    with assume: assert profile.jerk == jerk
+    with assume: assert profile.start_v >= 0
+    with assume: assert pytest.approx(profile.start_v) == start_v
+    with assume: assert pytest.approx(speeds[2]) == cruise_v
+    with assume: assert pytest.approx(speeds[-1]) == end_v
+    with assume: assert pytest.approx(accs[0]) == max_accel
+    with assume: assert pytest.approx(accs[4]) == -max_decel
+    with assume: assert pytest.approx(distances[-1]) == distance
 
