@@ -4,15 +4,16 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import pytest
-from feedrateplanner import TrapezoidalFeedratePlanner, Move
+from feedrateplanner import (TrapezoidalFeedratePlanner, JerkFeedratePlanner, 
+    Move)
 from kinematics.extruder import DummyExtruder
 from math import sqrt
 import numpy as np
 
 class ToolHead(object):
-    def __init__(self):
+    def __init__(self, FeedratePlanner):
         self.moves = []
-        self.feedrate_planner = TrapezoidalFeedratePlanner(self)
+        self.feedrate_planner = FeedratePlanner(self)
         self.max_accel = None
         self.max_velocity = None
         self.max_accel_to_decel = None
@@ -65,8 +66,13 @@ def get_distance(move):
         0.5 * move.profile.accel * move.profile.decel_t**2)
 
 @pytest.fixture
-def toolhead(move_plotter, request):
-    toolhead = ToolHead()
+def trapezoidal_toolhead(move_plotter, request):
+    toolhead = ToolHead(TrapezoidalFeedratePlanner)
     yield toolhead
     move_plotter.plot(toolhead.moves)
 
+@pytest.fixture
+def jerk_toolhead(move_plotter, request):
+    toolhead = ToolHead(JerkFeedratePlanner)
+    yield toolhead
+    move_plotter.plot(toolhead.moves)
