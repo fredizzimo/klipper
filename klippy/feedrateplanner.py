@@ -8,6 +8,7 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 
 from __future__ import division
+from abc import abstractmethod
 import math
 
 # Common suffixes: _d is distance (in mm), _v is velocity (in
@@ -286,9 +287,7 @@ class Move(object):
 
 LOOKAHEAD_FLUSH_TIME = 0.250
 
-# Class to track a list of pending move requests and to facilitate
-# "look-ahead" across moves to reduce acceleration between moves.
-class TrapezoidalFeedratePlanner:
+class FeedratePlanner(object):
     def __init__(self, toolhead):
         self.toolhead = toolhead
         self.queue = []
@@ -298,11 +297,29 @@ class TrapezoidalFeedratePlanner:
         self.junction_flush = LOOKAHEAD_FLUSH_TIME
     def set_flush_time(self, flush_time):
         self.junction_flush = flush_time
+    def add_move(self, move):
+        self.queue.append(move)
+        if len(self.queue) == 1:
+            return
+        move.calc_junction(self.queue[-2])
+        self.junction_flush -= move.min_move_t
+        if self.junction_flush <= 0.:
+            # Enough moves have been queued to reach the target flush time.
+            self.flush(lazy=True)
+    @abstractmethod
     def get_last(self):
         if self.queue:
             return self.queue[-1]
         return None
     def flush(self, lazy=False):
+        return
+
+# Class to track a list of pending move requests and to facilitate
+# "look-ahead" across moves to reduce acceleration between moves.
+class TrapezoidalFeedratePlanner(FeedratePlanner):
+    def __init__(self, toolhead):
+        super(TrapezoidalFeedratePlanner, self).__init__(toolhead)
+    def flush(self, lazy):
         self.junction_flush = LOOKAHEAD_FLUSH_TIME
         update_flush_count = lazy
         queue = self.queue
@@ -354,12 +371,22 @@ class TrapezoidalFeedratePlanner:
         self.toolhead._process_moves(queue[:flush_count])
         # Remove processed moves from the queue
         del queue[:flush_count]
-    def add_move(self, move):
-        self.queue.append(move)
-        if len(self.queue) == 1:
-            return
-        move.calc_junction(self.queue[-2])
-        self.junction_flush -= move.min_move_t
-        if self.junction_flush <= 0.:
-            # Enough moves have been queued to reach the target flush time.
-            self.flush(lazy=True)
+
+
+class JerkFeedratePlanner(FeedratePlanner):
+    def __init__(self, toolhead):
+        super(JerkFeedratePlanner, self).__init__(toolhead)
+
+    def flush(self, lazy):
+        for move in self.queue:
+            distance = move.move_d
+            start_v = math.sqrt(move.max_start_v2)
+            cruise_v = math.sqrt(move.max_cruise_v2)
+            end_v = 0 
+            accel = move.accel
+            # TODO: should not be hardcoded
+            jerk = 100000
+            move.profile.calculate_jerk(distance, start_v, cruise_v, end_v,
+                accel, jerk)
+        self.toolhead._process_moves(self.queue)
+        del self.queue[:]
