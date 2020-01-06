@@ -25,3 +25,48 @@ def test_single_long_move(toolhead):
         max_accel=2000,
         max_decel=2000,
         jerk=100000)
+
+def test_accel_decel_limit_is_not_in_use(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5)
+    toolhead.move(5, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 1
+    toolhead.check_jerk_move(0,
+        distance=5,
+        start_v=0,
+        cruise_v=81.9803902719,
+        end_v=0,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000)
+
+def test_two_long_moves(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5)
+    toolhead.move(100, max_speed=100)
+    toolhead.move(200, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    toolhead.check_jerk_move(0,
+        distance=100,
+        start_v=0,
+        cruise_v=100,
+        end_v=100,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000)
+    toolhead.check_jerk_move(1,
+        distance=100,
+        start_v=100,
+        cruise_v=100,
+        end_v=0,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000)
