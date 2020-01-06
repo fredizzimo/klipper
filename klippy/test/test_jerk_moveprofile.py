@@ -42,7 +42,7 @@ def calculate_move(profile):
     return distances, speeds, accs, jerks
 
 def check_profile(profile, distance, start_v, cruise_v, end_v, max_accel,
-                 max_decel, jerk, start_accel=0, end_accel=0):
+                 max_decel, jerk, start_accel=0, end_decel=0):
     distances, speeds, accs, _ = calculate_move(profile)
     for t in profile.jerk_t:
         assert t >= 0, str(profile.jerk_t)
@@ -55,7 +55,7 @@ def check_profile(profile, distance, start_v, cruise_v, end_v, max_accel,
     assert pytest.approx(accs[4]) == -max_decel
     assert pytest.approx(distances[-1]) == distance
     assert profile.start_accel == start_accel
-    assert pytest.approx(accs[-1]) == end_accel
+    assert pytest.approx(accs[-1]) == -end_decel
 
 
 def get_min_allowed_distance(v1, v2, a_max, jerk):
@@ -853,4 +853,21 @@ def test_non_zero_start_acceleration(move_plotter):
         jerk=100000,
         start_accel=500,
         end_accel=0
+    )
+
+def test_non_zero_end_deceleration(move_plotter):
+    profile = MoveProfile()
+    profile.calculate_jerk(20, 30, 100, 70, 1000, 100000, end_decel=500)
+    move_plotter.plot(profile)
+    check_profile(
+        profile,
+        distance=20,
+        start_v=30,
+        cruise_v=100,
+        end_v=70,
+        max_accel=1000,
+        max_decel=1000,
+        jerk=100000,
+        start_accel=0,
+        end_decel=500
     )
