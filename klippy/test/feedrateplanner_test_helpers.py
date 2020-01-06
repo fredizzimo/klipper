@@ -53,24 +53,24 @@ class ToolHead(object):
         else:
             pos = (pos, 0, 0, 0)
         assert move.start_pos == pos
-        assert pytest.approx(move.profile.start_v) == start_v
-        assert pytest.approx(move.profile.cruise_v) == cruise_v
-        assert pytest.approx(move.profile.accel_t) == accel_t
-        assert pytest.approx(move.profile.cruise_t) == cruise_t
-        assert pytest.approx(move.profile.decel_t) == decel_t
+        assert pytest.approx(move.start_v) == start_v
+        assert pytest.approx(move.cruise_v) == cruise_v
+        assert pytest.approx(move.accel_t) == accel_t
+        assert pytest.approx(move.cruise_t) == cruise_t
+        assert pytest.approx(move.decel_t) == decel_t
         assert pytest.approx(get_distance(move)) == distance
 
     def check_jerk_move(self, idx, distance, start_v, cruise_v, end_v,
                         max_accel, max_decel, jerk):
         move = self.moves[idx]
-        check_jerk_profile(move.profile, distance, start_v, cruise_v, end_v,
-            max_accel, max_decel, jerk)
+        check_jerk_profile(move, distance, start_v, cruise_v, end_v, max_accel,
+                           max_decel, jerk)
 
 def get_distance(move):
-    return (move.profile.start_v * move.profile.accel_t +
-        0.5 * move.profile.accel * move.profile.accel_t**2 +
-        move.profile.cruise_v * (move.profile.cruise_t + move.profile.decel_t) -
-        0.5 * move.profile.accel * move.profile.decel_t**2)
+    return (move.start_v * move.accel_t +
+        0.5 * move.accel * move.accel_t**2 +
+        move.cruise_v * (move.cruise_t + move.decel_t) -
+        0.5 * move.accel * move.decel_t**2)
 
 @pytest.fixture
 def trapezoidal_toolhead(move_plotter, request):
