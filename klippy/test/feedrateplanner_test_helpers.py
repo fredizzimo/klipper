@@ -9,6 +9,7 @@ from feedrateplanner import (TrapezoidalFeedratePlanner, JerkFeedratePlanner,
 from kinematics.extruder import DummyExtruder
 from math import sqrt
 import numpy as np
+from profile_test_helpers import check_jerk_profile
 
 class ToolHead(object):
     def __init__(self, FeedratePlanner):
@@ -58,6 +59,12 @@ class ToolHead(object):
         assert pytest.approx(move.profile.cruise_t) == cruise_t
         assert pytest.approx(move.profile.decel_t) == decel_t
         assert pytest.approx(get_distance(move)) == distance
+
+    def check_jerk_move(self, idx, distance, start_v, cruise_v, end_v,
+                        max_accel, max_decel, jerk):
+        move = self.moves[idx]
+        check_jerk_profile(move.profile, distance, start_v, cruise_v, end_v,
+            max_accel, max_decel, jerk)
 
 def get_distance(move):
     return (move.profile.start_v * move.profile.accel_t +
