@@ -243,7 +243,7 @@ class Move(object):
             self.is_kinematic_move = False
         else:
             inv_move_d = 1. / move_d
-        self.axes_r = [d * inv_move_d for d in axes_d]
+        self.axes_r = tuple((d * inv_move_d for d in axes_d))
         self.min_move_t = move_d / velocity
         # Junction speeds are tracked in velocity squared.  The
         # delta_v2 is the maximum amount of this squared-velocity that
@@ -389,16 +389,25 @@ class JerkFeedratePlanner(FeedratePlanner):
         super(JerkFeedratePlanner, self).__init__(toolhead)
 
     def flush(self, lazy=False):
-        for move in self.queue:
-            distance = move.move_d
-            start_v = math.sqrt(move.max_start_v2)
-            cruise_v = math.sqrt(move.max_cruise_v2)
+        if len(self.queue):
+            total_distance = sum((m.move_d for m in self.queue))
+            distance = total_distance
+            start_move = self.queue[0]
+            end_move = self.queue[-1]
+            start_v = math.sqrt(start_move.max_start_v2)
+            cruise_v = math.sqrt(start_move.max_cruise_v2)
             end_v = 0 
-            accel = move.accel
+            accel = start_move.accel
             # TODO: should not be hardcoded
             jerk = 100000
-            move.profile.calculate_jerk(distance, start_v, cruise_v, end_v,
+            profile = MoveProfile()
+            profile.calculate_jerk(distance, start_v, cruise_v, end_v,
                 accel, jerk)
-        profiles = (move.profile for move in self.queue)
-        self.toolhead._process_moves(profiles)
-        del self.queue[:]
+            profile.is_kinematic_move = start_move.is_kinematic_move
+            profile.axes_r = start_move.axes_r
+            profile.axes_d = tuple((sum((m.axes_d[i] for m in self.queue))
+                for i in (0, 1, 2, 3)))
+            profile.end_pos = end_move.end_pos
+            profiles = [profile]
+            self.toolhead._process_moves(profiles)
+            del self.queue[:]
