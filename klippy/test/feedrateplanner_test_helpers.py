@@ -10,6 +10,7 @@ from kinematics.extruder import DummyExtruder
 from math import sqrt
 import numpy as np
 from profile_test_helpers import check_jerk_profile
+from pytest import assume
 
 class ToolHead(object):
     def __init__(self, FeedratePlanner):
@@ -61,10 +62,15 @@ class ToolHead(object):
         assert pytest.approx(get_distance(move)) == distance
 
     def check_jerk_move(self, idx, distance, start_v, cruise_v, end_v,
-                        max_accel, max_decel, jerk):
+                        max_accel, max_decel, jerk, is_kinematic_move, axes_r,
+                        axes_d, end_pos):
         move = self.moves[idx]
         check_jerk_profile(move, distance, start_v, cruise_v, end_v, max_accel,
                            max_decel, jerk)
+        with assume: assert move.is_kinematic_move == is_kinematic_move
+        with assume: assert move.axes_r == axes_r
+        with assume: assert move.axes_d == axes_d
+        with assume: assert move.end_pos == end_pos
 
 def get_distance(move):
     return (move.start_v * move.accel_t +

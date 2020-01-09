@@ -7,3 +7,4 @@
 import pytest
 
 pytest.register_assert_rewrite("test.profile_test_helpers")
+pytest.register_assert_rewrite("test.feedrateplanner_test_helpers")
