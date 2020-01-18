@@ -23,6 +23,7 @@ class ToolHead(object):
         self.junction_deviation = None
         self.extruder = DummyExtruder()
         self.pos = np.zeros(4)
+        self.input_moves = []
 
     def set_limits(self, max_vel, max_acc, max_acc_to_dec,
         square_corner_velocity):
@@ -40,7 +41,9 @@ class ToolHead(object):
             end = np.array([p for p in end_pos] + [0] * (4-len(end_pos)))
         else:
             end = np.array((end_pos, 0, 0, 0))
-        self.feedrate_planner.add_move(Move(self, self.pos, end, max_speed))
+        move = Move(self, self.pos, end, max_speed)
+        self.input_moves.append(move)
+        self.feedrate_planner.add_move(move)
         self.pos = end
 
     def flush(self, lazy=False):
@@ -82,10 +85,10 @@ def get_distance(move):
 def trapezoidal_toolhead(move_plotter, request):
     toolhead = ToolHead(TrapezoidalFeedratePlanner)
     yield toolhead
-    move_plotter.plot(toolhead.moves)
+    move_plotter.plot(toolhead.moves, input_moves=toolhead.input_moves)
 
 @pytest.fixture
 def jerk_toolhead(move_plotter, request):
     toolhead = ToolHead(JerkFeedratePlanner)
     yield toolhead
-    move_plotter.plot(toolhead.moves)
+    move_plotter.plot(toolhead.moves, input_moves=toolhead.input_moves)
