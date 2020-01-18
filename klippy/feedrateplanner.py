@@ -248,6 +248,7 @@ class Move(object):
         # Junction speeds are tracked in velocity squared.  The
         # delta_v2 is the maximum amount of this squared-velocity that
         # can change in this move.
+        self.max_junction_v2 = 0.
         self.max_start_v2 = 0.
         self.max_cruise_v2 = velocity**2
         self.delta_v2 = 2.0 * move_d * self.accel
@@ -285,10 +286,12 @@ class Move(object):
         move_centripetal_v2 = .5 * self.move_d * tan_theta_d2 * self.accel
         prev_move_centripetal_v2 = (.5 * prev_move.move_d * tan_theta_d2
                                     * prev_move.accel)
-        self.max_start_v2 = min(
+        self.max_junction_v2 = min(
             R * self.accel, R * prev_move.accel,
             move_centripetal_v2, prev_move_centripetal_v2,
-            extruder_v2, self.max_cruise_v2, prev_move.max_cruise_v2,
+            extruder_v2, self.max_cruise_v2, prev_move.max_cruise_v2)
+        self.max_start_v2 = min(
+            self.max_junction_v2,
             prev_move.max_start_v2 + prev_move.delta_v2)
         self.max_smoothed_v2 = min(
             self.max_start_v2

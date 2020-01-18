@@ -18,7 +18,7 @@ class MovePlotter(object):
     def set_test_name(self, name):
         self.test_name = name
 
-    def plot(self, moves, name=None):
+    def plot(self, moves, name=None, input_moves=None):
         if not isinstance(moves, collections.Sequence):
             moves = (moves,)
         if name is None:
@@ -104,6 +104,24 @@ class MovePlotter(object):
         v = np.concatenate(vs)
         a = np.concatenate(accs)
         j = np.concatenate(jerks)
+        if input_moves is not None:
+            allowed_v = np.empty(x.shape[0])
+            input_itr = iter(input_moves)
+            input_start_dist = -2.0
+            input_end_dist = 0
+            input_move = None
+            for i, dist in enumerate(x):
+                if dist >= input_end_dist:
+                    try:
+                        input_move = next(input_itr)
+                        input_start_dist = input_end_dist
+                        input_end_dist = input_start_dist + input_move.move_d
+                        allowed_v[i] = sqrt(input_move.max_junction_v2)
+                    except:
+                        allowed_v[i] = allowed_v[i-1]
+                else:
+                    allowed_v[i] = sqrt(input_move.max_cruise_v2)
+
         x_color = DEFAULT_PLOTLY_COLORS[0]
         v_color = DEFAULT_PLOTLY_COLORS[1]
         a_color = DEFAULT_PLOTLY_COLORS[2]
@@ -117,6 +135,11 @@ class MovePlotter(object):
             x=times, y=v, name="velocity", yaxis="y2",
             legendgroup="velocity",
             line=go.scatter.Line(color=v_color)))
+        if input_moves is not None:
+            fig.add_trace(go.Scatter(
+                x=times, y=allowed_v, name="allowed velocity", yaxis="y2",
+                legendgroup="allowed_velocity",
+                line=go.scatter.Line(color=v_color, dash="dash")))
         fig.add_trace(go.Scatter(x=times, y=a, name="acceleration", yaxis="y3",
             legendgroup="acceleration",
             line=go.scatter.Line(color=a_color)))
