@@ -388,10 +388,60 @@ class TrapezoidalFeedratePlanner(FeedratePlanner):
 
 
 class JerkFeedratePlanner(FeedratePlanner):
+    class VirtualMove(object):
+        def __init__(self, start_v2, accel):
+            self.start_v2 = start_v2
+            self.accel = accel
+            self.distance = 0
+            # TODO: handle changing parameters
+            is_kinematic_move = True
+            start_pos = (0, 0, 0, 0)
+            self.profile = MoveProfile(start_pos, is_kinematic_move,
+                axes_r=None, axes_d=None, end_pos=None)
+
+
     def __init__(self, toolhead):
         super(JerkFeedratePlanner, self).__init__(toolhead)
+        self.virtual_moves = []
+
+    def forward_pass(self):
+        # TODO: should not be hardcoded
+        jerk = 100000
+        self.virtual_moves = []
+        v_move = None
+        current_v2 = 0
+        for i, move in enumerate(self.queue):
+            if i != len(self.queue) - 1:
+                next_move = self.queue[i+1]
+                end_v2 = next_move.max_junction_v2
+            else:
+                next_move = None
+                end_v2 = move.max_cruise_v2
+            if v_move is None:
+                # TODO: Deal with changing acceleration
+                v_move = self.VirtualMove(
+                    start_v2 = current_v2,
+                    accel = move.accel
+                )
+            v_move.distance += move.move_d
+
+        # TODO: Fixup this comment
+        # Make a long move, the goal is to reach a cruise speed of the same
+        # speed as the junction speed
+        distance = 10000.0
+        v_move.profile.calculate_jerk(distance,
+            math.sqrt(v_move.start_v2), math.sqrt(end_v2),
+            0, v_move.accel, jerk)
+
+        # If the junction speed is reached, then start a new move
+        # Otherwise extend the virtual move
+        
+            
+            
+            
 
     def flush(self, lazy=False):
+        self.forward_pass()
         if len(self.queue):
             total_distance = sum((m.move_d for m in self.queue))
             distance = total_distance
