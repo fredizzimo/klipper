@@ -595,12 +595,13 @@ class JerkFeedratePlanner(FeedratePlanner):
             reachable_end_v = MoveProfile.get_max_allowed_jerk_end_speed(
                 v_move.distance, v_move.start_v, v_move.accel, v_move.jerk)
             
-            if reachable_end_v >= end_v:
+            if reachable_end_v >= end_v or next_move is None:
                 current_v = min(end_v, reachable_end_v)
                 v_move.end_v = current_v
                 v_move.cruise_v = max(v_move.end_v, math.sqrt(move.max_cruise_v2))
                 self.virtual_moves.append(v_move)
                 v_move = None
+
             
     
     def backward_pass(self):
