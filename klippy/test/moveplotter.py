@@ -65,7 +65,7 @@ class MovePlotter(object):
                 if profile.decel_t:
                     segments.append((profile.decel_t, -profile.decel, 0))
             else:
-                acceleration = 0
+                acceleration = profile.start_a
                 for index, jt in enumerate(profile.jerk_t):
                     if jt:
                         segments.append((jt, acceleration,
@@ -168,7 +168,7 @@ class MovePlotter(object):
             yaxis="y4",
             showlegend=False,
             legendgroup="jerk",
-            marker=go.scatter.Marker(color=a_color)))
+            marker=go.scatter.Marker(color=j_color)))
 
         fig.update_layout(
             title=go.layout.Title(

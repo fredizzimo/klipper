@@ -25,6 +25,7 @@ class MoveProfile(object):
         self.start_v = 0.0
         self.cruise_v = 0.0
         self.end_v = 0.0
+        self.start_a = 0.0
 
         self.accel_t = 0.0
         self.cruise_t = 0.0
@@ -636,8 +637,8 @@ class JerkFeedratePlanner(FeedratePlanner):
 
                 d += move.move_d
 
-                # TODO: Set the start acceleration
                 profile.start_v = vmove.v
+                profile.start_a = vmove.a
                 while d >= vmove.segment_end_x - tolerance:
                     s = vmove.current_segment
                     profile.jerk_t[s] = vmove.profile.jerk_t[s] - vmove.current_segment_offset
@@ -648,7 +649,6 @@ class JerkFeedratePlanner(FeedratePlanner):
                 
                 if d < vmove.segment_end_x - tolerance:
                     profile.jerk_t[vmove.current_segment] = vmove.move_to(d)
-                
 
                 profiles.append(profile)
         if profiles:

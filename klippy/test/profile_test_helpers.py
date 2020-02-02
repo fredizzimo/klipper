@@ -9,7 +9,7 @@ from pytest import assume
 def calculate_move(profile):
     x = 0
     v = profile.start_v
-    a = 0
+    a = profile.start_a
     j = profile.jerk
     jerk_multipliers = [
         1,
