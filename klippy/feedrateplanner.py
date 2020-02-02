@@ -231,14 +231,14 @@ class MoveProfile(object):
                 val /= vs_plus_ve * (3.0*v - start_v)
                 return v - val
 
-            end_v = start_v
+            end_v = start_v + tolerance
             for _ in range(10):
                 new_v = iter(end_v)
                 if abs(end_v - new_v) < tolerance:
                     break
                 end_v = new_v
 
-            return end_v
+            return new_v
         else:
             end_v = 8.0 * max_a * distance + 4.0 * start_v**2
             end_v *= jerk
@@ -614,6 +614,7 @@ class JerkFeedratePlanner(FeedratePlanner):
                 pass
 
     def flush(self, lazy=False):
+        tolerance = 1e-9
         self.forward_pass()
         self.backward_pass()
         profiles = []
@@ -638,7 +639,7 @@ class JerkFeedratePlanner(FeedratePlanner):
 
                 # TODO: Set the start acceleration
                 profile.start_v = vmove.v
-                while d >= vmove.segment_end_x:
+                while d >= vmove.segment_end_x - tolerance:
                     s = vmove.current_segment
                     profile.jerk_t[s] = vmove.profile.jerk_t[s] - vmove.current_segment_offset
                     if s == 6:
@@ -646,7 +647,7 @@ class JerkFeedratePlanner(FeedratePlanner):
 
                     vmove.calculate_next_segment()
                 
-                if d < vmove.segment_end_x:
+                if d < vmove.segment_end_x - tolerance:
                     profile.jerk_t[vmove.current_segment] = vmove.move_to(d)
                 
 

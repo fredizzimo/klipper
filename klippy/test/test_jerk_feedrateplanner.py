@@ -90,3 +90,26 @@ def test_two_long_moves(toolhead):
         axes_d=(100, 0, 0, 0),
         end_pos=(200, 0, 0, 0)
     )
+
+def test_single_short_move(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5)
+    toolhead.move(0.5, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 1
+    toolhead.check_jerk_move(0,
+        distance=0.5,
+        start_v=0,
+        cruise_v=17.9397554578,
+        end_v=0,
+        max_accel=1339.39372321,
+        max_decel=1339.39372321,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(0.5, 0, 0, 0),
+        end_pos=(0.5, 0, 0, 0)
+    )
