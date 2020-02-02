@@ -10,13 +10,19 @@ from math import sqrt
 from profile_test_helpers import check_jerk_profile as check_profile
 
 
-def get_min_allowed_distance(v1, v2, a_max, jerk):
-    a_max = 1000.0
+def get_min_allowed_distance_with_const_acc(v1, v2, a_max, jerk):
     v_s = min(v1, v2)
     v_e = max(v1, v2)
-    jerk = 100000.0
     distance = v_s*a_max**2 + v_e*a_max**2 - jerk*v_s**2 + jerk*v_e**2
     distance /= 2.0 * a_max*jerk
+    return distance
+    
+def get_min_allowed_distance(v1, v2, jerk):
+    v_s = min(v1, v2)
+    v_e = max(v1, v2)
+    distance = sqrt(jerk*(v_e - v_s))
+    distance *= v_e + v_s
+    distance /= jerk
     return distance
 
 def test_zero_to_zero_with_cruise(move_plotter):
@@ -321,7 +327,7 @@ def test_lower_to_higher_with_no_initial_cruise_II_b_adaptation(move_plotter):
 
 def test_no_deceleration_max_a_reached(move_plotter):
     profile = MoveProfile()
-    distance = get_min_allowed_distance(30, 70, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(30, 70, 1000, 100000)
     profile.calculate_jerk(distance, 30, 100, 70, 1000, 100000)
     move_plotter.plot(profile)
     check_profile(profile,
@@ -338,7 +344,7 @@ def test_no_deceleration_max_a_reached_and_dist_slightly_longer(move_plotter):
     # Note that this seems to be slightly sub-optimal, see the comment in 
     # the implementation type II adapatation for an explanation
     profile = MoveProfile()
-    distance = get_min_allowed_distance(30, 70, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(30, 70, 1000, 100000)
     distance += 0.1
     profile.calculate_jerk(distance, 30, 100, 70, 1000, 100000)
     move_plotter.plot(profile)
@@ -354,7 +360,7 @@ def test_no_deceleration_max_a_reached_and_dist_slightly_longer(move_plotter):
 
 def test_no_deceleration_max_a_exactly_reached(move_plotter):
     profile = MoveProfile()
-    distance = get_min_allowed_distance(30, 40, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(30, 40, 1000, 100000)
     profile.calculate_jerk(distance, 30, 100, 40, 1000, 100000)
     move_plotter.plot(profile)
     check_profile(profile,
@@ -369,7 +375,7 @@ def test_no_deceleration_max_a_exactly_reached(move_plotter):
 
 def test_no_deceleration_max_a_not_reached(move_plotter):
     profile = MoveProfile()
-    distance = get_min_allowed_distance(30, 35, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(30, 35, 1000, 100000)
     profile.calculate_jerk(distance, 30, 100, 35, 1000, 100000)
     move_plotter.plot(profile)
     check_profile(profile,
@@ -386,7 +392,7 @@ def test_no_deceleration_max_a_not_reached_dist_slightly_longer(move_plotter):
     # Note that this seems to be slightly sub-optimal, see the comment in 
     # the implementation type II adapatation for an explanation
     profile = MoveProfile()
-    distance = get_min_allowed_distance(30, 35, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(30, 35, 1000, 100000)
     distance += 0.1
     profile.calculate_jerk(distance, 30, 100, 35, 1000, 100000)
     move_plotter.plot(profile)
@@ -400,11 +406,11 @@ def test_no_deceleration_max_a_not_reached_dist_slightly_longer(move_plotter):
         jerk=100000
     )
 
-def test_no_deceleration_max_a_not_reached_dist_even_longer(move_plotter):
+def test_slight_deceleration_max_a_not_reached_dist_even_longer(move_plotter):
     # In this case the distance is long enough for an actual acceleration above
     # v_e
     profile = MoveProfile()
-    distance = get_min_allowed_distance(30, 35, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(30, 35, 1000, 100000)
     distance += 0.2
     profile.calculate_jerk(distance, 30, 100, 35, 1000, 100000)
     move_plotter.plot(profile)
@@ -420,7 +426,7 @@ def test_no_deceleration_max_a_not_reached_dist_even_longer(move_plotter):
 
 def test_no_acceleration_max_a_reached(move_plotter):
     profile = MoveProfile()
-    distance = get_min_allowed_distance(70, 30, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(70, 30, 1000, 100000)
     profile.calculate_jerk(distance, 70, 100, 30, 1000, 100000)
     move_plotter.plot(profile)
     check_profile(profile,
@@ -437,7 +443,7 @@ def test_no_acceleration_max_a_reached_and_dist_slightly_longer(move_plotter):
     # Note that this seems to be slightly sub-optimal, see the comment in 
     # the implementation type II adapatation for an explanation
     profile = MoveProfile()
-    distance = get_min_allowed_distance(70, 30, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(70, 30, 1000, 100000)
     distance += 0.1
     profile.calculate_jerk(distance, 70, 100, 30, 1000, 100000)
     move_plotter.plot(profile)
@@ -453,7 +459,7 @@ def test_no_acceleration_max_a_reached_and_dist_slightly_longer(move_plotter):
 
 def test_no_acceleration_max_a_exactly_reached(move_plotter):
     profile = MoveProfile()
-    distance = get_min_allowed_distance(40, 30, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(40, 30, 1000, 100000)
     profile.calculate_jerk(distance, 40, 100, 30, 1000, 100000)
     move_plotter.plot(profile)
     check_profile(profile,
@@ -468,7 +474,7 @@ def test_no_acceleration_max_a_exactly_reached(move_plotter):
 
 def test_no_acceleration_max_a_not_reached(move_plotter):
     profile = MoveProfile()
-    distance = get_min_allowed_distance(35, 30, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(35, 30, 1000, 100000)
     profile.calculate_jerk(distance, 35, 100, 30, 1000, 100000)
     move_plotter.plot(profile)
     check_profile(profile,
@@ -485,7 +491,7 @@ def test_no_acceleration_max_a_not_reached_dist_slightly_longer(move_plotter):
     # Note that this seems to be slightly sub-optimal, see the comment in 
     # the implementation type II adapatation for an explanation
     profile = MoveProfile()
-    distance = get_min_allowed_distance(35, 30, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(35, 30, 1000, 100000)
     distance += 0.1
     profile.calculate_jerk(distance, 35, 100, 30, 1000, 100000)
     move_plotter.plot(profile)
@@ -499,11 +505,11 @@ def test_no_acceleration_max_a_not_reached_dist_slightly_longer(move_plotter):
         jerk=100000
     )
 
-def test_no_acceleration_max_a_not_reached_dist_even_longer(move_plotter):
+def test_slight_acceleration_max_a_not_reached_dist_even_longer(move_plotter):
     # In this case the distance is long enough for an actual acceleration above
     # v_e
     profile = MoveProfile()
-    distance = get_min_allowed_distance(35, 30, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(35, 30, 1000, 100000)
     distance += 0.2
     profile.calculate_jerk(distance, 35, 100, 30, 1000, 100000)
     move_plotter.plot(profile)
@@ -563,7 +569,7 @@ def test_no_speed_change_no_acc_at_all(move_plotter):
     # NOTE: I don't know if it's possible to accelerate with jerk at all
     # when the distance is too short or if it's a shortcoming of the algorithm
     profile = MoveProfile()
-    distance = get_min_allowed_distance(35, 35, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(35, 35, 1000, 100000)
     profile.calculate_jerk(distance, 35, 100, 35, 1000, 100000)
     move_plotter.plot(profile)
     check_profile(profile,
@@ -580,7 +586,7 @@ def test_no_speed_change_very_slightly_acc(move_plotter):
     # NOTE: It seems like it could accelerate a bit more, but I haven't checked
     # the math
     profile = MoveProfile()
-    distance = get_min_allowed_distance(35, 35, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(35, 35, 1000, 100000)
     distance += 0.01
     profile.calculate_jerk(distance, 35, 100, 35, 1000, 100000)
     move_plotter.plot(profile)
@@ -598,7 +604,7 @@ def test_no_speed_change_no_acc_at_all_very_short_move(move_plotter):
     # NOTE: I don't know if it's possible to accelerate with jerk at all
     # when the distance is too short or if it's a shortcoming of the algorithm
     profile = MoveProfile()
-    distance = get_min_allowed_distance(35, 35, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(35, 35, 1000, 100000)
     distance -= 0.1
     profile.calculate_jerk(distance, 35, 100, 35, 1000, 100000)
     move_plotter.plot(profile)
@@ -655,7 +661,7 @@ def test_no_speed_change_allowed_short(move_plotter):
 
 def test_no_speed_change_allowed_shorter(move_plotter):
     profile = MoveProfile()
-    distance = get_min_allowed_distance(35, 35, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(35, 35, 1000, 100000)
     profile.calculate_jerk(distance, 35, 35, 35, 1000, 100000)
     move_plotter.plot(profile)
     check_profile(profile,
@@ -670,7 +676,7 @@ def test_no_speed_change_allowed_shorter(move_plotter):
 
 def test_no_speed_change_allowed_even_shorter(move_plotter):
     profile = MoveProfile()
-    distance = get_min_allowed_distance(35, 35, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(35, 35, 1000, 100000)
     distance += 0.01
     profile.calculate_jerk(distance, 35, 35, 35, 1000, 100000)
     move_plotter.plot(profile)
@@ -688,7 +694,7 @@ def test_no_speed_change_allowed_very_short(move_plotter):
     # NOTE: I don't know if it's possible to accelerate with jerk at all
     # when the distance is too short or if it's a shortcoming of the algorithm
     profile = MoveProfile()
-    distance = get_min_allowed_distance(35, 35, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(35, 35, 1000, 100000)
     distance -= 0.1
     profile.calculate_jerk(distance, 35, 35, 35, 1000, 100000)
     move_plotter.plot(profile)
@@ -745,7 +751,8 @@ def test_forced_decelerate_short(move_plotter):
 
 def test_forced_decelerate_shorter(move_plotter):
     profile = MoveProfile()
-    distance = get_min_allowed_distance(35, 30, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(35, 30, 1000, 100000)
+    distance += 0.01
     profile.calculate_jerk(distance, 35, 35, 30, 1000, 100000)
     move_plotter.plot(profile)
     check_profile(profile,
@@ -760,8 +767,7 @@ def test_forced_decelerate_shorter(move_plotter):
 
 def test_forced_decelerate_even_shorter(move_plotter):
     profile = MoveProfile()
-    distance = get_min_allowed_distance(35, 30, 1000, 100000)
-    distance += 0.01
+    distance = get_min_allowed_distance_with_const_acc(35, 30, 1000, 100000)
     profile.calculate_jerk(distance, 35, 35, 30, 1000, 100000)
     move_plotter.plot(profile)
     check_profile(profile,
@@ -777,7 +783,7 @@ def test_forced_decelerate_even_shorter(move_plotter):
 def test_forced_decelerate_very_short(move_plotter):
     # This is actually an error condition, the end speed is not reached
     profile = MoveProfile()
-    distance = get_min_allowed_distance(35, 30, 1000, 100000)
+    distance = get_min_allowed_distance_with_const_acc(35, 30, 1000, 100000)
     distance -= 0.1
     profile.calculate_jerk(distance, 35, 35, 30, 1000, 100000)
     move_plotter.plot(profile)
@@ -789,3 +795,18 @@ def test_forced_decelerate_very_short(move_plotter):
     assert profile.accel_t == 0
     assert profile.decel_t == 0
     assert profile.cruise_t == distance / 35.0
+
+def test_jerk_to_max_allowed_no_const_acc(move_plotter):
+    profile = MoveProfile()
+    end_v = profile.get_max_allowed_jerk_end_speed(0.5, 35, 100000)
+    profile.calculate_jerk_accelerate_only(0.5, 35, end_v, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=0.5,
+        start_v=35,
+        cruise_v=end_v,
+        end_v=end_v,
+        max_accel=671.106369978,
+        max_decel=0,
+        jerk=100000
+    )

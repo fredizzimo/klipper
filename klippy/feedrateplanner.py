@@ -97,10 +97,10 @@ class MoveProfile(object):
 
 
     def get_min_allowed_jerk_distance(self, v1, v2, a_max, jerk):
-        a_max = 1000.0
+        if a_max == 0:
+            return 0
         v_s = min(v1, v2)
         v_e = max(v1, v2)
-        jerk = 100000.0
         distance = v_s*a_max**2 + v_e*a_max**2 - jerk*v_s**2 + jerk*v_e**2
         distance /= 2.0 * a_max*jerk
         return distance
@@ -216,6 +216,38 @@ class MoveProfile(object):
         self.jerk_t[4] = decel_jerk_t
         self.jerk_t[5] = t5
         self.jerk_t[6] = decel_jerk_t
+
+    def get_max_allowed_jerk_end_speed(self, distance, start_v, jerk):
+        tolerance = 1e-6
+        d2 = distance**2
+        jerk_times_d2 = jerk*d2
+        def iter(v):
+            ve_minus_vs = v - start_v
+            vs_plus_ve = start_v + v
+            val = ve_minus_vs * vs_plus_ve**2 - jerk_times_d2
+            val /= vs_plus_ve * (3.0*v - start_v)
+            return v - val
+
+        end_v = start_v
+        for _ in range(10):
+            new_v = iter(end_v)
+            if abs(end_v - new_v) < tolerance:
+                break
+            end_v = new_v
+
+        return end_v
+
+    def calculate_jerk_accelerate_only(
+            self, distance, start_v, end_v, max_acc, jerk):
+        self.start_v = start_v
+        self.cruise_v = end_v
+        self.end_v = end_v
+        self.jerk = jerk
+        t = math.sqrt(4.0 * (end_v - start_v) / jerk)
+        t_div_2 = t / 2.0
+        self.jerk_t[0] = t_div_2 
+        self.jerk_t[1] = 0
+        self.jerk_t[2] = t_div_2
 
 
 # Class to track each move request
@@ -398,6 +430,15 @@ class JerkFeedratePlanner(FeedratePlanner):
             start_pos = (0, 0, 0, 0)
             self.profile = MoveProfile(start_pos, is_kinematic_move,
                 axes_r=None, axes_d=None, end_pos=None)
+
+        def can_reach_end_speed(self):
+            pass
+
+        def can_accelerate_fully(self):
+            pass
+    
+        def get_reachable_speed(self):
+            pass
 
 
     def __init__(self, toolhead):
