@@ -613,7 +613,7 @@ class JerkFeedratePlanner(FeedratePlanner):
                 move.distance, current_v, move.accel, move.jerk)
 
             if reachable_start_speed >= move.start_v:
-                pass
+                current_v = move.start_v
 
     def flush(self, lazy=False):
         tolerance = 1e-9
