@@ -217,7 +217,8 @@ class MoveProfile(object):
         self.jerk_t[5] = t5
         self.jerk_t[6] = decel_jerk_t
 
-    def get_max_allowed_jerk_end_speed(self, distance, start_v, max_a, jerk):
+    @staticmethod
+    def get_max_allowed_jerk_end_speed(distance, start_v, max_a, jerk):
         tolerance = 1e-6
         max_a_dist = max_a**3 / jerk**2 + 2.0 * max_a * start_v / jerk
         if distance < max_a_dist:
@@ -438,10 +439,14 @@ class TrapezoidalFeedratePlanner(FeedratePlanner):
 
 class JerkFeedratePlanner(FeedratePlanner):
     class VirtualMove(object):
-        def __init__(self, start_v2, accel):
-            self.start_v2 = start_v2
+        def __init__(self, start_v, accel, jerk):
+            self.start_v = start_v
             self.accel = accel
             self.distance = 0
+            self.jerk = jerk
+            self.end_v = 0
+            self.cruise_v = 0
+            self.moves = []
             # TODO: handle changing parameters
             is_kinematic_move = True
             start_pos = (0, 0, 0, 0)
@@ -461,13 +466,13 @@ class JerkFeedratePlanner(FeedratePlanner):
     def __init__(self, toolhead):
         super(JerkFeedratePlanner, self).__init__(toolhead)
         self.virtual_moves = []
+        # TODO: should not be hardcoded
+        self.jerk = 100000
 
     def forward_pass(self):
-        # TODO: should not be hardcoded
-        jerk = 100000
         self.virtual_moves = []
         v_move = None
-        current_v2 = 0
+        current_v = 0
         for i, move in enumerate(self.queue):
             if i != len(self.queue) - 1:
                 next_move = self.queue[i+1]
@@ -478,47 +483,56 @@ class JerkFeedratePlanner(FeedratePlanner):
             if v_move is None:
                 # TODO: Deal with changing acceleration
                 v_move = self.VirtualMove(
-                    start_v2 = current_v2,
-                    accel = move.accel
+                    start_v=current_v,
+                    accel=move.accel,
+                    jerk=self.jerk
                 )
+            end_v = math.sqrt(end_v2)
+
+            v_move.moves.append(move)
+            
             v_move.distance += move.move_d
+            reachable_end_v = MoveProfile.get_max_allowed_jerk_end_speed(
+                v_move.distance, v_move.start_v, v_move.accel, v_move.jerk)
+            
+            if reachable_end_v >= end_v:
+                v_move.end_v = min(end_v, reachable_end_v)
+                v_move.cruise_v = max(v_move.end_v, math.sqrt(move.max_cruise_v2))
+                self.virtual_moves.append(v_move)
+                v_move = None
+            else:
+                pass
+    
+    def backward_pass(self):
+        current_v = 0
+        for move in reversed(self.virtual_moves):
+            move.end_v = current_v
+            reachable_start_speed = MoveProfile.get_max_allowed_jerk_end_speed(
+                move.distance, current_v, move.accel, move.jerk)
 
-        # TODO: Fixup this comment
-        # Make a long move, the goal is to reach a cruise speed of the same
-        # speed as the junction speed
-        distance = 10000.0
-        v_move.profile.calculate_jerk(distance,
-            math.sqrt(v_move.start_v2), math.sqrt(end_v2),
-            0, v_move.accel, jerk)
+            if reachable_start_speed >= move.start_v:
+                pass
 
-        # If the junction speed is reached, then start a new move
-        # Otherwise extend the virtual move
-        
             
             
             
 
     def flush(self, lazy=False):
         self.forward_pass()
-        if len(self.queue):
-            total_distance = sum((m.move_d for m in self.queue))
-            distance = total_distance
-            start_move = self.queue[0]
-            end_move = self.queue[-1]
-            start_v = math.sqrt(start_move.max_start_v2)
-            cruise_v = math.sqrt(start_move.max_cruise_v2)
-            end_v = 0 
-            accel = start_move.accel
-            # TODO: should not be hardcoded
-            jerk = 100000
-            profile = MoveProfile()
-            profile.calculate_jerk(distance, start_v, cruise_v, end_v,
-                accel, jerk)
-            profile.is_kinematic_move = start_move.is_kinematic_move
-            profile.axes_r = start_move.axes_r
-            profile.axes_d = tuple((sum((m.axes_d[i] for m in self.queue))
-                for i in (0, 1, 2, 3)))
-            profile.end_pos = end_move.end_pos
-            profiles = [profile]
+        self.backward_pass()
+        profiles = []
+        for move in self.virtual_moves:
+            # TODO: handle changing parameters
+            is_kinematic_move = move.moves[0].is_kinematic_move
+            start_pos = move.moves[0].start_pos
+            axes_r = move.moves[0].axes_r
+            axes_d = move.moves[0].axes_d
+            end_pos = move.moves[0].end_pos
+            profile = MoveProfile(start_pos, is_kinematic_move,
+                axes_r=axes_r, axes_d=axes_d, end_pos=end_pos)
+            profile.calculate_jerk(move.distance, move.start_v,
+                move.cruise_v, move.end_v, move.accel, move.jerk)
+            profiles.append(profile)
+        if profiles:
             self.toolhead._process_moves(profiles)
-            del self.queue[:]
+        del self.queue[:]
