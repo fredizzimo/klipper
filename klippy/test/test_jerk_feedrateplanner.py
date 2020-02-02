@@ -150,3 +150,40 @@ def test_two_combined_short_moves(toolhead):
         axes_d=(0.5, 0, 0, 0),
         end_pos=(1.0, 0, 0, 0)
     )
+
+def test_two_combined_asymetric_short_moves(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5)
+    toolhead.move(0.5, max_speed=100)
+    toolhead.move(0.7, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    toolhead.check_jerk_move(0,
+        distance=0.5,
+        start_v=0,
+        cruise_v=22.5716778697,
+        end_v=20.5539663235,
+        max_accel=1502.38736249,
+        max_decel=635.249800672,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(0.5, 0, 0, 0),
+        end_pos=(0.5, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=0.2,
+        start_v=20.5539663235,
+        cruise_v=20.5539663235,
+        end_v=0,
+        max_accel=-635.249800672,
+        max_decel=1502.38736249 ,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(0.2, 0, 0, 0),
+        end_pos=(0.7, 0, 0, 0)
+    )
