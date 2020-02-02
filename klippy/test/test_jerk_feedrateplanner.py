@@ -63,17 +63,30 @@ def test_two_long_moves(toolhead):
     toolhead.move(100, max_speed=100)
     toolhead.move(200, max_speed=100)
     toolhead.flush()
-    assert len(toolhead.moves) == 1
+    assert len(toolhead.moves) == 2
     toolhead.check_jerk_move(0,
-        distance=200,
+        distance=100,
         start_v=0,
         cruise_v=100,
-        end_v=0,
+        end_v=100,
         max_accel=2000,
+        max_decel=0,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(100, 0, 0, 0),
+        end_pos=(100, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=100,
+        start_v=100,
+        cruise_v=100,
+        end_v=0,
+        max_accel=0,
         max_decel=2000,
         jerk=100000,
         is_kinematic_move=True,
         axes_r=(1, 0, 0, 0),
-        axes_d=(200, 0, 0, 0),
+        axes_d=(100, 0, 0, 0),
         end_pos=(200, 0, 0, 0)
     )
