@@ -71,9 +71,9 @@ class ToolHead(object):
         check_jerk_profile(move, distance, start_v, cruise_v, end_v, max_accel,
                            max_decel, jerk)
         with assume: assert move.is_kinematic_move == is_kinematic_move
-        with assume: assert move.axes_r == axes_r
-        with assume: assert move.axes_d == axes_d
-        with assume: assert move.end_pos == end_pos
+        with assume: assert pytest.approx(move.axes_r) == axes_r
+        with assume: assert pytest.approx(move.axes_d) == axes_d
+        with assume: assert pytest.approx(move.end_pos) == end_pos
 
 def get_distance(move):
     return (move.start_v * move.accel_t +
