@@ -217,25 +217,37 @@ class MoveProfile(object):
         self.jerk_t[5] = t5
         self.jerk_t[6] = decel_jerk_t
 
-    def get_max_allowed_jerk_end_speed(self, distance, start_v, jerk):
+    def get_max_allowed_jerk_end_speed(self, distance, start_v, max_a, jerk):
         tolerance = 1e-6
-        d2 = distance**2
-        jerk_times_d2 = jerk*d2
-        def iter(v):
-            ve_minus_vs = v - start_v
-            vs_plus_ve = start_v + v
-            val = ve_minus_vs * vs_plus_ve**2 - jerk_times_d2
-            val /= vs_plus_ve * (3.0*v - start_v)
-            return v - val
+        max_a_dist = max_a**3 / jerk**2 + 2.0 * max_a * start_v / jerk
+        if distance < max_a_dist:
+            d2 = distance**2
+            jerk_times_d2 = jerk*d2
+            def iter(v):
+                ve_minus_vs = v - start_v
+                vs_plus_ve = start_v + v
+                val = ve_minus_vs * vs_plus_ve**2 - jerk_times_d2
+                val /= vs_plus_ve * (3.0*v - start_v)
+                return v - val
 
-        end_v = start_v
-        for _ in range(10):
-            new_v = iter(end_v)
-            if abs(end_v - new_v) < tolerance:
-                break
-            end_v = new_v
+            end_v = start_v
+            for _ in range(10):
+                new_v = iter(end_v)
+                if abs(end_v - new_v) < tolerance:
+                    break
+                end_v = new_v
 
-        return end_v
+            return end_v
+        else:
+            end_v = 8.0 * max_a * distance + 4.0 * start_v**2
+            end_v *= jerk
+            end_v -= 4.0 * max_a**2 * start_v
+            end_v *= jerk
+            end_v += max_a**4
+            end_v = math.sqrt(end_v)
+            end_v -= max_a**2
+            end_v /= 2.0 * jerk
+            return end_v
 
     def calculate_jerk_accelerate_only(
             self, distance, start_v, end_v, max_acc, jerk):
@@ -243,12 +255,19 @@ class MoveProfile(object):
         self.cruise_v = end_v
         self.end_v = end_v
         self.jerk = jerk
-        t = math.sqrt(4.0 * (end_v - start_v) / jerk)
-        t_div_2 = t / 2.0
-        self.jerk_t[0] = t_div_2 
-        self.jerk_t[1] = 0
-        self.jerk_t[2] = t_div_2
-
+        if end_v < start_v + max_acc**2 / jerk:
+            t = math.sqrt(4.0 * (end_v - start_v) / jerk)
+            t_div_2 = t / 2.0
+            self.jerk_t[0] = t_div_2
+            self.jerk_t[1] = 0
+            self.jerk_t[2] = t_div_2
+        else:
+            t_j = max_acc / jerk
+            t_c = (end_v - start_v) / max_acc
+            t_c -= max_acc / jerk
+            self.jerk_t[0] = t_j
+            self.jerk_t[1] = t_c
+            self.jerk_t[2] = t_j
 
 # Class to track each move request
 class Move(object):
