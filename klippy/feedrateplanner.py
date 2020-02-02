@@ -441,6 +441,16 @@ class TrapezoidalFeedratePlanner(FeedratePlanner):
 
 class JerkFeedratePlanner(FeedratePlanner):
     class VirtualMove(object):
+        jerk_multipliers = [
+            1,
+            0,
+            -1,
+            0,
+            -1,
+            0,
+            1
+        ]
+
         def __init__(self, start_v, accel, jerk):
             self.start_v = start_v
             self.accel = accel
@@ -449,20 +459,104 @@ class JerkFeedratePlanner(FeedratePlanner):
             self.end_v = 0
             self.cruise_v = 0
             self.moves = []
-            # TODO: handle changing parameters
-            is_kinematic_move = True
-            start_pos = (0, 0, 0, 0)
-            self.profile = MoveProfile(start_pos, is_kinematic_move,
-                axes_r=None, axes_d=None, end_pos=None)
+            self.profile = None
 
-        def can_reach_end_speed(self):
-            pass
 
-        def can_accelerate_fully(self):
-            pass
-    
-        def get_reachable_speed(self):
-            pass
+            self.x = 0
+            self.v = 0
+            self.a = 0
+            self.segment_start_x = 0
+            self.segment_start_v = 0
+            self.segment_start_a = 0
+            self.segment_end_x = 0
+            self.segment_end_v = 0
+            self.segment_end_a = 0
+
+            self.current_segment = 0
+            self.current_segment_offset = 0
+
+        def calculate_profile(self, profile):
+            profile = MoveProfile()
+            profile.calculate_jerk(self.distance, self.start_v,
+                self.cruise_v, self.end_v, self.accel, self.jerk)
+            self.profile = profile
+        
+        def calculate_first_segment(self):
+            self.x = 0
+            self.v = self.start_v
+            self.a = 0
+            self.segment_start_x = self.x
+            self.segment_start_v = self.v
+            self.segment_start_a = self.a
+            self.current_segment = 0
+            self.calculate_segment_end()
+
+        def calculate_next_segment(self):
+            self.x = self.segment_end_x
+            self.v = self.segment_end_v
+            self.a = self.segment_end_a
+            self.segment_start_x = self.x
+            self.segment_start_v = self.v
+            self.segment_start_a = self.a
+            self.current_segment += 1
+            assert self.current_segment < 7
+            self.calculate_segment_end()
+
+        def calculate_segment_end(self):
+            j = self.jerk_multipliers[self.current_segment] * self.jerk
+            t = self.profile.jerk_t[self.current_segment]
+
+            x = self.segment_start_x
+            v = self.segment_start_v
+            a = self.segment_start_a
+
+            self.segment_end_x = self.calculate_x(x, v, a, j, t)
+            self.segment_end_v = self.calculate_v(v, a, j, t)
+            self.segment_end_a = self.calculate_a(a, j, t)
+
+            self.current_segment_offset = 0
+
+        def calculate_x(self, x, v, a, j, t):
+            x += v*t 
+            x += 0.5 * a*t**2
+            x += j*t**3/6.0
+            return x
+        
+        def calculate_v(self, v, a, j, t):
+            v += a*t
+            v += 0.5 * j*t**2
+            return v
+
+        def calculate_a(self, a, j, t):
+            return a + j*t
+
+        def move_to(self, d):
+            tolerance = 1e-16
+            t = 0
+            x = self.segment_start_x - d
+            v = self.segment_start_v
+            a = self.segment_start_a
+            j = self.jerk_multipliers[self.current_segment] * self.jerk
+            new_x = 0
+            new_v = 0
+
+            for _ in range(10):
+                new_x = self.calculate_x(x, v, a, j, t)
+                new_v = self.calculate_v(v, a, j, t)
+                new_t = t - new_x / new_v
+                if abs(new_t - t) < tolerance:
+                    t = new_t
+                    break
+                t = new_t
+
+            self.x = new_x
+            self.v = new_v
+            self.a = self.calculate_a(a, j, t)
+
+            ret = t - self.current_segment_offset
+            self.current_segment_offset = t
+
+            return ret
 
 
     def __init__(self, toolhead):
@@ -494,16 +588,20 @@ class JerkFeedratePlanner(FeedratePlanner):
             v_move.moves.append(move)
             
             v_move.distance += move.move_d
+
+            if next_move is not None and next_move.max_cruise_v2 == end_v2:
+                continue
+
             reachable_end_v = MoveProfile.get_max_allowed_jerk_end_speed(
                 v_move.distance, v_move.start_v, v_move.accel, v_move.jerk)
             
             if reachable_end_v >= end_v:
-                v_move.end_v = min(end_v, reachable_end_v)
+                current_v = min(end_v, reachable_end_v)
+                v_move.end_v = current_v
                 v_move.cruise_v = max(v_move.end_v, math.sqrt(move.max_cruise_v2))
                 self.virtual_moves.append(v_move)
                 v_move = None
-            else:
-                pass
+            
     
     def backward_pass(self):
         current_v = 0
@@ -515,26 +613,44 @@ class JerkFeedratePlanner(FeedratePlanner):
             if reachable_start_speed >= move.start_v:
                 pass
 
-            
-            
-            
-
     def flush(self, lazy=False):
         self.forward_pass()
         self.backward_pass()
         profiles = []
-        for move in self.virtual_moves:
-            # TODO: handle changing parameters
-            is_kinematic_move = move.moves[0].is_kinematic_move
-            start_pos = move.moves[0].start_pos
-            axes_r = move.moves[0].axes_r
-            axes_d = move.moves[0].axes_d
-            end_pos = move.moves[0].end_pos
-            profile = MoveProfile(start_pos, is_kinematic_move,
-                axes_r=axes_r, axes_d=axes_d, end_pos=end_pos)
-            profile.calculate_jerk(move.distance, move.start_v,
-                move.cruise_v, move.end_v, move.accel, move.jerk)
-            profiles.append(profile)
+        for vmove in self.virtual_moves:
+            vmove.calculate_profile(vmove.profile)
+            vmove.calculate_first_segment()
+
+            d = 0
+
+            for move in vmove.moves:
+                is_kinematic_move = move.is_kinematic_move
+                start_pos = move.start_pos
+                axes_r = move.axes_r
+                axes_d = move.axes_d
+                end_pos = move.end_pos
+
+                profile = MoveProfile(start_pos, is_kinematic_move,
+                    axes_r=axes_r, axes_d=axes_d, end_pos=end_pos)
+                profile.jerk = vmove.jerk
+
+                d += move.move_d
+
+                # TODO: Set the start acceleration
+                profile.start_v = vmove.v
+                while d >= vmove.segment_end_x:
+                    s = vmove.current_segment
+                    profile.jerk_t[s] = vmove.profile.jerk_t[s] - vmove.current_segment_offset
+                    if s == 6:
+                        break
+
+                    vmove.calculate_next_segment()
+                
+                if d < vmove.segment_end_x:
+                    profile.jerk_t[vmove.current_segment] = vmove.move_to(d)
+                
+
+                profiles.append(profile)
         if profiles:
             self.toolhead._process_moves(profiles)
         del self.queue[:]
