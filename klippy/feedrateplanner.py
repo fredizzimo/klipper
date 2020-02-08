@@ -232,7 +232,7 @@ class MoveProfile(object):
                 val /= vs_plus_ve * (3.0*v - start_v)
                 return v - val
 
-            end_v = start_v + tolerance
+            end_v = start_v + 0.5 * jerk * (max_a / jerk)**2
             for _ in range(10):
                 new_v = iter(end_v)
                 if abs(end_v - new_v) < tolerance:
@@ -250,6 +250,27 @@ class MoveProfile(object):
             end_v -= max_a**2
             end_v /= 2.0 * jerk
             return end_v
+
+    @staticmethod
+    def can_accelerate_fully(distance, start_v, end_v, accel, jerk):
+        jerk_t2 = end_v - start_v 
+        jerk_t2 /= jerk
+        jerk_t2 *= 2
+
+        # If there's a constant acceleration phase
+        if jerk_t2 > (accel / jerk)**2:
+            d1 = end_v**2 - start_v**2
+            d1 /= 2.0 * accel
+
+            d2 = accel**2 / (12.0*jerk)
+            d2 += start_v
+            d2 *= accel / (2*jerk)
+            d = d1 + d2
+        else:
+            d = math.sqrt(jerk_t2)
+            d *= 2*start_v + end_v
+            d /= 3.0
+        return d > distance 
 
     def calculate_jerk_accelerate_only(
             self, distance, start_v, end_v, max_acc, jerk):
@@ -533,7 +554,7 @@ class JerkFeedratePlanner(FeedratePlanner):
 
         def move_to(self, d):
             tolerance = 1e-16
-            t = 0
+            t = 0.5 * self.profile.jerk_t[self.current_segment]
             x = self.segment_start_x - d
             v = self.segment_start_v
             a = self.segment_start_a
@@ -596,14 +617,17 @@ class JerkFeedratePlanner(FeedratePlanner):
             reachable_end_v = MoveProfile.get_max_allowed_jerk_end_speed(
                 v_move.distance, v_move.start_v, v_move.accel, v_move.jerk)
             
-            if reachable_end_v >= end_v or next_move is None:
+            def can_accelerate():
+                return MoveProfile.can_accelerate_fully(v_move.distance,
+                    v_move.start_v, end_v, v_move.accel, v_move.jerk)
+            
+            if (reachable_end_v >= end_v or
+                    next_move is None or not can_accelerate()):
                 current_v = min(end_v, reachable_end_v)
                 v_move.end_v = current_v
                 v_move.cruise_v = max(v_move.end_v, math.sqrt(move.max_cruise_v2))
                 self.virtual_moves.append(v_move)
                 v_move = None
-
-            
     
     def backward_pass(self):
         current_v = 0

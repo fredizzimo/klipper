@@ -224,3 +224,155 @@ def test_moves_with_different_velocities(toolhead):
         axes_d=(15, 0, 0, 0),
         end_pos=(20, 0, 0, 0)
     )
+
+def test_combine_acceleration_with_different_velocities_const_seg(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5)
+    toolhead.move(0.5, max_speed=50)
+    toolhead.move(20, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    toolhead.check_jerk_move(0,
+        distance=0.5,
+        start_v=0,
+        cruise_v=43.2049379894,
+        end_v=43.2049379894,
+        max_accel=2000,
+        max_decel=0,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(0.5, 0, 0, 0),
+        end_pos=(0.5, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=19.5,
+        start_v=43.2049379894,
+        cruise_v=100,
+        end_v=0,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(19.5, 0, 0, 0),
+        end_pos=(20, 0, 0, 0)
+    )
+
+def test_combine_acceleration_with_different_velocities_no_const_seg(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5)
+    toolhead.move(0.1, max_speed=50)
+    toolhead.move(20, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    toolhead.check_jerk_move(0,
+        distance=0.1,
+        start_v=0,
+        cruise_v=16.5096362445,
+        end_v=16.5096362445,
+        max_accel=1817.12059283,
+        max_decel=0,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(0.1, 0, 0, 0),
+        end_pos=(0.1, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=19.9,
+        start_v=16.5096362445,
+        cruise_v=100,
+        end_v=0,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(19.9, 0, 0, 0),
+        end_pos=(20, 0, 0, 0)
+    )
+
+def test_dont_comb_acc_when_it_would_violate_vel_limit_const_phase(toolhead):
+    # The velocity limit would be violated, when there's a constant acceleration
+    # phase
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5)
+    toolhead.move(1, max_speed=50)
+    toolhead.move(20, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    toolhead.check_jerk_move(0,
+        distance=1,
+        start_v=0,
+        cruise_v=46.3324958071,
+        end_v=46.3324958071,
+        max_accel=2000,
+        max_decel=0,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(1, 0, 0, 0),
+        end_pos=(1, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=19,
+        start_v=46.3324958071,
+        cruise_v=100,
+        end_v=0,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(19, 0, 0, 0),
+        end_pos=(20, 0, 0, 0)
+    )
+
+def test_dont_comb_acc_when_it_would_violate_vel_limit_no_const_phase(toolhead):
+    # The velocity limit would be violated, when there's no constant
+    # acceleration phase
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5)
+    toolhead.move(0.2, max_speed=20)
+    toolhead.move(20, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    toolhead.check_jerk_move(0,
+        distance=1,
+        start_v=0,
+        cruise_v=46.3324958071,
+        end_v=46.3324958071,
+        max_accel=2000,
+        max_decel=0,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(1, 0, 0, 0),
+        end_pos=(1, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=19,
+        start_v=46.3324958071,
+        cruise_v=100,
+        end_v=0,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(19, 0, 0, 0),
+        end_pos=(20, 0, 0, 0)
+    )

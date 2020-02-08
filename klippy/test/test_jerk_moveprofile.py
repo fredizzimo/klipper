@@ -825,3 +825,18 @@ def test_jerk_to_max_allowed_const_acc(move_plotter):
         max_decel=0,
         jerk=100000
     )
+
+def test_jerk_to_max_allowed_from_zero_no_const_acc(move_plotter):
+    profile = MoveProfile()
+    end_v = profile.get_max_allowed_jerk_end_speed(0.5, 0, 2000, 100000)
+    profile.calculate_jerk_accelerate_only(0.5, 0, end_v, 2000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=0.5,
+        start_v=0,
+        cruise_v=end_v,
+        end_v=end_v,
+        max_accel=1709.97594668,
+        max_decel=0,
+        jerk=100000
+    )

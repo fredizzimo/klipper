@@ -50,6 +50,7 @@ def check_jerk_profile(profile, distance, start_v, cruise_v, end_v, max_accel,
     with assume: assert pytest.approx(speeds[2]) == cruise_v
     with assume: assert pytest.approx(speeds[-1]) == end_v
     with assume: assert pytest.approx(accs[0]) == max_accel
-    with assume: assert pytest.approx(accs[4]) == -max_decel
+    with assume: assert pytest.approx(accs[4] if profile.jerk_t[4]>0 else 0) ==\
+        -max_decel
     with assume: assert pytest.approx(distances[-1]) == distance
 
