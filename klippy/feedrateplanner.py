@@ -753,8 +753,6 @@ class JerkFeedratePlanner(FeedratePlanner):
             start_v = move.start_v
             start_v2 = start_v**2
                 
-            move.end_v = current_v
-
             can_combine_with_next, reachable_start_v = \
                 self.can_combine_with_next(
                     prev_move, move.distance, move.end_v, start_v,
@@ -767,7 +765,8 @@ class JerkFeedratePlanner(FeedratePlanner):
                 move.cruise_v = max(move.start_v, move.cruise_v)
                 output.append(move)
             else:
-                assert False
+                prev_move.distance += move.distance
+                prev_move.moves.extend(move.moves)
 
         self.virtual_moves = reversed(output)
 

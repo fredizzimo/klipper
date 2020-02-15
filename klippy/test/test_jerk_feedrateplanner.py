@@ -179,8 +179,8 @@ def test_two_combined_asymetric_short_moves(toolhead):
         start_v=20.5539663235,
         cruise_v=20.5539663235,
         end_v=0,
-        max_accel=-635.249800672,
-        max_decel=1502.38736249 ,
+        max_accel=0,
+        max_decel=1502.38736249,
         jerk=100000,
         is_kinematic_move=True,
         axes_r=(1, 0, 0, 0),
@@ -449,4 +449,41 @@ def test_limit_backward_pass_speed(toolhead):
         axes_r=(1, 0, 0, 0),
         axes_d=(1, 0, 0, 0),
         end_pos=(21, 0, 0, 0)
+    )
+
+def test_combine_backwards(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5)
+    toolhead.move(20, max_speed=100)
+    toolhead.move(20.5, max_speed=50)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    toolhead.check_jerk_move(0,
+        distance=20,
+        start_v=0,
+        cruise_v=100,
+        end_v=43.2049379894,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(20, 0, 0, 0),
+        end_pos=(20, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=0.5,
+        start_v=43.2049379894,
+        cruise_v=43.2049379894,
+        end_v=0,
+        max_accel=0,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(0.5, 0, 0, 0),
+        end_pos=(20.5, 0, 0, 0)
     )
