@@ -42,6 +42,11 @@ def calculate_move(profile):
 def check_jerk_profile(profile, distance, start_v, cruise_v, end_v, max_accel,
                        max_decel, jerk):
     distances, speeds, accs, _ = calculate_move(profile)
+
+    has_acc = (profile.jerk_t[0] > 0 or profile.jerk_t[1] > 0 or
+        profile.jerk_t[2] > 0)
+    has_dec = (profile.jerk_t[4] > 0 or profile.jerk_t[5] > 0 or
+        profile.jerk_t[6] > 0)
     for t in profile.jerk_t:
         with assume: assert t >= 0, str(profile.jerk_t)
     with assume: assert profile.jerk == jerk
@@ -49,8 +54,7 @@ def check_jerk_profile(profile, distance, start_v, cruise_v, end_v, max_accel,
     with assume: assert pytest.approx(profile.start_v) == start_v
     with assume: assert pytest.approx(speeds[2]) == cruise_v
     with assume: assert pytest.approx(speeds[-1]) == end_v
-    with assume: assert pytest.approx(accs[0]) == max_accel
-    with assume: assert pytest.approx(accs[4] if profile.jerk_t[4]>0 else 0) ==\
-        -max_decel
+    with assume: assert pytest.approx(accs[0]) if has_acc else 0 == max_accel
+    with assume: assert pytest.approx(accs[4] if has_dec else 0) == -max_decel
     with assume: assert pytest.approx(distances[-1]) == distance
 
