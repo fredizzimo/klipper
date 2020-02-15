@@ -673,6 +673,32 @@ class JerkFeedratePlanner(FeedratePlanner):
         # TODO: should not be hardcoded
         self.jerk = 100000
 
+    @staticmethod
+    def can_combine_with_next(next_move, distance, start_v, end_v, end_v2,
+        accel, jerk):
+        reachable_end_v = MoveProfile.get_max_allowed_jerk_end_speed(
+            distance, start_v, accel, jerk)
+
+        if next_move is None:
+            return (False, reachable_end_v)
+        
+        can_reach_end = reachable_end_v >= end_v
+        if can_reach_end:
+            return (False, reachable_end_v)
+        
+        # TODO: Do something about this
+        # The virtual move and normal move does not have the same attributes
+        if hasattr(next_move, "max_cruise_v2"):
+            if next_move.max_cruise_v2 == end_v2:
+                return (True, end_v)
+        else:
+            if next_move.cruise_v == end_v:
+                return (True, end_v)
+        
+        return (MoveProfile.can_accelerate_fully(distance,
+            start_v, end_v, accel, jerk), reachable_end_v)
+
+
     def forward_pass(self):
         self.virtual_moves = []
         v_move = None
@@ -697,33 +723,54 @@ class JerkFeedratePlanner(FeedratePlanner):
             
             v_move.distance += move.move_d
 
-            if next_move is not None and next_move.max_cruise_v2 == end_v2:
-                continue
+            can_combine_with_next, reachable_end_v = self.can_combine_with_next(
+                next_move, v_move.distance, v_move.start_v, end_v, end_v2,
+                v_move.accel, v_move.jerk
+            )
 
-            reachable_end_v = MoveProfile.get_max_allowed_jerk_end_speed(
-                v_move.distance, v_move.start_v, v_move.accel, v_move.jerk)
-            
-            def can_accelerate():
-                return MoveProfile.can_accelerate_fully(v_move.distance,
-                    v_move.start_v, end_v, v_move.accel, v_move.jerk)
-            
-            if (reachable_end_v >= end_v or
-                    next_move is None or not can_accelerate()):
+            if not can_combine_with_next:
                 current_v = min(end_v, reachable_end_v)
                 v_move.end_v = current_v
                 v_move.cruise_v = max(v_move.end_v, math.sqrt(move.max_cruise_v2))
                 self.virtual_moves.append(v_move)
                 v_move = None
+
     
     def backward_pass(self):
         current_v = 0
-        for move in reversed(self.virtual_moves):
-            move.end_v = current_v
-            reachable_start_speed = MoveProfile.get_max_allowed_jerk_end_speed(
-                move.distance, current_v, move.accel, move.jerk)
+        output = []
+        for i in reversed(range(len(self.virtual_moves))):
+            move = self.virtual_moves[i]
+            if i != 0:
+                prev_move = self.virtual_moves[i-1]
+            else:
+                prev_move = None
 
-            if reachable_start_speed >= move.start_v:
-                current_v = move.start_v
+            if move.end_v > current_v:
+                move.end_v = current_v
+                move.cruise_v = max(current_v, move.cruise_v)
+
+            start_v = move.start_v
+            start_v2 = start_v**2
+                
+            move.end_v = current_v
+
+            can_combine_with_next, reachable_start_v = \
+                self.can_combine_with_next(
+                    prev_move, move.distance, move.end_v, start_v,
+                    start_v2, move.accel, move.jerk
+            )
+
+            if not can_combine_with_next:
+                current_v = min(start_v, reachable_start_v)
+                move.start_v = current_v
+                move.cruise_v = max(move.start_v, move.cruise_v)
+                output.append(move)
+            else:
+                assert False
+
+        self.virtual_moves = reversed(output)
+
 
     def flush(self, lazy=False):
         tolerance = 1e-9
