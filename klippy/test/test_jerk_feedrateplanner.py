@@ -351,21 +351,21 @@ def test_dont_comb_acc_when_it_would_violate_vel_limit_no_const_phase(toolhead):
     toolhead.flush()
     assert len(toolhead.moves) == 2
     toolhead.check_jerk_move(0,
-        distance=1,
+        distance=0.2,
         start_v=0,
-        cruise_v=46.3324958071,
-        end_v=46.3324958071,
-        max_accel=2000,
+        cruise_v=15.8740105197,
+        end_v=15.8740105197,
+        max_accel=1259.92104989,
         max_decel=0,
         jerk=100000,
         is_kinematic_move=True,
         axes_r=(1, 0, 0, 0),
-        axes_d=(1, 0, 0, 0),
-        end_pos=(1, 0, 0, 0)
+        axes_d=(0.2, 0, 0, 0),
+        end_pos=(0.2, 0, 0, 0)
     )
     toolhead.check_jerk_move(1,
-        distance=19,
-        start_v=46.3324958071,
+        distance=19.8,
+        start_v=15.8740105197,
         cruise_v=100,
         end_v=0,
         max_accel=2000,
@@ -373,6 +373,6 @@ def test_dont_comb_acc_when_it_would_violate_vel_limit_no_const_phase(toolhead):
         jerk=100000,
         is_kinematic_move=True,
         axes_r=(1, 0, 0, 0),
-        axes_d=(19, 0, 0, 0),
+        axes_d=(19.8, 0, 0, 0),
         end_pos=(20, 0, 0, 0)
     )
