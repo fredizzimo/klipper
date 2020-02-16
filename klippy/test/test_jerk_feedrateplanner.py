@@ -487,3 +487,273 @@ def test_combine_backwards(toolhead):
         axes_d=(0.5, 0, 0, 0),
         end_pos=(20.5, 0, 0, 0)
     )
+    
+def test_a_single_move_is_not_lazily_flushed(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
+    toolhead.move(100, max_speed=100)
+    toolhead.flush(True)
+    assert len(toolhead.moves) == 0
+    toolhead.flush()
+    toolhead.check_jerk_move(0,
+        distance=100,
+        start_v=0,
+        cruise_v=100,
+        end_v=0,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(100, 0, 0, 0),
+        end_pos=(100, 0, 0, 0)
+    )
+
+def test_flush_when_top_speed_reached(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
+    toolhead.move(10, max_speed=100)
+    toolhead.move(20, max_speed=100)
+    toolhead.move(30, max_speed=100)
+    toolhead.flush(True)
+    assert len(toolhead.moves) == 2
+    toolhead.check_jerk_move(0,
+        distance=10,
+        start_v=0,
+        cruise_v=100,
+        end_v=100,
+        max_accel=2000,
+        max_decel=0,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(10, 0, 0, 0),
+        end_pos=(10, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=10,
+        start_v=100,
+        cruise_v=100,
+        end_v=100,
+        max_accel=0,
+        max_decel=0,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(10, 0, 0, 0),
+        end_pos=(20, 0, 0, 0)
+    )
+    toolhead.move(40, max_speed=100)
+    toolhead.flush(True)
+    assert len(toolhead.moves) == 3
+    toolhead.check_jerk_move(2,
+        distance=10,
+        start_v=100,
+        cruise_v=100,
+        end_v=100,
+        max_accel=0,
+        max_decel=0,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(10, 0, 0, 0),
+        end_pos=(30, 0, 0, 0)
+    )
+    toolhead.flush()
+    assert len(toolhead.moves) == 4
+    toolhead.check_jerk_move(3,
+        distance=10,
+        start_v=100,
+        cruise_v=100,
+        end_v=0,
+        max_accel=0,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(10, 0, 0, 0),
+        end_pos=(40, 0, 0, 0)
+    )
+
+def test_flushing_with_speed_peak_reached(
+    toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
+    toolhead.move(10, max_speed=100)
+    toolhead.move(20, max_speed=10)
+    toolhead.move(22, max_speed=100)
+    toolhead.flush(True)
+    assert len(toolhead.moves) == 2
+    toolhead.check_jerk_move(0,
+        distance=10,
+        start_v=0,
+        cruise_v=100,
+        end_v=10,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(10, 0, 0, 0),
+        end_pos=(10, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=10,
+        start_v=10,
+        cruise_v=10,
+        end_v=10,
+        max_accel=0,
+        max_decel=0,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(10, 0, 0, 0),
+        end_pos=(20, 0, 0, 0)
+    )
+
+    toolhead.move(23, max_speed=100)
+    toolhead.flush(True)
+    # This move didn't reach the max speed, so nothing can be flushed
+    assert len(toolhead.moves) == 2
+
+    toolhead.move(30, max_speed=10)
+    toolhead.flush(True)
+    # The last move is not flushed, because we don't know what the next one is
+    assert len(toolhead.moves) == 4
+    toolhead.check_jerk_move(2,
+        distance=2,
+        start_v=10,
+        cruise_v=58.1024967591,
+        end_v=54.2295896854,
+        max_accel=2000,
+        max_decel=880.103070519,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(2, 0, 0, 0),
+        end_pos=(22, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(3,
+        distance=1,
+        start_v=54.2295896854,
+        cruise_v=54.2295896854,
+        end_v=10,
+        max_accel=0,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(1, 0, 0, 0),
+        end_pos=(23, 0, 0, 0)
+    )
+    toolhead.flush()
+    assert len(toolhead.moves) == 5
+    toolhead.check_jerk_move(4,
+        distance=7,
+        start_v=10,
+        cruise_v=10,
+        end_v=0,
+        max_accel=0,
+        max_decel=1000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(7, 0, 0, 0),
+        end_pos=(30, 0, 0, 0)
+    )
+
+def test_flushing_with_speed_peak_reached2(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
+    toolhead.move(10, max_speed=100)
+    toolhead.move(20, max_speed=10)
+    toolhead.move(21, max_speed=100)
+    toolhead.flush(True)
+    assert len(toolhead.moves) == 2
+    toolhead.check_jerk_move(0,
+        distance=10,
+        start_v=0,
+        cruise_v=100,
+        end_v=10,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(10, 0, 0, 0),
+        end_pos=(10, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=10,
+        start_v=10,
+        cruise_v=10,
+        end_v=10,
+        max_accel=0,
+        max_decel=0,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(10, 0, 0, 0),
+        end_pos=(20, 0, 0, 0)
+    )
+    toolhead.move(23, max_speed=100)
+    toolhead.flush(True)
+    # This move didn't reach the max speed, so nothing can be flushed
+    assert len(toolhead.moves) == 2
+    toolhead.move(30, max_speed=10)
+    toolhead.flush(True)
+    # The last move is not flushed, because we don't know what the next one is
+    assert len(toolhead.moves) == 4
+    toolhead.check_jerk_move(2,
+        distance=1,
+        start_v=10,
+        cruise_v=54.2295896854,
+        end_v=54.2295896854,
+        max_accel=880.103070519,
+        max_decel=0,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(1, 0, 0, 0),
+        end_pos=(21, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(3,
+        distance=2,
+        start_v=54.2295896854,
+        cruise_v=58.102496759,
+        end_v=10,
+        max_accel=0,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(2, 0, 0, 0),
+        end_pos=(23, 0, 0, 0)
+    )
+    toolhead.flush()
+    assert len(toolhead.moves) == 5
+    toolhead.check_jerk_move(4,
+        distance=7,
+        start_v=10,
+        cruise_v=10,
+        end_v=0,
+        max_accel=0,
+        max_decel=1000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(7, 0, 0, 0),
+        end_pos=(30, 0, 0, 0)
+    )

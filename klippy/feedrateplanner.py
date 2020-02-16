@@ -108,83 +108,90 @@ class MoveProfile(object):
         # FIR filter-based online jerk-constrained trajectory generation
         # by Pierre Besset and Richard Béarée
 
+        # Make sure that max_v not smaller than the endpoints, due to rounding
+        # errors
+        max_v = max(max_v, start_v, end_v)
+
+        # If no speed change is allowed, then create a constant
+        # profile
+        if (abs(start_v - end_v) <= self.tolerance and
+            abs(start_v - max_v) <= self.tolerance):
+                cruise_t = distance / max_v
+                self.jerk = jerk
+                self.start_v = start_v
+                self.cruise_v = max_v
+                self.end_v = end_v
+                self.jerk_t = [
+                    0,
+                    0,
+                    0,
+                    cruise_t,
+                    0,
+                    0,
+                    0,
+                ]
+                return
+
         # The algorithm only works when the distance is big enough
         if distance < self.get_min_allowed_jerk_distance(
                 start_v, end_v, max(accel, decel), jerk):
-
-            
+            # If the speeds are the same, then create a jerk profile
+            # without constant acc segments
+            # Note that the distance is short enough, so the constant
+            # acceleration can never be achieved
             if abs(start_v - end_v) <= self.tolerance:
-                if abs(start_v - max_v) <= self.tolerance:
-                    # If no speed change is allowed, then create a constant
-                    # profile
-                    self.jerk = 0
+
+                # There are two cases, either the maximum speed is reached 
+                # or not
+
+                acc_t = max_v - start_v
+                acc_t /= jerk
+                acc_t = math.sqrt(acc_t)
+                jerk_dist = 2*start_v + jerk*acc_t**2
+                jerk_dist *= 2*acc_t
+                cruise_d = distance - jerk_dist
+                if cruise_d >= 0:
+                    # The cruise speed is reached
+                    cruise_t = cruise_d / max_v
+                    self.jerk = jerk
                     self.start_v = start_v
-                    self.cruise_v = start_v
-                    self.end_v = start_v
-
-                    self.accel_t = 0
-                    self.cruise_t = distance / start_v
-                    self.decel_t = 0
-
-                    self.accel = 0
-                    self.decel = 0
+                    self.cruise_v = max_v
+                    self.end_v = end_v
+                    self.jerk_t = [
+                        acc_t,
+                        0,
+                        acc_t,
+                        cruise_t,
+                        acc_t,
+                        0,
+                        acc_t
+                    ]
                 else:
-                    # If the speeds are the same, then create a jerk profile
-                    # without constant acc segments
-                    # Note that the distance is short enough, so the constant
-                    # acceleration can never be achieved
-
-                    # There are two cases, either the maximum speed is reached 
-                    # or not
-
-                    acc_t = max_v - start_v
-                    acc_t /= jerk
-                    acc_t = math.sqrt(acc_t)
-                    jerk_dist = 2*start_v + jerk*acc_t**2
-                    jerk_dist *= 2*acc_t
-                    cruise_d = distance - jerk_dist
-                    if cruise_d >= 0:
-                        # The cruise speed is reached
-                        cruise_t = cruise_d / max_v
-                        self.jerk = jerk
-                        self.start_v = start_v
-                        self.cruise_v = max_v
-                        self.end_v = end_v
-                        self.jerk_t = [
-                            acc_t,
-                            0,
-                            acc_t,
-                            cruise_t,
-                            acc_t,
-                            0,
-                            acc_t
-                        ]
-                    else:
-                        # The cruise speed is not reached
-                        a = 2.0*jerk
-                        b = 4.0*start_v
-                        c = 6.0*jerk
-                        t = self.tolerance
-                        for _ in range(10):
-                            d = a*t**3 + t*b - distance
-                            e = c*t**2 + b
-                            old_t = t
-                            t = old_t - d / e
-                            if abs(t - old_t) < self.tolerance:
-                                break
-                        self.jerk = jerk
-                        self.start_v = start_v
-                        self.cruise_v = jerk * t**2 + start_v 
-                        self.end_v = end_v
-                        self.jerk_t = [
-                            t,
-                            0,
-                            t,
-                            0,
-                            t,
-                            0,
-                            t
-                        ]
+                    # The cruise speed is not reached
+                    a = 2.0*jerk
+                    b = 4.0*start_v
+                    c = 6.0*jerk
+                    t = self.tolerance
+                    for _ in range(10):
+                        d = a*t**3 + t*b - distance
+                        e = c*t**2 + b
+                        old_t = t
+                        t = old_t - d / e
+                        if abs(t - old_t) < self.tolerance:
+                            break
+                    self.jerk = jerk
+                    self.start_v = start_v
+                    self.cruise_v = jerk * t**2 + start_v 
+                    self.end_v = end_v
+                    self.jerk_t = [
+                        t,
+                        0,
+                        t,
+                        0,
+                        t,
+                        0,
+                        t
+                    ]
             else:
                 # When the start and end profiles are different, then create
                 # a fully accelerating or decelrating profile
@@ -675,6 +682,7 @@ class JerkFeedratePlanner(FeedratePlanner):
         self.virtual_moves = []
         # TODO: should not be hardcoded
         self.jerk = 100000
+        self.current_v = 0
 
     @staticmethod
     def can_combine_with_next(next_move, distance, start_v, end_v, end_v2,
@@ -703,9 +711,8 @@ class JerkFeedratePlanner(FeedratePlanner):
 
 
     def forward_pass(self):
-        self.virtual_moves = []
         v_move = None
-        current_v = 0
+        current_v = self.current_v
         for i, move in enumerate(self.queue):
             if i != len(self.queue) - 1:
                 next_move = self.queue[i+1]
@@ -773,10 +780,15 @@ class JerkFeedratePlanner(FeedratePlanner):
 
 
     def flush(self, lazy=False):
+        if not self.queue:
+            return
         tolerance = 1e-9
+        self.virtual_moves = []
         self.forward_pass()
         self.backward_pass()
         profiles = []
+        flush_count = 0
+        move_count = 0
         for vmove in self.virtual_moves:
             vmove.calculate_profile(vmove.profile)
             vmove.calculate_first_segment()
@@ -784,6 +796,7 @@ class JerkFeedratePlanner(FeedratePlanner):
             d = 0
 
             for move in vmove.moves:
+                move_count += 1
                 is_kinematic_move = move.is_kinematic_move
                 start_pos = move.start_pos
                 axes_r = move.axes_r
@@ -798,18 +811,37 @@ class JerkFeedratePlanner(FeedratePlanner):
 
                 profile.start_v = vmove.v
                 profile.start_a = vmove.a
+                cruise_v = vmove.segment_end_v
                 while d >= vmove.segment_end_x - tolerance:
                     s = vmove.current_segment
                     profile.jerk_t[s] = vmove.profile.jerk_t[s] - vmove.current_segment_offset
+                    cruise_v = max(cruise_v, vmove.segment_start_v)
                     if s == 6:
                         break
 
                     vmove.calculate_next_segment()
-                
+
                 if d < vmove.segment_end_x - tolerance:
                     profile.jerk_t[vmove.current_segment] = vmove.move_to(d)
+                    profile.end_v = vmove.v
+                else:
+                    profile.end_v = vmove.segment_end_v
+
+                profile.cruise_v = max(cruise_v, vmove.v)
+
+                target_end_v2 = move.max_cruise_v2 
+                if move_count < len(self.queue):
+                    target_end_v2 = self.queue[move_count].max_junction_v2
+                # Flush when the top speed is reached
+                # TODO: Make sure that the acceleration is zero
+                if abs(profile.end_v**2 - target_end_v2) < tolerance:
+                    flush_count = move_count
 
                 profiles.append(profile)
-        if profiles:
-            self.toolhead._process_moves(profiles)
-        del self.queue[:]
+        if not lazy:
+            flush_count = move_count
+        if profiles and flush_count > 0:
+            self.toolhead._process_moves(profiles[:flush_count])
+            self.current_v = profiles[flush_count-1].end_v
+            del self.queue[:flush_count]
+        self.virtual_moves = []
