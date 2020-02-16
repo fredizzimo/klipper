@@ -751,7 +751,6 @@ class JerkFeedratePlanner(FeedratePlanner):
 
             if move.end_v > current_v:
                 move.end_v = current_v
-                move.cruise_v = max(current_v, move.cruise_v)
 
             start_v = move.start_v
             start_v2 = start_v**2
@@ -765,7 +764,6 @@ class JerkFeedratePlanner(FeedratePlanner):
             if not can_combine_with_next:
                 current_v = min(start_v, reachable_start_v)
                 move.start_v = current_v
-                move.cruise_v = max(move.start_v, move.cruise_v)
                 output.append(move)
             else:
                 prev_move.distance += move.distance
