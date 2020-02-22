@@ -721,7 +721,7 @@ def test_flushing_with_speed_peak_reached2(toolhead):
         start_v=10,
         cruise_v=54.2295896854,
         end_v=54.2295896854,
-        max_accel=880.103070519,
+        max_accel=2000,
         max_decel=0,
         jerk=100000,
         is_kinematic_move=True,
@@ -734,7 +734,7 @@ def test_flushing_with_speed_peak_reached2(toolhead):
         start_v=54.2295896854,
         cruise_v=58.102496759,
         end_v=10,
-        max_accel=0,
+        max_accel=880.103070519,
         max_decel=2000,
         jerk=100000,
         is_kinematic_move=True,
@@ -756,4 +756,69 @@ def test_flushing_with_speed_peak_reached2(toolhead):
         axes_r=(1, 0, 0, 0),
         axes_d=(7, 0, 0, 0),
         end_pos=(30, 0, 0, 0)
+    )
+
+def test_dont_flush_when_still_accelerating(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5)
+    # Calculate the exact distance to accelerate to the first segment speed 
+    speed = 20.0
+    jerk_t2 = speed
+    jerk_t2 /= 100000
+    jerk_t2 *= 2
+    d = sqrt(jerk_t2)
+    d *= speed
+    d /= 3.0
+    d-=1e-16
+    toolhead.move(d, max_speed=speed)
+    toolhead.move(5, max_speed=100)
+    toolhead.flush(True)
+    # The top speed is reached for the first move, but it's still accelerating
+    # The second move does not reach the top speed, so no moves should be 
+    # output. 
+    assert len(toolhead.moves) == 0
+    toolhead.move(20, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 3
+    toolhead.check_jerk_move(0,
+        distance=d,
+        start_v=0,
+        cruise_v=speed,
+        end_v=speed,
+        max_accel=2000,
+        max_decel=0,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(d, 0, 0, 0),
+        end_pos=(d, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=5-d,
+        start_v=speed,
+        cruise_v=100,
+        end_v=100,
+        max_accel=2000,
+        max_decel=0,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(5-d, 0, 0, 0),
+        end_pos=(5, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(2,
+        distance=15,
+        start_v=100,
+        cruise_v=100,
+        end_v=0,
+        max_accel=0,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(15, 0, 0, 0),
+        end_pos=(20, 0, 0, 0)
     )
