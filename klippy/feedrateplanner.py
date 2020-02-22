@@ -663,13 +663,25 @@ class JerkFeedratePlanner(FeedratePlanner):
                     t = new_t
                     break
                 t = new_t
+            
+            # Return either end or start if t is out of bounds due to 
+            # precision issues
+            if t > self.profile.jerk_t[self.current_segment]:
+                self.x = self.segment_end_x
+                self.v = self.segment_end_v
+                self.a = self.segment_end_a
+                ret = self.profile.jerk_t[self.current_segment] - t
+                self.current_segment_offset = \
+                    self.profile.jerk_t[self.current_segment]
+            elif t > 0.0:
+                self.x = new_x
+                self.v = new_v
+                self.a = self.calculate_a(a, j, t)
+                ret = t - self.current_segment_offset
+                self.current_segment_offset = t
+            else:
+                ret = 0
 
-            self.x = new_x
-            self.v = new_v
-            self.a = self.calculate_a(a, j, t)
-
-            ret = t - self.current_segment_offset
-            self.current_segment_offset = t
 
             return ret
 
@@ -809,11 +821,13 @@ class JerkFeedratePlanner(FeedratePlanner):
                 profile.start_v = vmove.v
                 profile.start_a = vmove.a
                 cruise_v = vmove.segment_end_v
+                at_end = False
                 while d >= vmove.segment_end_x - tolerance:
                     s = vmove.current_segment
                     profile.jerk_t[s] = vmove.profile.jerk_t[s] - vmove.current_segment_offset
                     cruise_v = max(cruise_v, vmove.segment_start_v)
                     if s == 6:
+                        at_end = True
                         break
 
                     vmove.calculate_next_segment()
@@ -829,10 +843,11 @@ class JerkFeedratePlanner(FeedratePlanner):
                 target_end_v2 = move.max_cruise_v2 
                 if move_count < len(self.queue):
                     target_end_v2 = self.queue[move_count].max_junction_v2
-                # Flush when the top speed is reached
-                # TODO: Make sure that the acceleration is zero
-                if abs(profile.end_v**2 - target_end_v2) < tolerance:
-                    flush_count = move_count
+                # Flush when the top speed is reached, and there's no
+                # acceleration (at a cruise segment, or at the end)
+                if vmove.current_segment == 3 or at_end:
+                    if abs(profile.end_v**2 - target_end_v2) < tolerance:
+                        flush_count = move_count
 
                 profiles.append(profile)
         if not lazy:
