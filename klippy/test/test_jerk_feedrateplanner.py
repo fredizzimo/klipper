@@ -13,7 +13,8 @@ def test_single_long_move(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=2000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(100, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
@@ -36,7 +37,8 @@ def test_accel_decel_limit_is_not_in_use(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=1000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(5, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
@@ -59,7 +61,8 @@ def test_two_long_moves(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=1000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(100, max_speed=100)
     toolhead.move(200, max_speed=100)
     toolhead.flush()
@@ -96,7 +99,8 @@ def test_single_short_move(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=1000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(0.5, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
@@ -119,7 +123,8 @@ def test_two_combined_short_moves(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=1000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(0.5, max_speed=100)
     toolhead.move(1.0, max_speed=100)
     toolhead.flush()
@@ -156,7 +161,8 @@ def test_two_combined_asymetric_short_moves(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=1000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(0.5, max_speed=100)
     toolhead.move(0.7, max_speed=100)
     toolhead.flush()
@@ -193,7 +199,8 @@ def test_moves_with_different_velocities(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=1000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(5, max_speed=50)
     toolhead.move(20, max_speed=100)
     toolhead.flush()
@@ -230,7 +237,8 @@ def test_combine_acceleration_with_different_velocities_const_seg(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=1000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(0.5, max_speed=50)
     toolhead.move(20, max_speed=100)
     toolhead.flush()
@@ -267,7 +275,8 @@ def test_combine_acceleration_with_different_velocities_no_const_seg(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=1000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(0.1, max_speed=50)
     toolhead.move(20, max_speed=100)
     toolhead.flush()
@@ -306,7 +315,8 @@ def test_dont_comb_acc_when_it_would_violate_vel_limit_const_phase(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=1000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(1, max_speed=50)
     toolhead.move(20, max_speed=100)
     toolhead.flush()
@@ -345,7 +355,8 @@ def test_dont_comb_acc_when_it_would_violate_vel_limit_no_const_phase(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=1000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(0.2, max_speed=20)
     toolhead.move(20, max_speed=100)
     toolhead.flush()
@@ -382,7 +393,8 @@ def test_slowdown_for_next_segment(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=1000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(20, max_speed=100)
     toolhead.move(25, max_speed=50)
     toolhead.flush()
@@ -419,7 +431,8 @@ def test_limit_backward_pass_speed(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=1000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(20, max_speed=100)
     toolhead.move(21, max_speed=50)
     toolhead.flush()
@@ -456,7 +469,8 @@ def test_combine_backwards(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=1000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(20, max_speed=100)
     toolhead.move(20.5, max_speed=50)
     toolhead.flush()
@@ -493,7 +507,8 @@ def test_a_single_move_is_not_lazily_flushed(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=2000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(100, max_speed=100)
     toolhead.flush(True)
     assert len(toolhead.moves) == 0
@@ -517,7 +532,8 @@ def test_flush_when_top_speed_reached(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=2000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(10, max_speed=100)
     toolhead.move(20, max_speed=100)
     toolhead.move(30, max_speed=100)
@@ -587,7 +603,8 @@ def test_flushing_with_speed_peak_reached(
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=2000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(10, max_speed=100)
     toolhead.move(20, max_speed=10)
     toolhead.move(22, max_speed=100)
@@ -676,7 +693,8 @@ def test_flushing_with_speed_peak_reached2(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=2000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     toolhead.move(10, max_speed=100)
     toolhead.move(20, max_speed=10)
     toolhead.move(21, max_speed=100)
@@ -763,7 +781,8 @@ def test_dont_flush_when_still_accelerating(toolhead):
         max_vel=100,
         max_acc=2000,
         max_acc_to_dec=2000,
-        square_corner_velocity=5)
+        square_corner_velocity=5,
+        jerk=100000)
     # Calculate the exact distance to accelerate to the first segment speed 
     speed = 20.0
     jerk_t2 = speed
