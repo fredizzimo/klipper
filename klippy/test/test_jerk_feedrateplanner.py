@@ -841,3 +841,107 @@ def test_dont_flush_when_still_accelerating(toolhead):
         axes_d=(15, 0, 0, 0),
         end_pos=(20, 0, 0, 0)
     )
+
+def test_square_corner(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5,
+        jerk=100000)
+    toolhead.move((10, 0), max_speed=100)
+    toolhead.move((10, 10), max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    toolhead.check_jerk_move(0,
+        distance=10,
+        start_v=0,
+        cruise_v=100,
+        end_v=5,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(10, 0, 0, 0),
+        end_pos=(10, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=10,
+        start_v=5,
+        cruise_v=100,
+        end_v=0,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(0, 1, 0, 0),
+        axes_d=(0, 10, 0, 0),
+        end_pos=(10, 10, 0, 0)
+    )
+
+def test_lookahead_slow_corner(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5,
+        jerk=100000)
+    toolhead.move((10, 0), max_speed=100)
+    toolhead.move((11, 0.01), max_speed=100)
+    toolhead.move((12, 0.02), max_speed=100)
+    toolhead.move((10, 0.02), max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 4
+    toolhead.check_jerk_move(0,
+        distance=10,
+        start_v=0,
+        cruise_v=100,
+        end_v=87.7351033589,
+        max_accel=2000,
+        max_decel=1566.19900658,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(10, 0, 0, 0),
+        end_pos=(10, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=sqrt(1**2 + 0.01**2),
+        start_v=87.7351033589,
+        cruise_v=87.7351033589,
+        end_v=62.1111441783,
+        max_accel=0,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(0.99995000375, 0.0099995000375, 0, 0),
+        axes_d=(1, 0.01, 0, 0),
+        end_pos=(11, 0.01, 0, 0)
+    )
+    toolhead.check_jerk_move(2,
+        distance=sqrt(1**2 + 0.01**2),
+        start_v=62.1111441783,
+        cruise_v=62.1111441783,
+        end_v=0.228111636339,
+        max_accel=0,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(0.99995000375, 0.0099995000375, 0, 0),
+        axes_d=(1, 0.01, 0, 0),
+        end_pos=(12, 0.02, 0, 0)
+    )
+    toolhead.check_jerk_move(3,
+        distance=2,
+        start_v=0.228111636339,
+        cruise_v=46.2982939806,
+        end_v=0,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(-1, 0, 0, 0),
+        axes_d=(-2, 0, 0, 0),
+        end_pos=(10, 0.02, 0, 0)
+    )
