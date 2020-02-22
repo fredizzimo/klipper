@@ -686,11 +686,10 @@ class JerkFeedratePlanner(FeedratePlanner):
             return ret
 
 
-    def __init__(self, toolhead):
+    def __init__(self, toolhead, jerk):
         super(JerkFeedratePlanner, self).__init__(toolhead)
         self.virtual_moves = []
-        # TODO: should not be hardcoded
-        self.jerk = 100000
+        self.jerk = jerk
         self.current_v = 0
 
     @staticmethod

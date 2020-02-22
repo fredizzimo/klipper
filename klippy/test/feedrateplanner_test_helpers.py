@@ -26,12 +26,16 @@ class ToolHead(object):
         self.input_moves = []
 
     def set_limits(self, max_vel, max_acc, max_acc_to_dec,
-        square_corner_velocity):
+        square_corner_velocity, jerk=None):
         self.max_accel = max_acc
         self.max_velocity = max_vel
         self.max_accel_to_decel = max_acc_to_dec
         scv2 = square_corner_velocity**2
         self.junction_deviation = scv2 * (sqrt(2.) - 1.) / self.max_accel
+        if jerk is not None:
+            assert (self.feedrate_planner.jerk is None
+                or self.feedrate_planner.jerk == jerk)
+            self.feedrate_planner.jerk = jerk
 
     def _process_moves(self, moves):
         self.moves += moves
@@ -89,6 +93,8 @@ def trapezoidal_toolhead(move_plotter, request):
 
 @pytest.fixture
 def jerk_toolhead(move_plotter, request):
-    toolhead = ToolHead(JerkFeedratePlanner)
+    # For testing we are setting the jerk a bit later, but before 
+    # actually using hte feedrate planner, so pass None here
+    toolhead = ToolHead(lambda toolhead: JerkFeedratePlanner(toolhead, None))
     yield toolhead
     move_plotter.plot(toolhead.moves, input_moves=toolhead.input_moves)
