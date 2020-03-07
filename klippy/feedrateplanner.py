@@ -102,19 +102,20 @@ class MoveProfile(object):
         distance /= 2.0 * a_max*jerk
         return distance
 
-    def calculate_jerk(self, distance, start_v, max_v, end_v, accel, jerk):
+    def calculate_jerk(self, distance, start_v, max_v, end_v, accel, jerk, decel=None):
         # Calculate a jerk limited profile based on the paper
         # FIR filter-based online jerk-constrained trajectory generation
         # by Pierre Besset and Richard Béarée
 
         # Make sure that max_v not smaller than the endpoints, due to rounding
         # errors
+        if decel is None:
+            decel = accel
         max_v = max(max_v, start_v, end_v)
 
         start_v2 = start_v**2
         max_v2 = max_v**2
         end_v2 = end_v**2
-        decel = accel
         accel_decel = accel * decel
         two_accel_decel = 2.0 * accel_decel
         two_accel_decel_jerk = two_accel_decel * jerk
@@ -126,6 +127,9 @@ class MoveProfile(object):
         dist_cruise += accel*jerk*(end_v2-max_v2)
         dist_cruise += decel*jerk*(start_v2-max_v2)
         dist_cruise /= two_accel_decel_jerk
+
+        accel_jerk_t = accel / jerk
+        decel_jerk_t = decel / jerk
 
         if dist_cruise < 0:
             # Type II
@@ -150,26 +154,40 @@ class MoveProfile(object):
             max_v = -b - math.sqrt(b**2 - 4.0*a*c)
             max_v /= 2.0*a
             dist_cruise = 0
+            # TODO: Fix the code duplication here
+            accel_t = (max_v-start_v) / accel
+            decel_t = (max_v-end_v)  / decel
+            accel_const_t = accel_t - accel_jerk_t
+            decel_const_t = decel_t - decel_jerk_t
+        else:
+            delta_accel_v = max_v - start_v
+            delta_decel_v = max_v - end_v
+            accel_t = delta_accel_v / accel
+            decel_t = delta_decel_v / decel
+            accel_const_t = accel_t - accel_jerk_t
+            decel_const_t = decel_t - decel_jerk_t
+            if accel_const_t < 0 or decel_const_t < 0:
+                if accel_const_t < 0:
+                    accel = math.sqrt(jerk * delta_accel_v)
+                if decel_const_t < 0:
+                    decel = math.sqrt(jerk * delta_decel_v)
+                return self.calculate_jerk(distance, start_v, max_v, end_v,
+                    accel, jerk, decel)
+
 
         self.jerk = jerk
         self.start_v = start_v
         self.cruise_v = max_v
         self.end_v = end_v
 
-        accel_jerk_t = accel / jerk
-        decel_jerk_t = decel / jerk
-        accel_t = (max_v-start_v) / accel
-        decel_t = (max_v-end_v)  / decel
-        accel_t = accel_t - accel_jerk_t
         cruise_t = dist_cruise / max_v
-        decel_t = decel_t - decel_jerk_t
         self.jerk_t = [
             accel_jerk_t,
-            accel_t,
+            accel_const_t,
             accel_jerk_t,
             cruise_t,
             decel_jerk_t,
-            decel_t,
+            decel_const_t,
             decel_jerk_t
         ]
 
