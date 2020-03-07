@@ -102,7 +102,54 @@ class MoveProfile(object):
         distance /= 2.0 * a_max*jerk
         return distance
 
-    def calculate_jerk(self, distance, start_v, max_v, end_v, accel, jerk,
+    def calculate_jerk(self, distance, start_v, max_v, end_v, accel, jerk):
+        # Calculate a jerk limited profile based on the paper
+        # FIR filter-based online jerk-constrained trajectory generation
+        # by Pierre Besset and Richard Béarée
+
+        # Make sure that max_v not smaller than the endpoints, due to rounding
+        # errors
+        max_v = max(max_v, start_v, end_v)
+
+        start_v2 = start_v**2
+        max_v2 = max_v**2
+        end_v2 = end_v**2
+        decel = accel
+        accel_decel = accel * decel
+        two_accel_decel = 2.0 * accel_decel
+
+        dist_cruise = accel*start_v + accel*max_v + decel*max_v + decel*end_v
+        dist_cruise *= -accel_decel
+        dist_cruise +=  two_accel_decel*distance*jerk
+        dist_cruise += accel*jerk*(end_v2-max_v2)
+        dist_cruise += decel*jerk*(start_v2-max_v2)
+        dist_cruise /= two_accel_decel*jerk
+        assert dist_cruise >=0
+
+        self.jerk = jerk
+        self.start_v = start_v
+        self.cruise_v = max_v
+        self.end_v = end_v
+
+        accel_jerk_t = accel / jerk
+        decel_jerk_t = decel / jerk
+        accel_t = (max_v-start_v) / accel
+        decel_t = (max_v-end_v)  / decel
+        accel_t = accel_t - accel_jerk_t
+        cruise_t = dist_cruise / max_v
+        decel_t = decel_t - decel_jerk_t
+        self.jerk_t = [
+            accel_jerk_t,
+            accel_t,
+            accel_jerk_t,
+            cruise_t,
+            decel_jerk_t,
+            decel_t,
+            decel_jerk_t
+        ]
+
+
+    def calculate_jerk_old(self, distance, start_v, max_v, end_v, accel, jerk,
                        decel=None, last_type=0):
         # Calculate a jerk limited profile based on the paper
         # FIR filter-based online jerk-constrained trajectory generation
