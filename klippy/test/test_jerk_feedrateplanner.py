@@ -945,3 +945,32 @@ def test_lookahead_slow_corner(toolhead):
         axes_d=(-2, 0, 0, 0),
         end_pos=(10, 0.02, 0, 0)
     )
+
+def test_WTF(toolhead):
+    # TODO: The low jerk settings here causes the root finding to fail
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5,
+        jerk=10)
+    toolhead.move(10, max_speed=100)
+    toolhead.move(11, max_speed=100)
+    toolhead.move(12, max_speed=10)
+    toolhead.move(15, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 4
+
+def test_WTF2(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5,
+        jerk=100000)
+    toolhead.move(0.1, max_speed=100)
+    toolhead.move(0.11, max_speed=100)
+    toolhead.move(0.12, max_speed=10)
+    toolhead.move(15, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 4
