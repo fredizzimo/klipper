@@ -117,14 +117,39 @@ class MoveProfile(object):
         decel = accel
         accel_decel = accel * decel
         two_accel_decel = 2.0 * accel_decel
+        two_accel_decel_jerk = two_accel_decel * jerk
+        two_accel_decel_distance_jerk = two_accel_decel_jerk*distance
 
         dist_cruise = accel*start_v + accel*max_v + decel*max_v + decel*end_v
         dist_cruise *= -accel_decel
-        dist_cruise +=  two_accel_decel*distance*jerk
+        dist_cruise +=  two_accel_decel_distance_jerk
         dist_cruise += accel*jerk*(end_v2-max_v2)
         dist_cruise += decel*jerk*(start_v2-max_v2)
-        dist_cruise /= two_accel_decel*jerk
-        assert dist_cruise >=0
+        dist_cruise /= two_accel_decel_jerk
+
+        if dist_cruise < 0:
+            # Type II
+
+            m_accel_m_decel = -accel - decel
+            accel_2 = accel**2
+            decel_2 = decel**2
+
+            a = m_accel_m_decel
+            a /= two_accel_decel
+
+            b = m_accel_m_decel 
+            b /= 2.0 * jerk
+
+            c = -accel_2 * decel * start_v  
+            c -= decel_2 * accel * end_v
+            c += two_accel_decel_distance_jerk
+            c += accel * jerk * start_v2
+            c += decel * jerk * end_v2
+            c /= two_accel_decel_jerk
+
+            max_v = -b - math.sqrt(b**2 - 4.0*a*c)
+            max_v /= 2.0*a
+            dist_cruise = 0
 
         self.jerk = jerk
         self.start_v = start_v
