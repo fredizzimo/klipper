@@ -212,9 +212,9 @@ def test_type_III_a_to_type_IIII_a_adaptation(move_plotter):
     check_profile(profile,
         distance=6.4,
         start_v=95,
-        cruise_v=99.2776922435,
+        cruise_v=99.2966980975,
         end_v=30,
-        max_accel=654.040690135,
+        max_accel=655.492036378,
         max_decel=1000,
         jerk=100000
     )
