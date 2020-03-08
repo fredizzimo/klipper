@@ -10,6 +10,8 @@
 from __future__ import division
 from abc import abstractmethod
 import math
+# TODO: Remove this dependency
+import numpy as np
 
 
 class MoveProfile(object):
@@ -146,6 +148,8 @@ class MoveProfile(object):
 
         if dist_cruise < 0:
             # Type II
+            dist_cruise = 0
+
             m_accel_m_decel = -accel - decel
             accel_2 = accel**2
             decel_2 = decel**2
@@ -159,13 +163,44 @@ class MoveProfile(object):
             c = -accel_2 * decel * start_v  
             c -= decel_2 * accel * end_v
             c += two_accel_decel_distance_jerk
-            c += accel * jerk * start_v2
-            c += decel * jerk * end_v2
+            c += accel * jerk * end_v2
+            c += decel * jerk * start_v2
             c /= two_accel_decel_jerk
 
             max_v = -b - math.sqrt(b**2 - 4.0*a*c)
             max_v /= 2.0*a
-            dist_cruise = 0
+
+            accel_jerk_t = accel / jerk
+            decel_jerk_t = decel / jerk
+            delta_accel_v = max_v - start_v
+            delta_decel_v = max_v - end_v
+            accel_t = delta_accel_v / accel
+            decel_t = delta_decel_v / decel
+            accel_const_t = accel_t - accel_jerk_t
+            decel_const_t = decel_t - decel_jerk_t
+            # Type IIII-a
+            if accel_const_t < 0:
+                x0 = jerk**(-2)
+                x1 = 1/(2*decel)
+                x2 = x0*x1
+                x3 = decel_2
+                x4 = 2*start_v
+                x5 = 1/jerk
+                a = x2
+                b = x0
+                c = x2*(jerk*x4 + x3)
+                d = x4*x5
+                e = x1*x5*(-2*decel*distance*jerk - jerk*end_v2 + jerk*start_v2\
+                    + end_v*x3 + start_v*x3)
+                roots = np.roots((a, b, c, d, e))
+                for root in roots:
+                    if np.isreal(root) and root > 0:
+                        accel = np.real(root)
+                        max_v = accel**2 / jerk + start_v
+                        break
+                
+
+
 
         # TODO: This code is duplicated
         accel_jerk_t = accel / jerk
@@ -181,8 +216,16 @@ class MoveProfile(object):
         self.start_v = start_v
         self.cruise_v = max_v
         self.end_v = end_v
-
         cruise_t = dist_cruise / max_v
+
+        # Clamp to zero to remove empty segments
+        if accel_const_t < MoveProfile.tolerance:
+            accel_const_t = 0
+        if cruise_t < MoveProfile.tolerance:
+            cruise_t = 0
+        if decel_const_t < MoveProfile.tolerance:
+            decel_const_t = 0
+
         self.jerk_t = [
             accel_jerk_t,
             accel_const_t,
