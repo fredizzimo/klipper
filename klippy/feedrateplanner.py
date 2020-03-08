@@ -178,26 +178,57 @@ class MoveProfile(object):
             decel_t = delta_decel_v / decel
             accel_const_t = accel_t - accel_jerk_t
             decel_const_t = decel_t - decel_jerk_t
-            # Type IIII-a
             if accel_const_t < 0:
-                x0 = jerk**(-2)
-                x1 = 1/(2*decel)
-                x2 = x0*x1
-                x3 = decel_2
-                x4 = 2*start_v
-                x5 = 1/jerk
-                a = x2
-                b = x0
-                c = x2*(jerk*x4 + x3)
-                d = x4*x5
-                e = x1*x5*(-2*decel*distance*jerk - jerk*end_v2 + jerk*start_v2\
-                    + end_v*x3 + start_v*x3)
-                roots = np.roots((a, b, c, d, e))
-                for root in roots:
-                    if np.isreal(root) and root > 0:
-                        accel = np.real(root)
-                        max_v = accel**2 / jerk + start_v
-                        break
+                # Type IIII-c
+                if decel_const_t < 0:
+                    x0 = jerk**2
+                    x1 = 2*x0
+                    x2 = 4*end_v
+                    x3 = end_v*x2
+                    x4 = end_v2
+                    x5 = start_v2
+                    x6 = jerk**3
+                    x7 = distance*x6
+                    x8 = distance**2
+                    x9 = jerk**4
+                    x10 = x5*x9
+                    x11 = jerk**5*x8
+                    a = -jerk*end_v + jerk*start_v
+                    b = -distance*x1
+                    c = -x0*x3 + x1*x4 + x1*x5
+                    d = 2*end_v*x7 - 6*start_v*x7
+                    e = 4*start_v*x4*x6 - x2*x5*x6 + x8*x9
+                    f = -4*distance*x10 + distance*x3*x9
+                    g = -end_v**4*x9 - end_v*x11 - start_v**4*x9 + start_v*x11\
+                        + 2*x10*x4
+                    roots = np.roots((a, b, c, d, e, f, g))
+                    for root in roots:
+                        if np.isreal(root) and root > 0:
+                            accel = np.real(root)
+                            max_v = accel**2 / jerk + start_v
+                            decel = math.sqrt(jerk*(max_v - end_v))
+                            break
+                # Type IIII-a
+                else:
+                    x0 = jerk**(-2)
+                    x1 = 1/(2*decel)
+                    x2 = x0*x1
+                    x3 = decel_2
+                    x4 = 2*start_v
+                    x5 = 1/jerk
+                    a = x2
+                    b = x0
+                    c = x2*(jerk*x4 + x3)
+                    d = x4*x5
+                    e = x1*x5*(-2*decel*distance*jerk - jerk*end_v2 + jerk*start_v2\
+                        + end_v*x3 + start_v*x3)
+                    roots = np.roots((a, b, c, d, e))
+                    for root in roots:
+                        if np.isreal(root) and root > 0:
+                            accel = np.real(root)
+                            max_v = accel**2 / jerk + start_v
+                            break
+            # Type IIII-b
             elif decel_const_t < 0:
                 # TODO: This is almost duplicate of the above
                 x0 = jerk**(-2)
