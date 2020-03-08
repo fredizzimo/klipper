@@ -227,10 +227,10 @@ def test_type_III_b_to_type_IIII_b_adaptation(move_plotter):
     check_profile(profile,
         distance=6.4,
         start_v=30,
-        cruise_v=99.286165187,
+        cruise_v=99.2966980975,
         end_v=95,
         max_accel=1000,
-        max_decel=654.688107957,
+        max_decel=655.492036378,
         jerk=100000
     )
     assert profile.jerk_t[5] == 0

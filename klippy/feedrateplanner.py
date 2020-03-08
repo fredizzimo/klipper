@@ -198,6 +198,27 @@ class MoveProfile(object):
                         accel = np.real(root)
                         max_v = accel**2 / jerk + start_v
                         break
+            elif decel_const_t < 0:
+                # TODO: This is almost duplicate of the above
+                x0 = jerk**(-2)
+                x1 = 1/(2*accel)
+                x2 = x0*x1
+                x3 = accel_2
+                x4 = 2*end_v
+                x5 = 1/jerk
+                a = x2
+                b = x0
+                c = x2*(jerk*x4 + x3)
+                d = x4*x5
+                e = x1*x5*(-2*accel*distance*jerk + jerk*end_v2 - jerk*start_v2\
+                    + end_v*x3 + start_v*x3)
+                roots = np.roots((a, b, c, d, e))
+                for root in roots:
+                    if np.isreal(root) and root > 0:
+                        decel = np.real(root)
+                        max_v = decel**2 / jerk + end_v
+                        break
+
                 
 
 
