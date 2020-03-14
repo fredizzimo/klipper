@@ -15,6 +15,7 @@ from mathutil import newton_raphson
 
 class MoveProfile(object):
     tolerance = 1e-12
+    time_tolerance = 1e-6
     def __init__(self, start_pos=0, is_kinematic_move=True, axes_r=None,
                  axes_d=None, end_pos=None):
         self.start_pos = start_pos
@@ -110,11 +111,11 @@ class MoveProfile(object):
 
         # Make sure that max_v not smaller than the endpoints, due to rounding
         # errors
-        if decel is None:
-            decel = accel
-        
         max_v = max(max_v, start_v, end_v)
         abs_max_v = max_v
+
+        if decel is None:
+            decel = accel
 
         accel_jerk_t = accel / jerk
         decel_jerk_t = decel / jerk
@@ -288,7 +289,11 @@ class MoveProfile(object):
 
         # TODO: This code is duplicated
         accel_jerk_t = accel / jerk
+        if accel_jerk_t < MoveProfile.time_tolerance:
+            accel_jerk_t = 0
         decel_jerk_t = decel / jerk
+        if decel_jerk_t < MoveProfile.time_tolerance:
+            decel_jerk_t = 0
         delta_accel_v = max_v - start_v
         delta_decel_v = max_v - end_v
         accel_t = delta_accel_v / accel
@@ -303,11 +308,11 @@ class MoveProfile(object):
         cruise_t = dist_cruise / max_v
 
         # Clamp to zero to remove empty segments
-        if accel_const_t < MoveProfile.tolerance:
+        if accel_const_t < MoveProfile.time_tolerance:
             accel_const_t = 0
-        if cruise_t < MoveProfile.tolerance:
+        if cruise_t < MoveProfile.time_tolerance:
             cruise_t = 0
-        if decel_const_t < MoveProfile.tolerance:
+        if decel_const_t < MoveProfile.time_tolerance:
             decel_const_t = 0
 
         self.jerk_t = [

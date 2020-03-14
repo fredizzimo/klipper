@@ -146,11 +146,22 @@ def matrix_mul(m1, s):
 def newton_raphson(f, low, high, tolerance, maxiter):
     y_low, dy_low = f(low)
     y_high, dy_high = f(high)
-    assert (y_low >= 0 and y_high <= 0) or (y_low <= 0 and y_high >=0)
     if y_low == 0:
         return low, y_low, dy_low
     if y_high == 0:
         return high, y_high, dy_high
+
+    # If there's no zero in the range, return the point closest to it
+    if y_low < 0 and y_high < 0:
+        if y_low > y_high:
+            return low, y_low, dy_low
+        else:
+            return high, y_high, dy_high
+    if y_low > 0 and y_high > 0:
+        if y_low > y_high:
+            return high, y_high, dy_high
+        else:
+            return low, y_low, dy_low
     
     # Always keep f(x_low) < 0
     if y_low < 0:
