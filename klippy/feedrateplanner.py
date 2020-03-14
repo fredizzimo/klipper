@@ -10,8 +10,6 @@
 from __future__ import division
 from abc import abstractmethod
 import math
-# TODO: Remove this dependency
-import numpy as np
 from mathutil import newton_raphson
 
 
@@ -256,29 +254,37 @@ class MoveProfile(object):
 
             # Type IIII-b
             elif decel_const_t < 0:
-                # TODO: This is almost duplicate of the above
-                x0 = jerk**(-2)
-                x1 = 1/(2*accel)
-                x2 = x0*x1
-                x3 = accel_2
-                x4 = 2*end_v
-                x5 = 1/jerk
-                a = x2
-                b = x0
-                c = x2*(jerk*x4 + x3)
-                d = x4*x5
-                e = x1*x5*(-2*accel*distance*jerk + jerk*end_v2 - jerk*start_v2\
-                    + end_v*x3 + start_v*x3)
-                roots = np.roots((a, b, c, d, e))
-                for root in roots:
-                    if np.isreal(root) and root > 0:
-                        decel = np.real(root)
-                        max_v = decel**2 / jerk + end_v
-                        break
+                class TypeIIII_b(object):
+                    def __init__(self):
+                        self.x0 = 2.0*jerk
+                        self.x1 = 2.0*accel
 
-                
+                    def __call__(self, max_v):
+                        y0 = max_v*max_v
+                        y1 = max_v - end_v
+                        y2 = jerk*y1
+                        y3 = math.sqrt(y2)
+                        y4 = self.x0*y1
 
+                        f = -distance
+                        f += (y0 - end_v2) / (2.0*y3)
+                        f += (y0 - start_v2) / self.x1
+                        f += accel*max_v / jerk
+                        f += (accel*(start_v - max_v) + y3*(max_v + end_v)) \
+                             / self.x0
 
+                        df = accel*y1
+                        df += accel*y3*(3.0*max_v - end_v)
+                        df += y4*max_v
+                        df /= y4*accel
+
+                        return f, df
+
+                f = TypeIIII_b()
+                max_v = max(start_v, end_v) + self.tolerance
+                max_v, _, _ = newton_raphson(f, max_v, abs_max_v,
+                                                self.tolerance, 16)
+                decel = math.sqrt(jerk*(max_v - end_v))
 
         # TODO: This code is duplicated
         accel_jerk_t = accel / jerk
