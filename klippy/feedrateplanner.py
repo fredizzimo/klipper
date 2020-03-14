@@ -368,21 +368,18 @@ class MoveProfile(object):
         tolerance = 1e-6
         max_a_dist = max_a**3 / jerk**2 + 2.0 * max_a * start_v / jerk
         if distance < max_a_dist:
+            end_v = start_v + 0.5 * jerk * (max_a / jerk)**2
+
             d2 = distance**2
             jerk_times_d2 = jerk*d2
-            def iter(v):
+            def f(v):
                 ve_minus_vs = v - start_v
                 vs_plus_ve = start_v + v
-                val = ve_minus_vs * vs_plus_ve**2 - jerk_times_d2
-                val /= vs_plus_ve * (3.0*v - start_v)
-                return v - val
+                f = ve_minus_vs * vs_plus_ve**2 - jerk_times_d2
+                df = vs_plus_ve * (3.0*v - start_v)
+                return f, df
 
-            end_v = start_v + 0.5 * jerk * (max_a / jerk)**2
-            for _ in range(10):
-                new_v = iter(end_v)
-                if abs(end_v - new_v) < tolerance:
-                    break
-                end_v = new_v
+            new_v, _, _ = newton_raphson(f, start_v, end_v, tolerance, 16)
 
             return new_v
         else:
@@ -707,33 +704,19 @@ class JerkFeedratePlanner(FeedratePlanner):
             new_x = 0
             new_v = 0
 
-            for _ in range(10):
+            def f(t):
                 new_x = self.calculate_x(x, v, a, j, t)
                 new_v = self.calculate_v(v, a, j, t)
-                new_t = t - new_x / new_v
-                if abs(new_t - t) < tolerance:
-                    t = new_t
-                    break
-                t = new_t
-            
-            # Return either end or start if t is out of bounds due to 
-            # precision issues
-            if t > self.profile.jerk_t[self.current_segment]:
-                self.x = self.segment_end_x
-                self.v = self.segment_end_v
-                self.a = self.segment_end_a
-                ret = self.profile.jerk_t[self.current_segment] - t
-                self.current_segment_offset = \
-                    self.profile.jerk_t[self.current_segment]
-            elif t > 0.0:
-                self.x = new_x
-                self.v = new_v
-                self.a = self.calculate_a(a, j, t)
-                ret = t - self.current_segment_offset
-                self.current_segment_offset = t
-            else:
-                ret = 0
+                return new_x, new_v
 
+            t, new_x, new_v = newton_raphson(
+                f, 0, self.profile.jerk_t[self.current_segment], tolerance, 16)
+
+            self.x = new_x
+            self.v = new_v
+            self.a = self.calculate_a(a, j, t)
+            ret = t - self.current_segment_offset
+            self.current_segment_offset = t
 
             return ret
 
