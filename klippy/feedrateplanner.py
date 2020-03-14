@@ -12,6 +12,7 @@ from abc import abstractmethod
 import math
 # TODO: Remove this dependency
 import numpy as np
+from mathutil import newton_raphson
 
 
 class MoveProfile(object):
@@ -115,6 +116,7 @@ class MoveProfile(object):
             decel = accel
         
         max_v = max(max_v, start_v, end_v)
+        abs_max_v = max_v
 
         accel_jerk_t = accel / jerk
         decel_jerk_t = decel / jerk
@@ -181,33 +183,45 @@ class MoveProfile(object):
             if accel_const_t < 0:
                 # Type IIII-c
                 if decel_const_t < 0:
-                    x0 = jerk**2
-                    x1 = 2*x0
-                    x2 = 4*end_v
-                    x3 = end_v*x2
-                    x4 = end_v2
-                    x5 = start_v2
-                    x6 = jerk**3
-                    x7 = distance*x6
-                    x8 = distance**2
-                    x9 = jerk**4
-                    x10 = x5*x9
-                    x11 = jerk**5*x8
-                    a = -jerk*end_v + jerk*start_v
-                    b = -distance*x1
-                    c = -x0*x3 + x1*x4 + x1*x5
-                    d = 2*end_v*x7 - 6*start_v*x7
-                    e = 4*start_v*x4*x6 - x2*x5*x6 + x8*x9
-                    f = -4*distance*x10 + distance*x3*x9
-                    g = -end_v**4*x9 - end_v*x11 - start_v**4*x9 + start_v*x11\
-                        + 2*x10*x4
-                    roots = np.roots((a, b, c, d, e, f, g))
-                    for root in roots:
-                        if np.isreal(root) and root > 0:
-                            accel = np.real(root)
-                            max_v = accel**2 / jerk + start_v
-                            decel = math.sqrt(jerk*(max_v - end_v))
-                            break
+                    class TypeIIII_c(object):
+
+                        def __init__(self):
+                            self.x0 = jerk*start_v
+                            self.x1 = jerk*end_v
+                            self.x2 = jerk*start_v2
+                            self.x3 = jerk*end_v2
+
+                        
+                        def __call__(self, max_v):
+                            y0 = jerk*max_v
+                            y1 = y0 - self.x0
+                            y2 = y0 - self.x1
+                            y3 = math.sqrt(y0-self.x0)
+                            y4 = math.sqrt(y0-self.x1)
+                            y5 = 2.0*y1*y3
+                            y6 = 2.0*y2*y4
+                            y7 = max_v*max_v
+                            y8 = jerk*y7
+                            y9 = 2.0*max_v
+
+                            f = distance
+                            f += (start_v2 - y7) / y3
+                            f += (end_v2 - y7) / y4
+
+                            df = (y8 - self.x2)  / y5 
+                            df += (y8 - self.x3) / y6
+                            df -= y9 / y3
+                            df -= y9 / y4
+
+                            return f, df
+
+                    f = TypeIIII_c()
+                    max_v = max(start_v, end_v) + self.tolerance
+                    max_v, _, _ = newton_raphson(f, max_v, abs_max_v,
+                                                 self.tolerance, 16)
+                    
+                    accel = math.sqrt(jerk*(max_v - start_v))
+                    decel = math.sqrt(jerk*(max_v - end_v))
                 # Type IIII-a
                 else:
                     x0 = jerk**(-2)

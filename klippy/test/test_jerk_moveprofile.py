@@ -258,10 +258,10 @@ def test_type_III_c_to_type_IIII_c_adaptation_increasing(move_plotter):
     check_profile(profile,
         distance=2.6,
         start_v=95,
-        cruise_v=99.9397386669,
+        cruise_v=99.939862381,
         end_v=96,
-        max_accel=702.832744463,
-        max_decel=627.673375801,
+        max_accel=702.841545514,
+        max_decel=627.683230698,
         jerk=100000
     )
     assert profile.jerk_t[1] == 0
@@ -274,10 +274,10 @@ def test_type_III_c_to_type_IIII_c_adaptation_decreasing(move_plotter):
     check_profile(profile,
         distance=2.6,
         start_v=96,
-        cruise_v=99.9395915,
+        cruise_v=99.939862381,
         end_v=95,
-        max_accel=627.661652485,
-        max_decel=702.822274832,
+        max_accel=627.683230698,
+        max_decel=702.841545514,
         jerk=100000
     )
     assert profile.jerk_t[1] == 0
