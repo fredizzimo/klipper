@@ -546,16 +546,14 @@ def test_no_speed_change_no_full_acc(move_plotter):
     check_profile(profile,
         distance=1,
         start_v=35,
-        cruise_v=39.009489801,
+        cruise_v=39.5038375983,
         end_v=35,
-        max_accel=633.205322228,
-        max_decel=633.205322228,
+        max_accel=671.106369978,
+        max_decel=671.106369978,
         jerk=100000
     )
 
-def test_no_speed_change_no_acc_at_all(move_plotter):
-    # NOTE: I don't know if it's possible to accelerate with jerk at all
-    # when the distance is too short or if it's a shortcoming of the algorithm
+def test_no_speed_change_short(move_plotter):
     profile = MoveProfile()
     distance = get_min_allowed_distance_with_const_acc(35, 35, 1000, 100000)
     profile.calculate_jerk(distance, 35, 100, 35, 1000, 100000)
@@ -563,16 +561,14 @@ def test_no_speed_change_no_acc_at_all(move_plotter):
     check_profile(profile,
         distance=distance,
         start_v=35,
-        cruise_v=35,
+        cruise_v=35.6141752555,
         end_v=35,
-        max_accel=0,
-        max_decel=0,
+        max_accel=247.825595026,
+        max_decel=247.825595026,
         jerk=100000
     )
 
-def test_no_speed_change_very_slight_acc(move_plotter):
-    # NOTE: It seems like it could accelerate a bit more, but I haven't checked
-    # the math
+def test_no_speed_change_a_bit_longer(move_plotter):
     profile = MoveProfile()
     distance = get_min_allowed_distance_with_const_acc(35, 35, 1000, 100000)
     distance += 0.01
@@ -581,10 +577,10 @@ def test_no_speed_change_very_slight_acc(move_plotter):
     check_profile(profile,
         distance=distance,
         start_v=35,
-        cruise_v=35.1425667816,
+        cruise_v=35.6491295495,
         end_v=35,
-        max_accel=119.401332326,
-        max_decel=119.401332326,
+        max_accel=254.780209109,
+        max_decel=254.780209109,
         jerk=100000
     )
 
