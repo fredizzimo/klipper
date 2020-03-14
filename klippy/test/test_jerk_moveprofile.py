@@ -797,8 +797,24 @@ def test_forced_decelerate_very_short(move_plotter):
         jerk=100000
     )
 
+def test_forced_accelerate(move_plotter):
+    profile = MoveProfile()
+    distance = get_min_allowed_distance_with_const_acc(30, 35, 1000, 100000)
+    end_speed = MoveProfile.get_max_allowed_jerk_end_speed(
+        distance, 30, 1000, 100000)
+    profile.calculate_jerk(distance, 30, end_speed, end_speed, 1000, 100000)
+    move_plotter.plot(profile)
+    check_profile(profile,
+        distance=distance,
+        start_v=30,
+        cruise_v=end_speed,
+        end_v=end_speed,
+        max_accel=743.89154774,
+        max_decel=0,
+        jerk=100000
+    )
+
 def test_forced_accelerate_very_short(move_plotter):
-    # This is actually an error condition, the end speed is not reached
     profile = MoveProfile()
     distance = get_min_allowed_distance_with_const_acc(30, 35, 1000, 100000)
     distance -= 0.1
@@ -806,7 +822,6 @@ def test_forced_accelerate_very_short(move_plotter):
         distance, 30, 1000, 100000)
     profile.calculate_jerk(distance, 30, end_speed, end_speed, 1000, 100000)
     move_plotter.plot(profile)
-    # A trapezoidal profile with no speed change is generated
     check_profile(profile,
         distance=distance,
         start_v=30,
