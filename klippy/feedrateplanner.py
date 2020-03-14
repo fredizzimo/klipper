@@ -364,19 +364,17 @@ class MoveProfile(object):
         ]
 
     @staticmethod
-    def get_max_allowed_jerk_end_speed(distance, start_v, max_a, jerk):
+    def get_max_allowed_jerk_end_speed(distance, start_v, end_v, max_a, jerk):
         tolerance = 1e-6
         max_a_dist = max_a**3 / jerk**2 + 2.0 * max_a * start_v / jerk
         if distance < max_a_dist:
-            end_v = start_v + 0.5 * jerk * (max_a / jerk)**2
-
             d2 = distance**2
-            jerk_times_d2 = jerk*d2
             def f(v):
-                ve_minus_vs = v - start_v
-                vs_plus_ve = start_v + v
-                f = ve_minus_vs * vs_plus_ve**2 - jerk_times_d2
-                df = vs_plus_ve * (3.0*v - start_v)
+                x0 = v - start_v
+                x1 = v + start_v
+                f = (x1/jerk)*x0*x1 - d2
+                df = x1 * (3.0*v - start_v)
+                df /= jerk
                 return f, df
 
             new_v, _, _ = newton_raphson(f, start_v, end_v, tolerance, 16)
@@ -728,7 +726,7 @@ class JerkFeedratePlanner(FeedratePlanner):
     def can_combine_with_next(next_move, distance, start_v, end_v, end_v2,
         accel, jerk):
         reachable_end_v = MoveProfile.get_max_allowed_jerk_end_speed(
-            distance, start_v, accel, jerk)
+            distance, start_v, end_v, accel, jerk)
 
         if next_move is None:
             return (False, reachable_end_v)

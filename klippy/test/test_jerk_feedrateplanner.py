@@ -946,8 +946,7 @@ def test_lookahead_slow_corner(toolhead):
         end_pos=(10, 0.02, 0, 0)
     )
 
-def test_WTF(toolhead):
-    # TODO: The low jerk settings here causes the root finding to fail
+def test_very_low_jerk(toolhead):
     toolhead.set_limits(
         max_vel=100,
         max_acc=2000,
@@ -960,8 +959,60 @@ def test_WTF(toolhead):
     toolhead.move(15, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 4
+    toolhead.check_jerk_move(0,
+        distance=10,
+        start_v=0,
+        cruise_v=8.25481812224,
+        end_v=7.77803510691,
+        max_accel=9.08560296416,
+        max_decel=3.08798644855,
+        jerk=10,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(10, 0, 0, 0),
+        end_pos=(10, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=1,
+        start_v=7.77803510691,
+        cruise_v=7.77803510691,
+        end_v=7.28085678388,
+        max_accel=0,
+        max_decel=4.41352770095,
+        jerk=10,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(1, 0, 0, 0),
+        end_pos=(11, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(2,
+        distance=1,
+        start_v=7.28085678388,
+        cruise_v=7.28085678388,
+        end_v=6.53957630692,
+        max_accel=0,
+        max_decel=5.85703306345,
+        jerk=10,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(1, 0, 0, 0),
+        end_pos=(12, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(3,
+        distance=3,
+        start_v=6.53957630692,
+        cruise_v=6.53957630692,
+        end_v=0,
+        max_accel=0,
+        max_decel=9.08560296416,
+        jerk=10,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(3, 0, 0, 0),
+        end_pos=(15, 0, 0, 0)
+    )
 
-def test_WTF2(toolhead):
+def test_short_moves_near_low_speed_segment(toolhead):
     toolhead.set_limits(
         max_vel=100,
         max_acc=2000,
@@ -974,3 +1025,55 @@ def test_WTF2(toolhead):
     toolhead.move(15, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 4
+    toolhead.check_jerk_move(0,
+        distance=0.1,
+        start_v=0,
+        cruise_v=10.023172396,
+        end_v=10.023172396,
+        max_accel=1001.16097153,
+        max_decel=0,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(0.1, 0, 0, 0),
+        end_pos=(0.1, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=0.01,
+        start_v=10.023172396,
+        cruise_v=10.0232329092,
+        end_v=10,
+        max_accel=3.47888428402,
+        max_decel=48.2005282117,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(0.01, 0, 0, 0),
+        end_pos=(0.11, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(2,
+        distance=0.01,
+        start_v=10,
+        cruise_v=10,
+        end_v=10,
+        max_accel=0,
+        max_decel=0,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(0.01, 0, 0, 0),
+        end_pos=(0.12, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(3,
+        distance=14.88,
+        start_v=10,
+        cruise_v=100,
+        end_v=0,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(14.88, 0, 0, 0),
+        end_pos=(15, 0, 0, 0)
+    )
