@@ -224,24 +224,36 @@ class MoveProfile(object):
                     decel = math.sqrt(jerk*(max_v - end_v))
                 # Type IIII-a
                 else:
-                    x0 = jerk**(-2)
-                    x1 = 1/(2*decel)
-                    x2 = x0*x1
-                    x3 = decel_2
-                    x4 = 2*start_v
-                    x5 = 1/jerk
-                    a = x2
-                    b = x0
-                    c = x2*(jerk*x4 + x3)
-                    d = x4*x5
-                    e = x1*x5*(-2*decel*distance*jerk - jerk*end_v2 + jerk*start_v2\
-                        + end_v*x3 + start_v*x3)
-                    roots = np.roots((a, b, c, d, e))
-                    for root in roots:
-                        if np.isreal(root) and root > 0:
-                            accel = np.real(root)
-                            max_v = accel**2 / jerk + start_v
-                            break
+                    class TypeIIII_a(object):
+                        def __init__(self):
+                            self.x0 = 2.0*jerk
+                            self.x1 = 2.0*decel
+
+                        def __call__(self, max_v):
+                            y0 = max_v*max_v
+                            y1 = max_v - start_v
+                            y2 = jerk*y1
+                            y3 = math.sqrt(y2)
+                            y4 = self.x0*y1
+
+                            f = -distance
+                            f += (y0 - start_v2) / (2.0*y3)
+                            f += (y0 - end_v2) / self.x1
+                            f += max_v*y3 / jerk
+                            f += (decel*(max_v + end_v) - y3*y1) / self.x0
+
+                            df = decel_2*y1
+                            df += decel*y3*(3.0*max_v - start_v)
+                            df += y4*max_v
+                            df /= y4*decel
+
+                            return f, df
+                    f = TypeIIII_a()
+                    max_v = max(start_v, end_v) + self.tolerance
+                    max_v, _, _ = newton_raphson(f, max_v, abs_max_v,
+                                                 self.tolerance, 16)
+                    accel = math.sqrt(jerk*(max_v - start_v))
+
             # Type IIII-b
             elif decel_const_t < 0:
                 # TODO: This is almost duplicate of the above
