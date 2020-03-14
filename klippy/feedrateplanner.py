@@ -152,160 +152,172 @@ class MoveProfile(object):
         if decel_const_t < 0:
             decel = math.sqrt(jerk * delta_decel_v)
 
-        start_v2 = start_v**2
-        max_v2 = max_v**2
-        end_v2 = end_v**2
-        accel_decel = accel * decel
-        two_accel_decel = 2.0 * accel_decel
-        two_accel_decel_jerk = two_accel_decel * jerk
-        two_accel_decel_distance_jerk = two_accel_decel_jerk*distance
+        if accel > 0 and decel > 0:
+            start_v2 = start_v**2
+            max_v2 = max_v**2
+            end_v2 = end_v**2
+            accel_decel = accel * decel
 
-        dist_cruise = accel*start_v + accel*max_v + decel*max_v + decel*end_v
-        dist_cruise *= -accel_decel
-        dist_cruise +=  two_accel_decel_distance_jerk
-        dist_cruise += accel*jerk*(end_v2-max_v2)
-        dist_cruise += decel*jerk*(start_v2-max_v2)
-        dist_cruise /= two_accel_decel_jerk
+            two_accel_decel = 2.0 * accel_decel
+            two_accel_decel_jerk = two_accel_decel * jerk
+            two_accel_decel_distance_jerk = two_accel_decel_jerk*distance
 
-        if dist_cruise < 0:
-            # Type II
-            dist_cruise = 0
+            dist_cruise = accel*start_v + accel*max_v + decel*max_v + decel*end_v
+            dist_cruise *= -accel_decel
+            dist_cruise +=  two_accel_decel_distance_jerk
+            dist_cruise += accel*jerk*(end_v2-max_v2)
+            dist_cruise += decel*jerk*(start_v2-max_v2)
+            dist_cruise /= two_accel_decel_jerk
 
-            m_accel_m_decel = -accel - decel
-            accel_2 = accel**2
-            decel_2 = decel**2
+            if dist_cruise < 0:
+                # Type II
+                dist_cruise = 0
 
-            a = m_accel_m_decel
-            a /= two_accel_decel
+                m_accel_m_decel = -accel - decel
+                accel_2 = accel**2
+                decel_2 = decel**2
 
-            b = m_accel_m_decel 
-            b /= 2.0 * jerk
+                a = m_accel_m_decel
+                a /= two_accel_decel
 
-            c = -accel_2 * decel * start_v  
-            c -= decel_2 * accel * end_v
-            c += two_accel_decel_distance_jerk
-            c += accel * jerk * end_v2
-            c += decel * jerk * start_v2
-            c /= two_accel_decel_jerk
+                b = m_accel_m_decel 
+                b /= 2.0 * jerk
 
-            max_v = -b - math.sqrt(b**2 - 4.0*a*c)
-            max_v /= 2.0*a
+                c = -accel_2 * decel * start_v  
+                c -= decel_2 * accel * end_v
+                c += two_accel_decel_distance_jerk
+                c += accel * jerk * end_v2
+                c += decel * jerk * start_v2
+                c /= two_accel_decel_jerk
 
-            accel_jerk_t = accel / jerk
-            decel_jerk_t = decel / jerk
-            delta_accel_v = max_v - start_v
-            delta_decel_v = max_v - end_v
-            accel_t = delta_accel_v / accel
-            decel_t = delta_decel_v / decel
-            accel_const_t = accel_t - accel_jerk_t
-            decel_const_t = decel_t - decel_jerk_t
-            if accel_const_t < 0:
-                # Type IIII-c
-                if decel_const_t < 0:
-                    class TypeIIII_c(object):
+                max_v = -b - math.sqrt(b**2 - 4.0*a*c)
+                max_v /= 2.0*a
 
-                        def __init__(self):
-                            self.x0 = jerk*start_v
-                            self.x1 = jerk*end_v
-                            self.x2 = jerk*start_v2
-                            self.x3 = jerk*end_v2
+                accel_jerk_t = accel / jerk
+                decel_jerk_t = decel / jerk
+                delta_accel_v = max_v - start_v
+                delta_decel_v = max_v - end_v
+                accel_t = delta_accel_v / accel
+                decel_t = delta_decel_v / decel
+                accel_const_t = accel_t - accel_jerk_t
+                decel_const_t = decel_t - decel_jerk_t
+                if accel_const_t < 0:
+                    # Type IIII-c
+                    if decel_const_t < 0:
+                        class TypeIIII_c(object):
 
+                            def __init__(self):
+                                self.x0 = jerk*start_v
+                                self.x1 = jerk*end_v
+                                self.x2 = jerk*start_v2
+                                self.x3 = jerk*end_v2
+
+                            
+                            def __call__(self, max_v):
+                                y0 = jerk*max_v
+                                y1 = y0 - self.x0
+                                y2 = y0 - self.x1
+                                y3 = math.sqrt(y0-self.x0)
+                                y4 = math.sqrt(y0-self.x1)
+                                y5 = 2.0*y1*y3
+                                y6 = 2.0*y2*y4
+                                y7 = max_v*max_v
+                                y8 = jerk*y7
+                                y9 = 2.0*max_v
+
+                                f = distance
+                                f += (start_v2 - y7) / y3
+                                f += (end_v2 - y7) / y4
+
+                                df = (y8 - self.x2)  / y5 
+                                df += (y8 - self.x3) / y6
+                                df -= y9 / y3
+                                df -= y9 / y4
+
+                                return f, df
+
+                        f = TypeIIII_c()
+                        max_v = max(start_v, end_v) + self.tolerance
+                        max_v, _, _ = newton_raphson(f, max_v, abs_max_v,
+                                                    self.tolerance, 16)
                         
-                        def __call__(self, max_v):
-                            y0 = jerk*max_v
-                            y1 = y0 - self.x0
-                            y2 = y0 - self.x1
-                            y3 = math.sqrt(y0-self.x0)
-                            y4 = math.sqrt(y0-self.x1)
-                            y5 = 2.0*y1*y3
-                            y6 = 2.0*y2*y4
-                            y7 = max_v*max_v
-                            y8 = jerk*y7
-                            y9 = 2.0*max_v
+                        accel = math.sqrt(jerk*(max_v - start_v))
+                        decel = math.sqrt(jerk*(max_v - end_v))
+                    # Type IIII-a
+                    else:
+                        class TypeIIII_a(object):
+                            def __init__(self):
+                                self.x0 = 2.0*jerk
+                                self.x1 = 2.0*decel
 
-                            f = distance
-                            f += (start_v2 - y7) / y3
-                            f += (end_v2 - y7) / y4
+                            def __call__(self, max_v):
+                                y0 = max_v*max_v
+                                y1 = max_v - start_v
+                                y2 = jerk*y1
+                                y3 = math.sqrt(y2)
+                                y4 = self.x0*y1
 
-                            df = (y8 - self.x2)  / y5 
-                            df += (y8 - self.x3) / y6
-                            df -= y9 / y3
-                            df -= y9 / y4
+                                f = -distance
+                                f += (y0 - start_v2) / (2.0*y3)
+                                f += (y0 - end_v2) / self.x1
+                                f += max_v*y3 / jerk
+                                f += (decel*(max_v + end_v) - y3*y1) / self.x0
 
-                            return f, df
+                                df = decel_2*y1
+                                df += decel*y3*(3.0*max_v - start_v)
+                                df += y4*max_v
+                                df /= y4*decel
 
-                    f = TypeIIII_c()
-                    max_v = max(start_v, end_v) + self.tolerance
-                    max_v, _, _ = newton_raphson(f, max_v, abs_max_v,
-                                                 self.tolerance, 16)
-                    
-                    accel = math.sqrt(jerk*(max_v - start_v))
-                    decel = math.sqrt(jerk*(max_v - end_v))
-                # Type IIII-a
-                else:
-                    class TypeIIII_a(object):
+                                return f, df
+                        f = TypeIIII_a()
+                        max_v = max(start_v, end_v) + self.tolerance
+                        max_v, _, _ = newton_raphson(f, max_v, abs_max_v,
+                                                    self.tolerance, 16)
+                        accel = math.sqrt(jerk*(max_v - start_v))
+
+                # Type IIII-b
+                elif decel_const_t < 0:
+                    class TypeIIII_b(object):
                         def __init__(self):
                             self.x0 = 2.0*jerk
-                            self.x1 = 2.0*decel
+                            self.x1 = 2.0*accel
 
                         def __call__(self, max_v):
                             y0 = max_v*max_v
-                            y1 = max_v - start_v
+                            y1 = max_v - end_v
                             y2 = jerk*y1
                             y3 = math.sqrt(y2)
                             y4 = self.x0*y1
 
                             f = -distance
-                            f += (y0 - start_v2) / (2.0*y3)
-                            f += (y0 - end_v2) / self.x1
-                            f += max_v*y3 / jerk
-                            f += (decel*(max_v + end_v) - y3*y1) / self.x0
+                            f += (y0 - end_v2) / (2.0*y3)
+                            f += (y0 - start_v2) / self.x1
+                            f += accel*max_v / jerk
+                            f += (accel*(start_v - max_v) + y3*(max_v + end_v)) \
+                                / self.x0
 
-                            df = decel_2*y1
-                            df += decel*y3*(3.0*max_v - start_v)
+                            df = accel*y1
+                            df += accel*y3*(3.0*max_v - end_v)
                             df += y4*max_v
-                            df /= y4*decel
+                            df /= y4*accel
 
                             return f, df
-                    f = TypeIIII_a()
+
+                    f = TypeIIII_b()
                     max_v = max(start_v, end_v) + self.tolerance
                     max_v, _, _ = newton_raphson(f, max_v, abs_max_v,
-                                                 self.tolerance, 16)
-                    accel = math.sqrt(jerk*(max_v - start_v))
+                                                    self.tolerance, 16)
+                    decel = math.sqrt(jerk*(max_v - end_v))
+        elif decel > 0:
+            dist_cruise = distance
+            dist_cruise -= (max_v**2 - end_v**2) / (2.0*decel)
+            dist_cruise -= (decel * (max_v + end_v)) / (2.0*jerk)
+        else:
+            dist_cruise = distance
+            dist_cruise -= (max_v**2 - start_v**2) / (2.0*accel)
+            dist_cruise -= (accel * (start_v - max_v)) / (2.0*jerk)
+            dist_cruise -= (accel * max_v) / jerk
 
-            # Type IIII-b
-            elif decel_const_t < 0:
-                class TypeIIII_b(object):
-                    def __init__(self):
-                        self.x0 = 2.0*jerk
-                        self.x1 = 2.0*accel
-
-                    def __call__(self, max_v):
-                        y0 = max_v*max_v
-                        y1 = max_v - end_v
-                        y2 = jerk*y1
-                        y3 = math.sqrt(y2)
-                        y4 = self.x0*y1
-
-                        f = -distance
-                        f += (y0 - end_v2) / (2.0*y3)
-                        f += (y0 - start_v2) / self.x1
-                        f += accel*max_v / jerk
-                        f += (accel*(start_v - max_v) + y3*(max_v + end_v)) \
-                             / self.x0
-
-                        df = accel*y1
-                        df += accel*y3*(3.0*max_v - end_v)
-                        df += y4*max_v
-                        df /= y4*accel
-
-                        return f, df
-
-                f = TypeIIII_b()
-                max_v = max(start_v, end_v) + self.tolerance
-                max_v, _, _ = newton_raphson(f, max_v, abs_max_v,
-                                                self.tolerance, 16)
-                decel = math.sqrt(jerk*(max_v - end_v))
 
         # TODO: This code is duplicated
         accel_jerk_t = accel / jerk
@@ -316,8 +328,14 @@ class MoveProfile(object):
             decel_jerk_t = 0
         delta_accel_v = max_v - start_v
         delta_decel_v = max_v - end_v
-        accel_t = delta_accel_v / accel
-        decel_t = delta_decel_v / decel
+        if accel > 0:
+            accel_t = delta_accel_v / accel
+        else:
+            accel_t = 0
+        if decel > 0:
+            decel_t = delta_decel_v / decel
+        else:
+            decel_t = 0
         accel_const_t = accel_t - accel_jerk_t
         decel_const_t = decel_t - decel_jerk_t
 
