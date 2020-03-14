@@ -14,7 +14,7 @@ from mathutil import newton_raphson
 
 
 class MoveProfile(object):
-    tolerance = 1e-12
+    tolerance = 1e-13
     time_tolerance = 1e-6
     def __init__(self, start_pos=0, is_kinematic_move=True, axes_r=None,
                  axes_d=None, end_pos=None):
