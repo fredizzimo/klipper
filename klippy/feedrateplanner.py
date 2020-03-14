@@ -114,6 +114,26 @@ class MoveProfile(object):
         max_v = max(max_v, start_v, end_v)
         abs_max_v = max_v
 
+        # If no speed change is allowed, then create a constant
+        # profile
+        if (abs(start_v - end_v) <= self.tolerance and
+            abs(start_v - max_v) <= self.tolerance):
+                cruise_t = distance / max_v
+                self.jerk = jerk
+                self.start_v = start_v
+                self.cruise_v = max_v
+                self.end_v = end_v
+                self.jerk_t = [
+                    0,
+                    0,
+                    0,
+                    cruise_t,
+                    0,
+                    0,
+                    0,
+                ]
+                return
+
         if decel is None:
             decel = accel
 
