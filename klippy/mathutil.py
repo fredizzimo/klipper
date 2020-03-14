@@ -135,3 +135,61 @@ def matrix_sub(m1, m2):
 
 def matrix_mul(m1, s):
     return [m1[0]*s, m1[1]*s, m1[2]*s]
+
+
+######################################################################
+# Newton-Raphson root finding
+# A fail-safe variant with an interval and bisection if failing
+# The function f should return a tuple of the value and derivative
+######################################################################
+
+def newton_raphson(f, low, high, tolerance, maxiter):
+    y_low, dy_low = f(low)
+    y_high, dy_high = f(high)
+    assert (y_low >= 0 and y_high <= 0) or (y_low <= 0 and y_high >=0)
+    if y_low == 0:
+        return low, y_low, dy_low
+    if y_high == 0:
+        return high, y_high, dy_high
+    
+    # Always keep f(x_low) < 0
+    if y_low < 0:
+        x_low = low
+        x_high = high
+    else:
+        x_low = high
+        x_high = low
+
+    # Start the search in the middle
+    x = 0.5 * (low + high)
+    dx = high - low
+    dx_old = dx
+
+    y, dy = f(x)
+
+    for _ in xrange(maxiter):
+        # Use bisect if newton returns out of range or the change is too small
+        if (((x - x_high)*dy - y) * ((x - x_low)*dy - y) > 0 or
+                abs(2.0*y) > abs(dx_old*dy)):
+            dx_old = dx
+            dx = 0.5 * (x_high - x_low)
+            x = x_low + dx
+        # Newton-Raphson
+        else:
+            dx_old = dx
+            dx = y / dy
+            x -= dx
+        
+        # Return if within the tolerance
+        if abs(dx) < tolerance:
+            return x, y, dy
+        
+        y, dy = f(x)
+        # Maintain the bracket
+        if y < 0:
+            x_low = x
+        else:
+            x_high = x
+    
+    # We are hopefully close enough
+    return x, y, dy
