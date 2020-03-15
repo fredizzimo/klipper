@@ -1,6 +1,7 @@
 import plotly.graph_objects as go
 import plotly.io as pio
 from plotly.colors import DEFAULT_PLOTLY_COLORS
+from plotly.subplots import make_subplots
 import os
 import numpy as np
 from math import ceil, sqrt
@@ -18,7 +19,7 @@ class MovePlotter(object):
     def set_test_name(self, name):
         self.test_name = name
 
-    def plot(self, moves, name=None, input_moves=None):
+    def plot(self, moves, simulated_extrusion=True, name=None, input_moves=None):
         pressure_factor = 0.01
         if not isinstance(moves, collections.Sequence):
             moves = (moves,)
@@ -44,6 +45,8 @@ class MovePlotter(object):
         a = 0
         t = 0
         j = 0
+        ex = 0.0
+
         jerk_multipliers = [
             1,
             0,
@@ -59,8 +62,14 @@ class MovePlotter(object):
                 profile = move.profile
             else:
                 profile = move
-            
+
             segments = []
+            if simulated_extrusion:
+                extrusion_rate = 1.0
+            else:
+                extrusion_rate = move.axes_r[3]
+            start_x = x
+
 
             if profile.jerk == 0:
                 if profile.accel_t:
@@ -87,16 +96,27 @@ class MovePlotter(object):
                         max(int(ceil(segment_t / dt)), 2),
                         endpoint=True, dtype=np.float)
                 if not np.isnan(segment[1]):
-                    a = segment[1]
-                j = segment[2]
+                    a = np.float(segment[1])
+                j = np.float(segment[2])
                 xs.append(x + v * ts + 0.5 * a * ts**2 + j * ts**3 / 6.0)
                 vs.append(v + a * ts + 0.5 * j * ts**2)
                 accs.append(a + j * ts)
                 jerks.append(np.full(ts.shape[0], j))
-                extruder_xs.append(xs[-1] + pressure_factor*vs[-1])
-                extruder_vs.append(vs[-1] + pressure_factor*accs[-1])
-                extruder_accs.append(accs[-1] + pressure_factor*jerks[-1])
-                extruder_jerks.append(jerks[-1])
+                
+                e_x = ex + (xs[-1] - start_x) * extrusion_rate
+                e_v = vs[-1]*extrusion_rate
+                e_a = accs[-1]*extrusion_rate
+                e_j = jerks[-1]*extrusion_rate
+
+                e_x = e_x + pressure_factor*e_v
+                e_v = e_v + pressure_factor*e_a
+                e_a = e_a + pressure_factor*e_j
+            
+                extruder_xs.append(e_x)
+                extruder_vs.append(e_v)
+                extruder_accs.append(e_a)
+                extruder_jerks.append(e_j)
+
                 ts += t
                 times.append(ts)
                 x = xs[-1][-1]
@@ -105,6 +125,10 @@ class MovePlotter(object):
                 a = accs[-1][-1]
                 num_ticks += ts.shape[0]
 
+            if simulated_extrusion:
+                ex = x
+            else:
+                ex = move.end_pos[3]
             move_indices.append(move_indices[-1] + num_ticks)
 
         move_indices[0] = 0
@@ -246,7 +270,7 @@ class MovePlotter(object):
                 overlaying="y",
                 side="left",
                 position=0.0
-            )
+            ),
         )
 
         plot_html = pio.to_html(fig, include_plotlyjs=first, full_html=first)
