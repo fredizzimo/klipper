@@ -5,7 +5,7 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import pytest
 from feedrateplanner import (TrapezoidalFeedratePlanner, JerkFeedratePlanner, 
-    Move)
+    SmoothExtrusionFeedratePlanner, Move)
 from kinematics.extruder import DummyExtruder
 from math import sqrt
 import numpy as np
@@ -92,5 +92,11 @@ def trapezoidal_toolhead(move_plotter, request):
 @pytest.fixture
 def jerk_toolhead(move_plotter, request):
     toolhead = ToolHead(JerkFeedratePlanner)
+    yield toolhead
+    move_plotter.plot(toolhead.moves, input_moves=toolhead.input_moves)
+
+@pytest.fixture
+def smooth_extrusion_toolhead(move_plotter, request):
+    toolhead = ToolHead(SmoothExtrusionFeedratePlanner)
     yield toolhead
     move_plotter.plot(toolhead.moves, input_moves=toolhead.input_moves)
