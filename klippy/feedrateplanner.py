@@ -878,6 +878,8 @@ class JerkFeedratePlanner(FeedratePlanner):
                     if abs(profile.end_v**2 - target_end_v2) < tolerance:
                         flush_count = move_count
 
+                profile.start_v = max(0, profile.start_v)
+                profile.end_v = max(0, profile.end_v)
                 profiles.append(profile)
         if not lazy:
             flush_count = move_count
