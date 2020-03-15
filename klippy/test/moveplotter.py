@@ -168,6 +168,9 @@ class MovePlotter(object):
                 if dist >= input_end_dist:
                     try:
                         input_move = next(input_itr)
+                        if not input_move.is_kinematic_move:
+                            allowed_v[i] = allowed_v[i-1]
+                            continue
                         input_start_dist = input_end_dist
                         input_end_dist = input_start_dist + input_move.move_d
                         allowed_v[i] = sqrt(input_move.max_junction_v2)
