@@ -19,6 +19,7 @@ class MovePlotter(object):
         self.test_name = name
 
     def plot(self, moves, name=None, input_moves=None):
+        pressure_factor = 0.01
         if not isinstance(moves, collections.Sequence):
             moves = (moves,)
         if name is None:
@@ -32,6 +33,10 @@ class MovePlotter(object):
         vs = []
         accs = []
         jerks = []
+        extruder_xs = []
+        extruder_vs = []
+        extruder_accs = []
+        extruder_jerks = []
 
         move_indices = [-1]
 
@@ -88,6 +93,10 @@ class MovePlotter(object):
                 vs.append(v + a * ts + 0.5 * j * ts**2)
                 accs.append(a + j * ts)
                 jerks.append(np.full(ts.shape[0], j))
+                extruder_xs.append(xs[-1] + pressure_factor*vs[-1])
+                extruder_vs.append(vs[-1] + pressure_factor*accs[-1])
+                extruder_accs.append(accs[-1] + pressure_factor*jerks[-1])
+                extruder_jerks.append(jerks[-1])
                 ts += t
                 times.append(ts)
                 x = xs[-1][-1]
@@ -104,6 +113,10 @@ class MovePlotter(object):
         v = np.concatenate(vs)
         a = np.concatenate(accs)
         j = np.concatenate(jerks)
+        extruder_x = np.concatenate(extruder_xs)
+        extruder_v = np.concatenate(extruder_vs)
+        extruder_a = np.concatenate(extruder_accs)
+        extruder_j = np.concatenate(extruder_jerks)
         if input_moves is not None:
             allowed_v = np.empty(x.shape[0])
             input_itr = iter(input_moves)
@@ -128,22 +141,22 @@ class MovePlotter(object):
         j_color = DEFAULT_PLOTLY_COLORS[3]
 
         fig.add_trace(go.Scatter(
-            x=times, y=x, name="position",
+            x=times, y=x, name="Position",
             legendgroup="position",
             line=go.scatter.Line(color=x_color)))
         fig.add_trace(go.Scatter(
-            x=times, y=v, name="velocity", yaxis="y2",
+            x=times, y=v, name="Velocity", yaxis="y2",
             legendgroup="velocity",
             line=go.scatter.Line(color=v_color)))
         if input_moves is not None:
             fig.add_trace(go.Scatter(
-                x=times, y=allowed_v, name="allowed velocity", yaxis="y2",
+                x=times, y=allowed_v, name="Allowed Velocity", yaxis="y2",
                 legendgroup="allowed_velocity",
                 line=go.scatter.Line(color=v_color, dash="dash")))
-        fig.add_trace(go.Scatter(x=times, y=a, name="acceleration", yaxis="y3",
+        fig.add_trace(go.Scatter(x=times, y=a, name="Acceleration", yaxis="y3",
             legendgroup="acceleration",
             line=go.scatter.Line(color=a_color)))
-        fig.add_trace(go.Scatter(x=times, y=j, name="jerk", yaxis="y4",
+        fig.add_trace(go.Scatter(x=times, y=j, name="Jerk", yaxis="y4",
             legendgroup="jerk",
             line=go.scatter.Line(color=j_color)))
         fig.add_trace(go.Scatter(
@@ -169,6 +182,26 @@ class MovePlotter(object):
             showlegend=False,
             legendgroup="jerk",
             marker=go.scatter.Marker(color=j_color)))
+        fig.add_trace(go.Scatter(
+            x=times, y=extruder_x,
+            yaxis="y1",
+            name="Extruder Position",
+            line=go.scatter.Line(color=x_color, dash="dot")))
+        fig.add_trace(go.Scatter(
+            x=times, y=extruder_v,
+            yaxis="y2",
+            name="Extruder Velocity",
+            line=go.scatter.Line(color=v_color, dash="dot")))
+        fig.add_trace(go.Scatter(
+            x=times, y=extruder_a,
+            yaxis="y3",
+            name="Extruder Acceleration",
+            line=go.scatter.Line(color=a_color, dash="dot")))
+        fig.add_trace(go.Scatter(
+            x=times, y=extruder_j,
+            yaxis="y4",
+            name="Extruder Jerk",
+            line=go.scatter.Line(color=j_color, dash="dot")))
 
         fig.update_layout(
             title=go.layout.Title(
