@@ -93,16 +93,25 @@ def get_distance(move):
 def trapezoidal_toolhead(move_plotter, request):
     toolhead = ToolHead(TrapezoidalFeedratePlanner)
     yield toolhead
-    move_plotter.plot(toolhead.moves, input_moves=toolhead.input_moves)
+    move_plotter.plot(
+        toolhead.moves,
+        simulated_extrusion=True,
+        input_moves=toolhead.input_moves)
 
 @pytest.fixture
 def jerk_toolhead(move_plotter, request):
     toolhead = ToolHead(JerkFeedratePlanner)
     yield toolhead
-    move_plotter.plot(toolhead.moves, input_moves=toolhead.input_moves)
+    move_plotter.plot(
+        toolhead.moves,
+        simulated_extrusion=True,
+        input_moves=toolhead.input_moves)
 
 @pytest.fixture
 def smooth_extrusion_toolhead(move_plotter, request):
     toolhead = ToolHead(SmoothExtrusionFeedratePlanner)
     yield toolhead
-    move_plotter.plot(toolhead.moves, input_moves=toolhead.input_moves)
+    move_plotter.plot(
+        toolhead.moves,
+        simulated_extrusion=False,
+        input_moves=toolhead.input_moves)
