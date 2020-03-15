@@ -901,7 +901,6 @@ class SmoothExtrusionFeedratePlanner(FeedratePlanner):
         self.mode = self.MODE_NONE
 
     def add_move(self, move):
-        # TODO: Deal with extrusion only moves
         if move.is_kinematic_move and move.axes_d[3] != 0:
             if self.mode == self.MODE_TRAPEZOIDAL:
                 self.flush(False)
