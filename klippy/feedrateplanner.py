@@ -889,3 +889,15 @@ class JerkFeedratePlanner(FeedratePlanner):
             self.current_v = profiles[flush_count-1].end_v
             del self.queue[:flush_count]
         self.virtual_moves = []
+
+class SmoothExtrusionFeedratePlanner(FeedratePlanner):
+    def __init__(self, toolhead):
+        super(SmoothExtrusionFeedratePlanner, self).__init__(toolhead)
+        self.trapezoidal_planner = TrapezoidalFeedratePlanner(toolhead)
+        self.jerk_planner = JerkFeedratePlanner(toolhead)
+
+    def add_move(self, move):
+        self.jerk_planner.add_move(move)
+
+    def flush(self, lazy=False):
+        self.jerk_planner.flush(lazy)
