@@ -21,19 +21,21 @@ class ToolHead(object):
         self.max_velocity = None
         self.max_accel_to_decel = None
         self.square_corner_velocity = None
+        self.max_extrude_acc = None
         self.junction_deviation = None
         self.extruder = DummyExtruder()
         self.pos = np.zeros(4)
         self.input_moves = []
 
     def set_limits(self, max_vel, max_acc, max_acc_to_dec,
-        square_corner_velocity, jerk=None):
+        square_corner_velocity, jerk=None, max_extrude_acc=None):
         self.max_accel = max_acc
         self.max_velocity = max_vel
         self.max_accel_to_decel = max_acc_to_dec
         scv2 = square_corner_velocity**2
         self.junction_deviation = scv2 * (sqrt(2.) - 1.) / self.max_accel
         self.jerk = jerk
+        self.max_extrude_acc = max_extrude_acc
 
     def _process_moves(self, moves):
         self.moves += moves
@@ -44,6 +46,10 @@ class ToolHead(object):
         else:
             end = np.array((end_pos, 0, 0, 0))
         move = Move(self, self.pos, end, max_speed)
+        # Extrude only move, set extrude acceleration
+        if not move.is_kinematic_move:
+            move.limit_speed(max_speed, self.max_extrude_acc)
+
         self.input_moves.append(move)
         self.feedrate_planner.add_move(move)
         self.pos = end
@@ -58,13 +64,13 @@ class ToolHead(object):
             pos = tuple([p for p in pos] + [0] * (4-len(pos)))
         else:
             pos = (pos, 0, 0, 0)
-        assert move.start_pos == pos
-        assert pytest.approx(move.start_v) == start_v
-        assert pytest.approx(move.cruise_v) == cruise_v
-        assert pytest.approx(move.accel_t) == accel_t
-        assert pytest.approx(move.cruise_t) == cruise_t
-        assert pytest.approx(move.decel_t) == decel_t
-        assert pytest.approx(get_distance(move)) == distance
+        with assume: assert move.start_pos == pos
+        with assume: assert pytest.approx(move.start_v) == start_v
+        with assume: assert pytest.approx(move.cruise_v) == cruise_v
+        with assume: assert pytest.approx(move.accel_t) == accel_t
+        with assume: assert pytest.approx(move.cruise_t) == cruise_t
+        with assume: assert pytest.approx(move.decel_t) == decel_t
+        with assume: assert pytest.approx(get_distance(move)) == distance
         if axes_r is not None:
             with assume: assert pytest.approx(move.axes_r) == axes_r
         if axes_d is not None:
