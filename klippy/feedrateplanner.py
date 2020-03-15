@@ -731,7 +731,7 @@ class JerkFeedratePlanner(FeedratePlanner):
         reachable_end_v = MoveProfile.get_max_allowed_jerk_end_speed(
             distance, start_v, end_v, accel, jerk)
 
-        if next_move is None:
+        if next_move is None or next_move.accel != accel:
             return (False, reachable_end_v)
         
         can_reach_end = reachable_end_v >= end_v
@@ -762,7 +762,6 @@ class JerkFeedratePlanner(FeedratePlanner):
                 next_move = None
                 end_v2 = move.max_cruise_v2
             if v_move is None:
-                # TODO: Deal with changing acceleration
                 v_move = self.VirtualMove(
                     start_v=current_v,
                     accel=move.accel,

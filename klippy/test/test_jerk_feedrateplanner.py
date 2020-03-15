@@ -1077,3 +1077,47 @@ def test_short_moves_near_low_speed_segment(toolhead):
         axes_d=(14.88, 0, 0, 0),
         end_pos=(15, 0, 0, 0)
     )
+
+def test_changing_acceleration_does_not_combine_moves(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5,
+        jerk=100000)
+    toolhead.move(2, max_speed=100)
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=1000,
+        max_acc_to_dec=1000,
+        square_corner_velocity=5,
+        jerk=100000)
+    toolhead.move(3, max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    toolhead.check_jerk_move(0,
+        distance=2,
+        start_v=0,
+        cruise_v=49.7225535338,
+        end_v=40,
+        max_accel=2000,
+        max_decel=986.030097603,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(2, 0, 0, 0),
+        end_pos=(2, 0, 0, 0)
+    )
+    toolhead.check_jerk_move(1,
+        distance=1,
+        start_v=40,
+        cruise_v=40,
+        end_v=0,
+        max_accel=0,
+        max_decel=1000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(1, 0, 0, 0),
+        end_pos=(3, 0, 0, 0)
+    )
