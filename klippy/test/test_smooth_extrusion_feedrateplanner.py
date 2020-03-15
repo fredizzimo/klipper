@@ -183,3 +183,105 @@ def test_a_few_moves_with_non_extrusion_between(toolhead):
         axes_d=(5, 0, 0, 5),
         end_pos=(30, 0, 0, 20)
     )
+
+def test_extrude_only_move(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5,
+        jerk=100000,
+        max_extrude_acc=5000)
+    toolhead.move((0, 0, 0, 2), max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 1
+    toolhead.check_move(0,
+        pos=(0, 0, 0, 0),
+        start_v=0,
+        cruise_v=63.2455532034,
+        accel_t=0.0126491106407,
+        cruise_t=0.018973665961,
+        decel_t=0.0126491106407,
+        distance=2,
+        axes_r=(0, 0, 0, 1),
+        axes_d=(0, 0, 0, 2),
+        end_pos=(0, 0, 0, 2)
+    )
+
+def test_extrude_retract_move_unretract_move(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5,
+        jerk=100000,
+        max_extrude_acc=5000)
+    toolhead.move((5, 0, 0, 5), max_speed=100)
+    toolhead.move((5, 0, 0, 2), max_speed=100)
+    toolhead.move((15, 0, 0, 2), max_speed=100)
+    toolhead.move((15, 0, 0, 5), max_speed=100)
+    toolhead.move((19, 0, 0, 9), max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 5
+    toolhead.check_jerk_move(0,
+        distance=5,
+        start_v=0,
+        cruise_v=81.9803902719,
+        end_v=0,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 1),
+        axes_d=(5, 0, 0, 5),
+        end_pos=(5, 0, 0, 5)
+    )
+    toolhead.check_move(1,
+        pos=(5, 0, 0, 5),
+        start_v=0,
+        cruise_v=77.4596669241,
+        accel_t=0.0154919333848,
+        cruise_t=0.0232379000772,
+        decel_t=0.0154919333848,
+        distance=3,
+        axes_r=(0, 0, 0, -1),
+        axes_d=(0, 0, 0, -3),
+        end_pos=(5, 0, 0, 2)
+    )
+    toolhead.check_move(2,
+        pos=(5, 0, 0, 2),
+        start_v=0,
+        cruise_v=100,
+        accel_t=0.05,
+        cruise_t=0.05,
+        decel_t=0.05,
+        distance=10,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(10, 0, 0, 0),
+        end_pos=(15, 0, 0, 2)
+    )
+    toolhead.check_move(3,
+        pos=(15, 0, 0, 2),
+        start_v=0,
+        cruise_v=77.4596669241,
+        accel_t=0.0154919333848,
+        cruise_t=0.0232379000772,
+        decel_t=0.0154919333848,
+        distance=3,
+        axes_r=(0, 0, 0, 1),
+        axes_d=(0, 0, 0, 3),
+        end_pos=(15, 0, 0, 5)
+    )
+    toolhead.check_jerk_move(4,
+        distance=4,
+        start_v=0,
+        cruise_v=71.6515138991,
+        end_v=0,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 1),
+        axes_d=(4, 0, 0, 4),
+        end_pos=(19, 0, 0, 9)
+    )
