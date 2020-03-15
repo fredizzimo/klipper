@@ -440,6 +440,7 @@ class Move(object):
         self.start_pos = tuple(start_pos)
         self.end_pos = tuple(end_pos)
         self.accel = toolhead.max_accel
+        self.jerk = toolhead.jerk
         velocity = min(speed, toolhead.max_velocity)
         self.is_kinematic_move = True
         self.axes_d = axes_d = [end_pos[i] - start_pos[i] for i in (0, 1, 2, 3)]
@@ -716,10 +717,9 @@ class JerkFeedratePlanner(FeedratePlanner):
             return ret
 
 
-    def __init__(self, toolhead, jerk):
+    def __init__(self, toolhead):
         super(JerkFeedratePlanner, self).__init__(toolhead)
         self.virtual_moves = []
-        self.jerk = jerk
         self.current_v = 0
 
     @staticmethod
@@ -728,7 +728,8 @@ class JerkFeedratePlanner(FeedratePlanner):
         reachable_end_v = MoveProfile.get_max_allowed_jerk_end_speed(
             distance, start_v, end_v, accel, jerk)
 
-        if next_move is None or next_move.accel != accel:
+        if next_move is None or next_move.accel != accel or \
+                next_move.jerk != jerk:
             return (False, reachable_end_v)
         
         can_reach_end = reachable_end_v >= end_v
@@ -762,7 +763,7 @@ class JerkFeedratePlanner(FeedratePlanner):
                 v_move = self.VirtualMove(
                     start_v=current_v,
                     accel=move.accel,
-                    jerk=self.jerk
+                    jerk=move.jerk
                 )
             end_v = math.sqrt(end_v2)
 
