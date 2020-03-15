@@ -52,7 +52,7 @@ class ToolHead(object):
         self.feedrate_planner.flush(lazy)
 
     def check_move(self, idx, pos, start_v, cruise_v, accel_t, cruise_t,
-        decel_t, distance):
+        decel_t, distance, axes_r=None, axes_d=None, end_pos=None):
         move = self.moves[idx]
         if type(pos) == tuple:
             pos = tuple([p for p in pos] + [0] * (4-len(pos)))
@@ -65,6 +65,12 @@ class ToolHead(object):
         assert pytest.approx(move.cruise_t) == cruise_t
         assert pytest.approx(move.decel_t) == decel_t
         assert pytest.approx(get_distance(move)) == distance
+        if axes_r is not None:
+            with assume: assert pytest.approx(move.axes_r) == axes_r
+        if axes_d is not None:
+            with assume: assert pytest.approx(move.axes_d) == axes_d
+        if end_pos is not None:
+            with assume: assert pytest.approx(move.end_pos) == end_pos
 
     def check_jerk_move(self, idx, distance, start_v, cruise_v, end_v,
                         max_accel, max_decel, jerk, is_kinematic_move, axes_r,

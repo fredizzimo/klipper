@@ -891,13 +891,31 @@ class JerkFeedratePlanner(FeedratePlanner):
         self.virtual_moves = []
 
 class SmoothExtrusionFeedratePlanner(FeedratePlanner):
+    MODE_NONE = 0
+    MODE_EXTRUDE = 1
+    MODE_NONEXTRUDE = 2
+
     def __init__(self, toolhead):
         super(SmoothExtrusionFeedratePlanner, self).__init__(toolhead)
         self.trapezoidal_planner = TrapezoidalFeedratePlanner(toolhead)
         self.jerk_planner = JerkFeedratePlanner(toolhead)
+        self.mode = self.MODE_NONE
 
     def add_move(self, move):
-        self.jerk_planner.add_move(move)
+        # TODO: Deal with extrusion only moves
+        if move.axes_d[3] != 0:
+            if self.mode == self.MODE_NONEXTRUDE:
+                self.flush(False)
+            self.mode = self.MODE_EXTRUDE
+            self.jerk_planner.add_move(move)
+        else:
+            if self.mode == self.MODE_EXTRUDE:
+                self.flush(False)
+            self.mode = self.MODE_NONEXTRUDE
+            self.trapezoidal_planner.add_move(move)
 
     def flush(self, lazy=False):
-        self.jerk_planner.flush(lazy)
+        if self.mode == self.MODE_EXTRUDE:
+            self.jerk_planner.flush(lazy)
+        elif self.mode == self.MODE_NONEXTRUDE:
+            self.trapezoidal_planner.flush(lazy)

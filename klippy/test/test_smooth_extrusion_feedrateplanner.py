@@ -31,3 +31,63 @@ def test_single_long_extrusion_move(toolhead):
         axes_d=(100, 0, 0, 1),
         end_pos=(100, 0, 0, 1)
         )
+
+def test_single_long_non_extrusion_move(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5,
+        jerk=100000)
+    toolhead.move((100, 0, 0, 0), max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 1
+    toolhead.check_move(0,
+        pos=0,
+        start_v=0,
+        cruise_v=100,
+        accel_t=0.05,
+        cruise_t=0.95,
+        decel_t=0.05,
+        distance=100,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(100, 0, 0, 0),
+        end_pos=(100, 0, 0, 0)
+    )
+
+def test_extrusion_move_followed_by_non_extrusion(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5,
+        jerk=100000)
+    toolhead.move((100, 0, 0, 1), max_speed=100)
+    toolhead.move((200, 0, 0, 1), max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    toolhead.check_jerk_move(0,
+        distance=100,
+        start_v=0,
+        cruise_v=100,
+        end_v=0,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0.01),
+        axes_d=(100, 0, 0, 1),
+        end_pos=(100, 0, 0, 1)
+        )
+    toolhead.check_move(1,
+        pos=(100, 0, 0, 1),
+        start_v=0,
+        cruise_v=100,
+        accel_t=0.05,
+        cruise_t=0.95,
+        decel_t=0.05,
+        distance=100,
+        axes_r=(1, 0, 0, 0),
+        axes_d=(100, 0, 0, 0),
+        end_pos=(200, 0, 0, 1)
+    )
