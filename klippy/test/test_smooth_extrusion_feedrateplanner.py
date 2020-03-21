@@ -285,3 +285,87 @@ def test_extrude_retract_move_unretract_move(toolhead):
         axes_d=(4, 0, 0, 4),
         end_pos=(19, 0, 0, 9)
     )
+
+def test_change_to_lower_extrusion_speed(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5,
+        jerk=100000,
+        max_extrude_acc=5000,
+        extruder_corner_v=10)
+    toolhead.move((5, 0, 0, 5), max_speed=100)
+    toolhead.move((10, 0, 0, 7), max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    # NOTE: That the extrusion speed change doesn't effect the toolhead
+    # velocity
+    toolhead.check_jerk_move(0,
+        distance=5,
+        start_v=0,
+        cruise_v=81.0225497379,
+        end_v=16.6666666667,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 1),
+        axes_d=(5, 0, 0, 5),
+        end_pos=(5, 0, 0, 5)
+    )
+    toolhead.check_jerk_move(1,
+        distance=5,
+        start_v=16.6666666667,
+        cruise_v=81.0225497379,
+        end_v=0,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0.4),
+        axes_d=(5, 0, 0, 2),
+        end_pos=(10, 0, 0, 7)
+    )
+
+def test_change_to_higher_extrusion_speed(toolhead):
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=2000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5,
+        jerk=100000,
+        max_extrude_acc=5000,
+        extruder_corner_v=10)
+    toolhead.move((5, 0, 0, 2), max_speed=100)
+    toolhead.move((10, 0, 0, 7), max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 2
+    # NOTE: That the extrusion speed change doesn't effect the toolhead
+    # velocity
+    toolhead.check_jerk_move(0,
+        distance=5,
+        start_v=0,
+        cruise_v=81.0225497379,
+        end_v=16.6666666667,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 0.4),
+        axes_d=(5, 0, 0, 2),
+        end_pos=(5, 0, 0, 2)
+    )
+    toolhead.check_jerk_move(1,
+        distance=5,
+        start_v=16.6666666667,
+        cruise_v=81.0225497379,
+        end_v=0,
+        max_accel=2000,
+        max_decel=2000,
+        jerk=100000,
+        is_kinematic_move=True,
+        axes_r=(1, 0, 0, 1),
+        axes_d=(5, 0, 0, 5),
+        end_pos=(10, 0, 0, 7)
+    )
