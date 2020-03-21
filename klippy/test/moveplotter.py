@@ -45,7 +45,7 @@ class MovePlotter(object):
         a = 0
         t = 0
         j = 0
-        ex = 0.0
+        last_extruder_pos = 0.0
 
         jerk_multipliers = [
             1,
@@ -99,20 +99,29 @@ class MovePlotter(object):
                     a = np.float(segment[1])
                 j = np.float(segment[2])
 
+                # t stands for toolhead
                 t_x = x + v * ts + 0.5 * a * ts**2 + j * ts**3 / 6.0
                 t_v = v + a * ts + 0.5 * j * ts**2
                 t_a = a + j * ts
                 t_j = np.full(ts.shape[0], j)
+
                 
-                e_x = ex + (t_x - start_x) * extrusion_rate
+                # e stands for extruder
+                e_x = v * extrusion_rate * ts
+                e_x += 0.5 * a * extrusion_rate * ts**2
+                e_x += j * extrusion_rate * ts**3 / 6.0
                 e_v = t_v * extrusion_rate
                 e_a = t_a * extrusion_rate
                 e_j = t_j * extrusion_rate
 
                 if move.is_kinematic_move:
-                    e_x = e_x + pressure_factor*e_v
-                    e_v = e_v + pressure_factor*e_a
-                    e_a = e_a + pressure_factor*e_j
+                    e_x += pressure_factor*e_v
+                    e_v += pressure_factor*e_a
+                    e_a += pressure_factor*e_j
+                
+                # Make sure that the extruder position is continous
+                e_x += last_extruder_pos - e_x[0]
+                last_extruder_pos = e_x[-1]
             
                 extruder_xs.append(e_x)
                 extruder_vs.append(e_v)
@@ -140,12 +149,8 @@ class MovePlotter(object):
                 a = t_a[-1]
                 num_ticks += ts.shape[0]
 
-            if simulated_extrusion:
-                ex = x
-            else:
-                ex = move.end_pos[3]
-                if not move.is_kinematic_move:
-                    x = start_x
+            if not move.is_kinematic_move:
+                x = start_x
             move_indices.append(move_indices[-1] + num_ticks)
 
         move_indices[0] = 0
