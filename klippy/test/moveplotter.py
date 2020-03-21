@@ -19,6 +19,24 @@ class MovePlotter(object):
     def set_test_name(self, name):
         self.test_name = name
 
+    def calculate_actual_extrusion(self, dt, pressure_factor, last_pos,
+            extruder_pos):
+        x = last_pos
+        c = pressure_factor
+        output_x = np.empty(extruder_pos.shape[0])
+        output_v = np.empty(extruder_pos.shape[0])
+        for i, p in enumerate(extruder_pos):
+            # p = x + c*v
+            # c*v = p - x
+            # v = (p - x) / c
+            v = (p - x) / c
+            output_v[i] = v
+            output_x[i] = x
+            x += v * dt
+        return (output_x, output_v)
+
+            
+
     def plot(self, moves, simulated_extrusion=True, name=None, input_moves=None):
         pressure_factor = 0.01
         if not isinstance(moves, collections.Sequence):
@@ -38,6 +56,8 @@ class MovePlotter(object):
         extruder_vs = []
         extruder_accs = []
         extruder_jerks = []
+        actual_extrusion_x = []
+        actual_extrusion_v = []
 
         move_indices = [-1]
 
@@ -46,6 +66,7 @@ class MovePlotter(object):
         t = 0
         j = 0
         last_extruder_pos = 0.0
+        actual_extrusion_pos = 0.0
 
         jerk_multipliers = [
             1,
@@ -127,6 +148,11 @@ class MovePlotter(object):
                 extruder_vs.append(e_v)
                 extruder_accs.append(e_a)
                 extruder_jerks.append(e_j)
+                a_ex, a_ev = self.calculate_actual_extrusion(dt,
+                    pressure_factor, actual_extrusion_pos, e_x)
+                actual_extrusion_pos = a_ex[-1]
+                actual_extrusion_x.append(a_ex)
+                actual_extrusion_v.append(a_ev)
 
                 ts += t
                 times.append(ts)
@@ -163,6 +189,8 @@ class MovePlotter(object):
         extruder_v = np.concatenate(extruder_vs)
         extruder_a = np.concatenate(extruder_accs)
         extruder_j = np.concatenate(extruder_jerks)
+        actual_extrusion_x = np.concatenate(actual_extrusion_x)
+        actual_extrusion_v = np.concatenate(actual_extrusion_v)
         if input_moves is not None:
             allowed_v = np.empty(x.shape[0])
             input_itr = iter(input_moves)
@@ -251,6 +279,16 @@ class MovePlotter(object):
             yaxis="y4",
             name="Extruder Jerk",
             line=go.scatter.Line(color=j_color, dash="dot")))
+        fig.add_trace(go.Scatter(
+            x=times, y=actual_extrusion_x,
+            yaxis="y1",
+            name="Actual extrusion pos",
+            line=go.scatter.Line(color=x_color, dash="dashdot")))
+        fig.add_trace(go.Scatter(
+            x=times, y=actual_extrusion_v,
+            yaxis="y2",
+            name="Actual extrusion velocity",
+            line=go.scatter.Line(color=v_color, dash="dashdot")))
 
         fig.update_layout(
             title=go.layout.Title(
