@@ -6,11 +6,19 @@
 import pytest
 from feedrateplanner import (TrapezoidalFeedratePlanner, JerkFeedratePlanner, 
     SmoothExtrusionFeedratePlanner, Move)
-from kinematics.extruder import DummyExtruder
+from kinematics.extruder import DummyExtruder, PrinterExtruder
 from math import sqrt
 import numpy as np
 from profile_test_helpers import check_jerk_profile
 from pytest import assume
+
+class TestExtruder(DummyExtruder):
+
+    def __init__(self):
+        self.instant_corner_v = 0
+
+    calc_junction = PrinterExtruder.__dict__["calc_junction"]
+
 
 class ToolHead(object):
     def __init__(self, FeedratePlanner):
@@ -23,12 +31,13 @@ class ToolHead(object):
         self.square_corner_velocity = None
         self.max_extrude_acc = None
         self.junction_deviation = None
-        self.extruder = DummyExtruder()
+        self.extruder = TestExtruder()
         self.pos = np.zeros(4)
         self.input_moves = []
 
     def set_limits(self, max_vel, max_acc, max_acc_to_dec,
-        square_corner_velocity, jerk=None, max_extrude_acc=None):
+        square_corner_velocity, jerk=None, max_extrude_acc=None,
+        extruder_corner_v=0):
         self.max_accel = max_acc
         self.max_velocity = max_vel
         self.max_accel_to_decel = max_acc_to_dec
@@ -36,6 +45,7 @@ class ToolHead(object):
         self.junction_deviation = scv2 * (sqrt(2.) - 1.) / self.max_accel
         self.jerk = jerk
         self.max_extrude_acc = max_extrude_acc
+        self.extruder.instant_corner_v = extruder_corner_v
 
     def _process_moves(self, moves):
         self.moves += moves
