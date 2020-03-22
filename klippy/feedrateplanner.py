@@ -96,16 +96,6 @@ class MoveProfile(object):
         self.set_trapezoidal_times(distance, start_v2, cruise_v2, end_v2, accel,
             decel)
 
-
-    def get_min_allowed_jerk_distance(self, v1, v2, a_max, jerk):
-        if a_max == 0:
-            return 0
-        v_s = min(v1, v2)
-        v_e = max(v1, v2)
-        distance = v_s*a_max**2 + v_e*a_max**2 - jerk*v_s**2 + jerk*v_e**2
-        distance /= 2.0 * a_max*jerk
-        return distance
-
     def calculate_jerk(self, distance, start_v, max_v, end_v, accel, jerk,
         decel=None):
         # Calculate a jerk limited profile based on the paper
