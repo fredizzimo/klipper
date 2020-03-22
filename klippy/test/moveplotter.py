@@ -20,18 +20,20 @@ class MovePlotter(object):
     def set_test_name(self, name):
         self.test_name = name
 
-    def calculate_actual_extrusion(self, x, extruder_start_pos, pressure_factor, length, ts):
+    def calculate_actual_extrusion(self, x, extruder_start_pos, pressure_factor,
+            length, ts):
         def f(t, y):
             return (x(t) - y) / pressure_factor
-        
+
         span = (0.0, length)
         y0 = np.array((extruder_start_pos,))
         res = solve_ivp(f, span, y0, t_eval=ts, method="Radau")
         vel = f(ts, res.y[0])
         return (res.y[0], vel)
-        
 
-    def plot(self, moves, simulated_extrusion=True, name=None, input_moves=None):
+
+    def plot(self, moves, simulated_extrusion=True, name=None,
+            input_moves=None):
         pressure_factor = 0.01
         if not isinstance(moves, collections.Sequence):
             moves = (moves,)
@@ -101,7 +103,7 @@ class MovePlotter(object):
                         segments.append((jt, acceleration,
                             profile.jerk * jerk_multipliers[index]))
                         acceleration = np.nan
-                    
+
 
             v = profile.start_v
 
@@ -121,7 +123,7 @@ class MovePlotter(object):
                 t_a = a + j * ts
                 t_j = np.full(ts.shape[0], j)
 
-                
+
                 # e stands for extruder
                 def f_extruder_x(t):
                     res = v * extrusion_rate * t
@@ -154,7 +156,7 @@ class MovePlotter(object):
 
                 e_x = f_extruder_x(ts)
                 last_extruder_pos = e_x[-1]
-            
+
                 extruder_xs.append(e_x)
                 extruder_vs.append(e_v)
                 extruder_accs.append(e_a)

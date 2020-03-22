@@ -16,7 +16,7 @@ def get_min_allowed_distance_with_const_acc(v1, v2, a_max, jerk):
     distance = v_s*a_max**2 + v_e*a_max**2 - jerk*v_s**2 + jerk*v_e**2
     distance /= 2.0 * a_max*jerk
     return distance
-    
+
 def get_min_allowed_distance(v1, v2, jerk):
     v_s = min(v1, v2)
     v_e = max(v1, v2)
@@ -282,7 +282,7 @@ def test_type_III_c_to_type_IIII_c_adaptation_decreasing(move_plotter):
     )
     assert profile.jerk_t[1] == 0
     assert profile.jerk_t[5] == 0
-    
+
 def test_lower_to_higher_with_no_initial_cruise(move_plotter):
     profile = MoveProfile()
     profile.calculate_jerk(5, 30, 100, 70, 1000, 100000)
@@ -340,7 +340,8 @@ def test_no_deceleration_max_a_reached(move_plotter):
         jerk=100000
     )
 
-def test_slight_deceleration_max_a_reached_and_dist_slightly_longer(move_plotter):
+def test_slight_deceleration_max_a_reached_and_dist_slightly_longer(
+        move_plotter):
     profile = MoveProfile()
     distance = get_min_allowed_distance_with_const_acc(30, 70, 1000, 100000)
     distance += 0.1
@@ -386,7 +387,8 @@ def test_no_deceleration_max_a_not_reached(move_plotter):
         jerk=100000
     )
 
-def test_slight_deceleration_max_a_not_reached_dist_slightly_longer(move_plotter):
+def test_slight_deceleration_max_a_not_reached_dist_slightly_longer(
+        move_plotter):
     profile = MoveProfile()
     distance = get_min_allowed_distance(30, 35, 100000)
     distance += 0.1
@@ -433,7 +435,8 @@ def test_no_acceleration_max_a_reached(move_plotter):
         jerk=100000
     )
 
-def test_slight_acceleration_max_a_reached_and_dist_slightly_longer(move_plotter):
+def test_slight_acceleration_max_a_reached_and_dist_slightly_longer(
+        move_plotter):
     profile = MoveProfile()
     distance = get_min_allowed_distance_with_const_acc(70, 30, 1000, 100000)
     distance += 0.1
@@ -479,7 +482,8 @@ def test_no_acceleration_max_a_not_reached(move_plotter):
         jerk=100000
     )
 
-def test_slight_acceleration_max_a_not_reached_dist_slightly_longer(move_plotter):
+def test_slight_acceleration_max_a_not_reached_dist_slightly_longer(
+        move_plotter):
     profile = MoveProfile()
     distance = get_min_allowed_distance(35, 30, 100000)
     distance += 0.1

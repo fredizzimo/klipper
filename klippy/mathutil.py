@@ -162,7 +162,7 @@ def newton_raphson(f, low, high, tolerance, maxiter):
             return high, y_high, dy_high
         else:
             return low, y_low, dy_low
-    
+
     # Always keep f(x_low) < 0
     if y_low < 0:
         x_low = low
@@ -190,17 +190,17 @@ def newton_raphson(f, low, high, tolerance, maxiter):
             dx_old = dx
             dx = y / dy
             x -= dx
-        
+
         # Return if within the tolerance
         if abs(dx) < tolerance:
             return x, y, dy
-        
+
         y, dy = f(x)
         # Maintain the bracket
         if y < 0:
             x_low = x
         else:
             x_high = x
-    
+
     # We are hopefully close enough
     return x, y, dy

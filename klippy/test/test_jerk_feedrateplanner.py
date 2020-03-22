@@ -501,7 +501,7 @@ def test_combine_backwards(toolhead):
         axes_d=(0.5, 0, 0, 0),
         end_pos=(20.5, 0, 0, 0)
     )
-    
+
 def test_a_single_move_is_not_lazily_flushed(toolhead):
     toolhead.set_limits(
         max_vel=100,
@@ -783,7 +783,7 @@ def test_dont_flush_when_still_accelerating(toolhead):
         max_acc_to_dec=2000,
         square_corner_velocity=5,
         jerk=100000)
-    # Calculate the exact distance to accelerate to the first segment speed 
+    # Calculate the exact distance to accelerate to the first segment speed
     speed = 20.0
     jerk_t2 = speed
     jerk_t2 /= 100000
@@ -796,8 +796,8 @@ def test_dont_flush_when_still_accelerating(toolhead):
     toolhead.move(5, max_speed=100)
     toolhead.flush(True)
     # The top speed is reached for the first move, but it's still accelerating
-    # The second move does not reach the top speed, so no moves should be 
-    # output. 
+    # The second move does not reach the top speed, so no moves should be
+    # output.
     assert len(toolhead.moves) == 0
     toolhead.move(20, max_speed=100)
     toolhead.flush()

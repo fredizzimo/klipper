@@ -204,7 +204,7 @@ def test_too_short_decel(move_plotter):
     assert profile.accel_t == 0
     assert profile.cruise_t == 0
 
-    
+
 def test_zero_to_zero_with_cruise_asymetric(move_plotter):
     profile = MoveProfile()
     profile.calculate_trapezoidal(20, 20, 100, 30, 1000, 500)

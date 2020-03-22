@@ -104,7 +104,8 @@ class MoveProfile(object):
         distance /= 2.0 * a_max*jerk
         return distance
 
-    def calculate_jerk(self, distance, start_v, max_v, end_v, accel, jerk, decel=None):
+    def calculate_jerk(self, distance, start_v, max_v, end_v, accel, jerk,
+        decel=None):
         # Calculate a jerk limited profile based on the paper
         # FIR filter-based online jerk-constrained trajectory generation
         # by Pierre Besset and Richard Béarée
@@ -162,7 +163,8 @@ class MoveProfile(object):
             two_accel_decel_jerk = two_accel_decel * jerk
             two_accel_decel_distance_jerk = two_accel_decel_jerk*distance
 
-            dist_cruise = accel*start_v + accel*max_v + decel*max_v + decel*end_v
+            dist_cruise = accel*start_v + accel*max_v + decel*max_v\
+                + decel*end_v
             dist_cruise *= -accel_decel
             dist_cruise +=  two_accel_decel_distance_jerk
             dist_cruise += accel*jerk*(end_v2-max_v2)
@@ -180,10 +182,10 @@ class MoveProfile(object):
                 a = m_accel_m_decel
                 a /= two_accel_decel
 
-                b = m_accel_m_decel 
+                b = m_accel_m_decel
                 b /= 2.0 * jerk
 
-                c = -accel_2 * decel * start_v  
+                c = -accel_2 * decel * start_v
                 c -= decel_2 * accel * end_v
                 c += two_accel_decel_distance_jerk
                 c += accel * jerk * end_v2
@@ -212,7 +214,6 @@ class MoveProfile(object):
                                 self.x2 = jerk*start_v2
                                 self.x3 = jerk*end_v2
 
-                            
                             def __call__(self, max_v):
                                 y0 = jerk*max_v
                                 y1 = y0 - self.x0
@@ -229,7 +230,7 @@ class MoveProfile(object):
                                 f += (start_v2 - y7) / y3
                                 f += (end_v2 - y7) / y4
 
-                                df = (y8 - self.x2)  / y5 
+                                df = (y8 - self.x2)  / y5
                                 df += (y8 - self.x3) / y6
                                 df -= y9 / y3
                                 df -= y9 / y4
@@ -240,7 +241,7 @@ class MoveProfile(object):
                         max_v = max(start_v, end_v) + self.tolerance
                         max_v, _, _ = newton_raphson(f, max_v, abs_max_v,
                                                     self.tolerance, 16)
-                        
+
                         accel = math.sqrt(jerk*(max_v - start_v))
                         decel = math.sqrt(jerk*(max_v - end_v))
                     # Type IIII-a
@@ -293,7 +294,7 @@ class MoveProfile(object):
                             f += (y0 - end_v2) / (2.0*y3)
                             f += (y0 - start_v2) / self.x1
                             f += accel*max_v / jerk
-                            f += (accel*(start_v - max_v) + y3*(max_v + end_v)) \
+                            f += (accel*(start_v - max_v) + y3*(max_v + end_v))\
                                 / self.x0
 
                             df = accel*y1
@@ -393,7 +394,7 @@ class MoveProfile(object):
 
     @staticmethod
     def can_accelerate_fully(distance, start_v, end_v, accel, jerk):
-        jerk_t2 = end_v - start_v 
+        jerk_t2 = end_v - start_v
         jerk_t2 /= jerk
         jerk_t2 *= 2
 
@@ -410,7 +411,7 @@ class MoveProfile(object):
             d = math.sqrt(jerk_t2)
             d *= 2*start_v + end_v
             d /= 3.0
-        return d > distance 
+        return d > distance
 
     def calculate_jerk_accelerate_only(
             self, distance, start_v, end_v, max_acc, jerk):
@@ -594,7 +595,7 @@ class TrapezoidalFeedratePlanner(FeedratePlanner):
             next_smoothed_v2 = smoothed_v2
         if update_flush_count or not flush_count:
             return
-        
+
         profiles = (move.profile for move in queue[:flush_count])
         # Generate step times for all moves ready to be flushed
         self.toolhead._process_moves(profiles)
@@ -643,7 +644,7 @@ class JerkFeedratePlanner(FeedratePlanner):
             profile.calculate_jerk(self.distance, self.start_v,
                 self.cruise_v, self.end_v, self.accel, self.jerk)
             self.profile = profile
-        
+
         def calculate_first_segment(self):
             self.x = 0
             self.v = self.start_v
@@ -680,11 +681,11 @@ class JerkFeedratePlanner(FeedratePlanner):
             self.current_segment_offset = 0
 
         def calculate_x(self, x, v, a, j, t):
-            x += v*t 
+            x += v*t
             x += 0.5 * a*t**2
             x += j*t**3/6.0
             return x
-        
+
         def calculate_v(self, v, a, j, t):
             v += a*t
             v += 0.5 * j*t**2
@@ -734,11 +735,11 @@ class JerkFeedratePlanner(FeedratePlanner):
         if next_move is None or next_move.accel != accel or \
                 next_move.jerk != jerk:
             return (False, reachable_end_v)
-        
+
         can_reach_end = reachable_end_v >= end_v
         if can_reach_end:
             return (False, reachable_end_v)
-        
+
         # TODO: Do something about this
         # The virtual move and normal move does not have the same attributes
         if hasattr(next_move, "max_cruise_v2"):
@@ -747,7 +748,7 @@ class JerkFeedratePlanner(FeedratePlanner):
         else:
             if next_move.cruise_v == end_v:
                 return (True, end_v)
-        
+
         return (MoveProfile.can_accelerate_fully(distance,
             start_v, end_v, accel, jerk), reachable_end_v)
 
@@ -771,7 +772,7 @@ class JerkFeedratePlanner(FeedratePlanner):
             end_v = math.sqrt(end_v2)
 
             v_move.moves.append(move)
-            
+
             v_move.distance += move.move_d
 
             can_combine_with_next, reachable_end_v = self.can_combine_with_next(
@@ -782,11 +783,12 @@ class JerkFeedratePlanner(FeedratePlanner):
             if not can_combine_with_next:
                 current_v = min(end_v, reachable_end_v)
                 v_move.end_v = current_v
-                v_move.cruise_v = max(v_move.end_v, math.sqrt(move.max_cruise_v2))
+                v_move.cruise_v =\
+                    max(v_move.end_v, math.sqrt(move.max_cruise_v2))
                 self.virtual_moves.append(v_move)
                 v_move = None
 
-    
+
     def backward_pass(self):
         current_v = 0
         output = []
@@ -802,7 +804,7 @@ class JerkFeedratePlanner(FeedratePlanner):
 
             start_v = move.start_v
             start_v2 = start_v**2
-                
+
             can_combine_with_next, reachable_start_v = \
                 self.can_combine_with_next(
                     prev_move, move.distance, move.end_v, start_v,
@@ -856,7 +858,8 @@ class JerkFeedratePlanner(FeedratePlanner):
                 at_end = False
                 while d >= vmove.segment_end_x - tolerance:
                     s = vmove.current_segment
-                    profile.jerk_t[s] = vmove.profile.jerk_t[s] - vmove.current_segment_offset
+                    profile.jerk_t[s] = vmove.profile.jerk_t[s]\
+                        - vmove.current_segment_offset
                     cruise_v = max(cruise_v, vmove.segment_start_v)
                     if s == 6:
                         at_end = True
@@ -872,7 +875,7 @@ class JerkFeedratePlanner(FeedratePlanner):
 
                 profile.cruise_v = max(cruise_v, vmove.v)
 
-                target_end_v2 = move.max_cruise_v2 
+                target_end_v2 = move.max_cruise_v2
                 if move_count < len(self.queue):
                     target_end_v2 = self.queue[move_count].max_junction_v2
                 # Flush when the top speed is reached, and there's no
@@ -909,7 +912,7 @@ class SmoothExtrusionFeedratePlanner(FeedratePlanner):
                 self.flush(False)
             self.mode = self.MODE_JERK
             self.jerk_planner.add_move(move)
-        else: 
+        else:
             if self.mode == self.MODE_JERK:
                 self.flush(False)
             self.mode = self.MODE_TRAPEZOIDAL
