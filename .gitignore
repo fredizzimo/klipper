@@ -10,3 +10,5 @@ klippy/.version
 klippy/test/output/
 travis_build/
 travis_cache/
+_test_.*
+_test_output
