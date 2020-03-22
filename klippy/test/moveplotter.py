@@ -52,6 +52,7 @@ class MovePlotter(object):
         extruder_jerks = []
         actual_extrusion_x = []
         actual_extrusion_v = []
+        desired_extrusion_v = []
 
         move_indices = [-1]
 
@@ -138,7 +139,8 @@ class MovePlotter(object):
                     res += extruder_start_pos
                     return res
 
-                e_v = t_v * extrusion_rate
+                desired_e_v = t_v * extrusion_rate
+                e_v = desired_e_v.copy()
                 e_a = t_a * extrusion_rate
                 e_j = t_j * extrusion_rate
 
@@ -161,6 +163,7 @@ class MovePlotter(object):
                 actual_extrusion_pos = a_ex[-1]
                 actual_extrusion_x.append(a_ex)
                 actual_extrusion_v.append(a_ev)
+                desired_extrusion_v.append(desired_e_v)
 
 
                 ts += t
@@ -200,6 +203,7 @@ class MovePlotter(object):
         extruder_j = np.concatenate(extruder_jerks)
         actual_extrusion_x = np.concatenate(actual_extrusion_x)
         actual_extrusion_v = np.concatenate(actual_extrusion_v)
+        desired_extrusion_v = np.concatenate(desired_extrusion_v)
         if input_moves is not None:
             allowed_v = np.empty(x.shape[0])
             input_itr = iter(input_moves)
@@ -238,7 +242,7 @@ class MovePlotter(object):
             fig.add_trace(go.Scatter(
                 x=times, y=allowed_v, name="Allowed Velocity", yaxis="y2",
                 legendgroup="allowed_velocity",
-                line=go.scatter.Line(color=v_color, dash="dash")))
+                line=go.scatter.Line(color=v_color, dash="longdash")))
         fig.add_trace(go.Scatter(x=times, y=a, name="Acceleration", yaxis="y3",
             legendgroup="acceleration",
             line=go.scatter.Line(color=a_color)))
@@ -293,6 +297,11 @@ class MovePlotter(object):
             yaxis="y1",
             name="Actual extrusion pos",
             line=go.scatter.Line(color=x_color, dash="dashdot")))
+        fig.add_trace(go.Scatter(
+            x=times, y=desired_extrusion_v,
+            yaxis="y2",
+            name="Desired extrusion velocity",
+            line=go.scatter.Line(color=v_color, dash="dash")))
         fig.add_trace(go.Scatter(
             x=times, y=actual_extrusion_v,
             yaxis="y2",
