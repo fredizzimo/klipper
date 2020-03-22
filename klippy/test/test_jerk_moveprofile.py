@@ -882,8 +882,6 @@ def test_jerk_to_max_allowed_from_zero_no_const_acc(move_plotter):
     )
 
 def test_very_low_jerk(move_plotter):
-    # WIP, should be fixed when the new jerk profile is implemented
-    #TODO: This should clearly accelerate for longer
     profile = MoveProfile()
     profile.calculate_jerk(4, 0, 100, 0, 1000, 10)
     move_plotter.plot(profile)
