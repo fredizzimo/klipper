@@ -348,7 +348,7 @@ class ToolHead:
         new_delay = max(self.kin_flush_times + [SDS_CHECK_TIME])
         self.kin_flush_delay = new_delay
     def register_lookahead_callback(self, callback):
-        last_move = self.move_queue.get_last()
+        last_move = self.feedrate_planner.get_last()
         if last_move is None:
             callback(self.get_last_move_time())
             return
