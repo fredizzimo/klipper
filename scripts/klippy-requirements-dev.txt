@@ -4,5 +4,6 @@
 #   pip install -r klippy-requirements-dev.txt
 matplotlib==2.2.4
 numpy==1.16.4
+scipy==1.2.3
 pytest==4.6.5
 pytest-assume==2.2.0
