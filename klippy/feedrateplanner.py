@@ -796,6 +796,7 @@ class JerkFeedratePlanner(FeedratePlanner):
 
 
     def flush(self, lazy=False):
+        self.junction_flush = LOOKAHEAD_FLUSH_TIME
         if not self.queue:
             return
         tolerance = 1e-9
@@ -868,16 +869,23 @@ class JerkFeedratePlanner(FeedratePlanner):
             del self.queue[:flush_count]
         self.virtual_moves = []
 
-class SmoothExtrusionFeedratePlanner(FeedratePlanner):
+class SmoothExtrusionFeedratePlanner(object):
     MODE_NONE = 0
     MODE_JERK = 1
     MODE_TRAPEZOIDAL = 2
 
     def __init__(self, toolhead):
-        super(SmoothExtrusionFeedratePlanner, self).__init__(toolhead)
         self.trapezoidal_planner = TrapezoidalFeedratePlanner(toolhead)
         self.jerk_planner = JerkFeedratePlanner(toolhead)
         self.mode = self.MODE_NONE
+
+    def reset(self):
+        self.trapezoidal_planner.reset()
+        self.jerk_planner.reset()
+
+    def set_flush_time(self, flush_time):
+        self.trapezoidal_planner.set_flush_time(flush_time)
+        self.jerk_planner.set_flush_time(flush_time)
 
     def add_move(self, move):
         if move.is_kinematic_move and move.axes_d[3] != 0:
@@ -896,3 +904,9 @@ class SmoothExtrusionFeedratePlanner(FeedratePlanner):
             self.jerk_planner.flush(lazy)
         elif self.mode == self.MODE_TRAPEZOIDAL:
             self.trapezoidal_planner.flush(lazy)
+
+    def get_last(self):
+        if self.mode == self.MODE_JERK:
+            return self.jerk_planner.get_last()
+        else:
+            return self.trapezoidal_planner.get_last()
