@@ -43,6 +43,7 @@ class ToolHead:
         self.max_accel_to_decel = self.requested_accel_to_decel
         self.square_corner_velocity = config.getfloat(
             'square_corner_velocity', 5., minval=0.)
+        self.jerk = config.getfloat('jerk', 0., minval=0.)
         self.config_max_velocity = self.max_velocity
         self.config_max_accel = self.max_accel
         self.config_square_corner_velocity = self.square_corner_velocity

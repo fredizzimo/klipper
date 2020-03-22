@@ -17,7 +17,7 @@ class MoveProfile(object):
     tolerance = 1e-13
     time_tolerance = 1e-6
     def __init__(self, start_pos=0, is_kinematic_move=True, axes_r=None,
-                 axes_d=None, end_pos=None):
+                 axes_d=None, end_pos=None, timing_callbacks=None):
         self.start_pos = start_pos
 
         self.start_v = 0.0
@@ -39,6 +39,8 @@ class MoveProfile(object):
         self.axes_r = axes_r
         self.axes_d = axes_d
         self.end_pos = end_pos
+
+        self.timing_callbacks = timing_callbacks
 
     def set_trapezoidal_times(self, distance, start_v2, cruise_v2, end_v2,
                              accel, decel=None):
@@ -440,6 +442,7 @@ class Move(object):
         self.start_pos = tuple(start_pos)
         self.end_pos = tuple(end_pos)
         self.accel = toolhead.max_accel
+        self.timing_callbacks = []
         self.jerk = toolhead.jerk
         velocity = min(speed, toolhead.max_velocity)
         self.is_kinematic_move = True
@@ -472,7 +475,7 @@ class Move(object):
         self.smooth_delta_v2 = 2.0 * move_d * toolhead.max_accel_to_decel
 
         self.profile = MoveProfile(self.start_pos, self.is_kinematic_move,
-            self.axes_r, self.axes_d, self.end_pos)
+            self.axes_r, self.axes_d, self.end_pos, self.timing_callbacks)
     def limit_speed(self, speed, accel):
         speed2 = speed**2
         if speed2 < self.max_cruise_v2:
