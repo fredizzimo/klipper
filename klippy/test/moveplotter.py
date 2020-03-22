@@ -8,6 +8,7 @@ from math import ceil, sqrt
 import pytest
 from feedrateplanner import Move
 import collections
+from scipy.integrate import solve_ivp
 
 
 class MovePlotter(object):
@@ -19,23 +20,16 @@ class MovePlotter(object):
     def set_test_name(self, name):
         self.test_name = name
 
-    def calculate_actual_extrusion(self, dt, pressure_factor, last_pos,
-            extruder_pos):
-        x = last_pos
-        c = pressure_factor
-        output_x = np.empty(extruder_pos.shape[0])
-        output_v = np.empty(extruder_pos.shape[0])
-        for i, p in enumerate(extruder_pos):
-            # p = x + c*v
-            # c*v = p - x
-            # v = (p - x) / c
-            v = (p - x) / c
-            output_v[i] = v
-            output_x[i] = x
-            x += v * dt
-        return (output_x, output_v)
-
-            
+    def calculate_actual_extrusion(self, x, extruder_start_pos, pressure_factor, length, ts):
+        def f(t, y):
+            return (x(t) - y) / pressure_factor
+        
+        span = (0.0, length)
+        y0 = np.array((extruder_start_pos,))
+        res = solve_ivp(f, span, y0, t_eval=ts, method="Radau")
+        vel = f(ts, res.y[0])
+        return (res.y[0], vel)
+        
 
     def plot(self, moves, simulated_extrusion=True, name=None, input_moves=None):
         pressure_factor = 0.01
@@ -128,31 +122,46 @@ class MovePlotter(object):
 
                 
                 # e stands for extruder
-                e_x = v * extrusion_rate * ts
-                e_x += 0.5 * a * extrusion_rate * ts**2
-                e_x += j * extrusion_rate * ts**3 / 6.0
+                def f_extruder_x(t):
+                    res = v * extrusion_rate * t
+                    res += 0.5 * a * extrusion_rate * t**2
+                    res += j * extrusion_rate * t**3 / 6.0
+                    extruder_start_pos = last_extruder_pos
+                    if move.is_kinematic_move:
+                        toolhead_velocity = v + a * t + 0.5 * j * t**2
+                        extruder_velocity = toolhead_velocity*extrusion_rate
+                        res += pressure_factor*extruder_velocity
+
+                        # Make sure that the extruder position is continous
+                        extruder_start_pos -= pressure_factor*v*extrusion_rate
+
+                    res += extruder_start_pos
+                    return res
+
                 e_v = t_v * extrusion_rate
                 e_a = t_a * extrusion_rate
                 e_j = t_j * extrusion_rate
 
                 if move.is_kinematic_move:
-                    e_x += pressure_factor*e_v
                     e_v += pressure_factor*e_a
                     e_a += pressure_factor*e_j
-                
-                # Make sure that the extruder position is continous
-                e_x += last_extruder_pos - e_x[0]
+
+                a_ex, a_ev = self.calculate_actual_extrusion(
+                    f_extruder_x, actual_extrusion_pos, pressure_factor,
+                    segment_t, ts)
+
+                e_x = f_extruder_x(ts)
                 last_extruder_pos = e_x[-1]
             
                 extruder_xs.append(e_x)
                 extruder_vs.append(e_v)
                 extruder_accs.append(e_a)
                 extruder_jerks.append(e_j)
-                a_ex, a_ev = self.calculate_actual_extrusion(dt,
-                    pressure_factor, actual_extrusion_pos, e_x)
+
                 actual_extrusion_pos = a_ex[-1]
                 actual_extrusion_x.append(a_ex)
                 actual_extrusion_v.append(a_ev)
+
 
                 ts += t
                 times.append(ts)
