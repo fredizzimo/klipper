@@ -415,26 +415,6 @@ class MoveProfile(object):
             d /= 3.0
         return d > distance
 
-    def calculate_jerk_accelerate_only(
-            self, distance, start_v, end_v, max_acc, jerk):
-        self.start_v = start_v
-        self.cruise_v = end_v
-        self.end_v = end_v
-        self.jerk = jerk
-        if end_v < start_v + max_acc**2 / jerk:
-            t = math.sqrt(4.0 * (end_v - start_v) / jerk)
-            t_div_2 = t / 2.0
-            self.jerk_t[0] = t_div_2
-            self.jerk_t[1] = 0
-            self.jerk_t[2] = t_div_2
-        else:
-            t_j = max_acc / jerk
-            t_c = (end_v - start_v) / max_acc
-            t_c -= max_acc / jerk
-            self.jerk_t[0] = t_j
-            self.jerk_t[1] = t_c
-            self.jerk_t[2] = t_j
-
 # Class to track each move request
 class Move(object):
     def __init__(self, toolhead, start_pos, end_pos, speed):
