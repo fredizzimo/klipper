@@ -18,8 +18,8 @@ struct delta_stepper {
 };
 
 static double
-delta_stepper_calc_position(struct stepper_kinematics *sk, struct move *m
-                            , double move_time)
+delta_stepper_calc_position(struct stepper_kinematics *sk,
+                            struct trapq_move *m, double move_time)
 {
     struct delta_stepper *ds = container_of(sk, struct delta_stepper, sk);
     struct coord c = move_get_coord(m, move_time);

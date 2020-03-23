@@ -40,8 +40,8 @@ struct rotary_stepper {
 };
 
 static double
-rotary_stepper_calc_position(struct stepper_kinematics *sk, struct move *m
-                             , double move_time)
+rotary_stepper_calc_position(struct stepper_kinematics *sk,
+                             struct trapq_move *m, double move_time)
 {
     struct rotary_stepper *rs = container_of(sk, struct rotary_stepper, sk);
     struct coord c = move_get_coord(m, move_time);

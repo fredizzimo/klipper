@@ -12,16 +12,16 @@
 #include "trapq.h" // move_get_coord
 
 static double
-polar_stepper_radius_calc_position(struct stepper_kinematics *sk, struct move *m
-                                   , double move_time)
+polar_stepper_radius_calc_position(struct stepper_kinematics *sk,
+                                   struct trapq_move *m, double move_time)
 {
     struct coord c = move_get_coord(m, move_time);
     return sqrt(c.x*c.x + c.y*c.y);
 }
 
 static double
-polar_stepper_angle_calc_position(struct stepper_kinematics *sk, struct move *m
-                                  , double move_time)
+polar_stepper_angle_calc_position(struct stepper_kinematics *sk,
+                                  struct trapq_move *m, double move_time)
 {
     struct coord c = move_get_coord(m, move_time);
     // XXX - handle x==y==0

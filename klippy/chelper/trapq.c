@@ -12,10 +12,10 @@
 #include "trapq.h" // move_get_coord
 
 // Allocate a new 'move' object
-struct move *
-move_alloc(void)
+struct trapq_move *
+trapq_move_alloc(void)
 {
-    struct move *m = malloc(sizeof(*m));
+    struct trapq_move *m = malloc(sizeof(*m));
     memset(m, 0, sizeof(*m));
     return m;
 }
@@ -31,7 +31,7 @@ trapq_append(struct trapq *tq, double print_time
     struct coord start_pos = { .x=start_pos_x, .y=start_pos_y, .z=start_pos_z };
     struct coord axes_r = { .x=axes_r_x, .y=axes_r_y, .z=axes_r_z };
     if (accel_t) {
-        struct move *m = move_alloc();
+        struct trapq_move *m = trapq_move_alloc();
         m->print_time = print_time;
         m->move_t = accel_t;
         m->start_v = start_v;
@@ -44,7 +44,7 @@ trapq_append(struct trapq *tq, double print_time
         start_pos = move_get_coord(m, accel_t);
     }
     if (cruise_t) {
-        struct move *m = move_alloc();
+        struct trapq_move *m = trapq_move_alloc();
         m->print_time = print_time;
         m->move_t = cruise_t;
         m->start_v = cruise_v;
@@ -57,7 +57,7 @@ trapq_append(struct trapq *tq, double print_time
         start_pos = move_get_coord(m, cruise_t);
     }
     if (decel_t) {
-        struct move *m = move_alloc();
+        struct trapq_move *m = trapq_move_alloc();
         m->print_time = print_time;
         m->move_t = decel_t;
         m->start_v = cruise_v;
@@ -70,14 +70,14 @@ trapq_append(struct trapq *tq, double print_time
 
 // Return the distance moved given a time in a move
 inline double
-move_get_distance(struct move *m, double move_time)
+move_get_distance(struct trapq_move *m, double move_time)
 {
     return (m->start_v + m->half_accel * move_time) * move_time;
 }
 
 // Return the XYZ coordinates given a time in a move
 inline struct coord
-move_get_coord(struct move *m, double move_time)
+move_get_coord(struct trapq_move *m, double move_time)
 {
     double move_dist = move_get_distance(m, move_time);
     return (struct coord) {
@@ -95,7 +95,8 @@ trapq_alloc(void)
     struct trapq *tq = malloc(sizeof(*tq));
     memset(tq, 0, sizeof(*tq));
     list_init(&tq->moves);
-    struct move *head_sentinel = move_alloc(), *tail_sentinel = move_alloc();
+    struct trapq_move *head_sentinel = trapq_move_alloc();
+    struct trapq_move *tail_sentinel = trapq_move_alloc();
     tail_sentinel->print_time = tail_sentinel->move_t = NEVER_TIME;
     list_add_head(&head_sentinel->node, &tq->moves);
     list_add_tail(&tail_sentinel->node, &tq->moves);
@@ -107,7 +108,8 @@ void __visible
 trapq_free(struct trapq *tq)
 {
     while (!list_empty(&tq->moves)) {
-        struct move *m = list_first_entry(&tq->moves, struct move, node);
+        struct trapq_move *m = list_first_entry(&tq->moves, struct trapq_move,
+                                                node);
         list_del(&m->node);
         free(m);
     }
@@ -118,12 +120,14 @@ trapq_free(struct trapq *tq)
 void
 trapq_check_sentinels(struct trapq *tq)
 {
-    struct move *tail_sentinel = list_last_entry(&tq->moves, struct move, node);
+    struct trapq_move *tail_sentinel = list_last_entry(&tq->moves,
+        struct trapq_move, node);
     if (tail_sentinel->print_time)
         // Already up to date
         return;
-    struct move *m = list_prev_entry(tail_sentinel, node);
-    struct move *head_sentinel = list_first_entry(&tq->moves, struct move,node);
+    struct trapq_move *m = list_prev_entry(tail_sentinel, node);
+    struct trapq_move *head_sentinel =
+        list_first_entry(&tq->moves, struct trapq_move, node);
     if (m == head_sentinel) {
         // No moves at all on this list
         tail_sentinel->print_time = NEVER_TIME;
@@ -137,13 +141,14 @@ trapq_check_sentinels(struct trapq *tq)
 
 // Add a move to the trapezoid velocity queue
 void
-trapq_add_move(struct trapq *tq, struct move *m)
+trapq_add_move(struct trapq *tq, struct trapq_move *m)
 {
-    struct move *tail_sentinel = list_last_entry(&tq->moves, struct move, node);
-    struct move *prev = list_prev_entry(tail_sentinel, node);
+    struct trapq_move *tail_sentinel = list_last_entry(&tq->moves,
+        struct trapq_move, node);
+    struct trapq_move *prev = list_prev_entry(tail_sentinel, node);
     if (prev->print_time + prev->move_t < m->print_time) {
         // Add a null move to fill time gap
-        struct move *null_move = move_alloc();
+        struct trapq_move *null_move = trapq_move_alloc();
         null_move->start_pos = m->start_pos;
         if (!prev->print_time && m->print_time > MAX_NULL_MOVE)
             // Limit the first null move to improve numerical stability
@@ -161,10 +166,12 @@ trapq_add_move(struct trapq *tq, struct move *m)
 void __visible
 trapq_free_moves(struct trapq *tq, double print_time)
 {
-    struct move *head_sentinel = list_first_entry(&tq->moves, struct move,node);
-    struct move *tail_sentinel = list_last_entry(&tq->moves, struct move, node);
+    struct trapq_move *head_sentinel = list_first_entry(&tq->moves,
+                                                        struct trapq_move,node);
+    struct trapq_move *tail_sentinel = list_last_entry(&tq->moves,
+                                                       struct trapq_move, node);
     for (;;) {
-        struct move *m = list_next_entry(head_sentinel, node);
+        struct trapq_move *m = list_next_entry(head_sentinel, node);
         if (m == tail_sentinel) {
             tail_sentinel->print_time = NEVER_TIME;
             return;

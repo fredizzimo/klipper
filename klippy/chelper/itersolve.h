@@ -8,9 +8,9 @@ enum {
 };
 
 struct stepper_kinematics;
-struct move;
-typedef double (*sk_calc_callback)(struct stepper_kinematics *sk, struct move *m
-                                   , double move_time);
+struct trapq_move;
+typedef double (*sk_calc_callback)(struct stepper_kinematics *sk,
+                                   struct trapq_move *m, double move_time);
 typedef void (*sk_post_callback)(struct stepper_kinematics *sk);
 struct stepper_kinematics {
     double step_dist, commanded_pos;

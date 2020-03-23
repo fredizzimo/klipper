@@ -52,7 +52,8 @@ extruder_integrate_time(double base, double start_v, double half_accel
 
 // Calculate the definitive integral of extruder for a given move
 static double
-pa_move_integrate(struct move *m, double start, double end, double time_offset)
+pa_move_integrate(struct trapq_move *m, double start, double end,
+                  double time_offset)
 {
     if (start < 0.)
         start = 0.;
@@ -71,14 +72,14 @@ pa_move_integrate(struct move *m, double start, double end, double time_offset)
 
 // Calculate the definitive integral of the extruder over a range of moves
 static double
-pa_range_integrate(struct move *m, double move_time, double hst)
+pa_range_integrate(struct trapq_move *m, double move_time, double hst)
 {
     // Calculate integral for the current move
     double res = 0., start = move_time - hst, end = move_time + hst;
     res += pa_move_integrate(m, start, move_time, start);
     res -= pa_move_integrate(m, move_time, end, end);
     // Integrate over previous moves
-    struct move *prev = m;
+    struct trapq_move *prev = m;
     while (unlikely(start < 0.)) {
         prev = list_prev_entry(prev, node);
         start += prev->move_t;
@@ -99,7 +100,7 @@ struct extruder_stepper {
 };
 
 static double
-extruder_calc_position(struct stepper_kinematics *sk, struct move *m
+extruder_calc_position(struct stepper_kinematics *sk, struct trapq_move *m
                        , double move_time)
 {
     struct extruder_stepper *es = container_of(sk, struct extruder_stepper, sk);

@@ -11,16 +11,16 @@
 #include "trapq.h" // move_get_coord
 
 static double
-corexy_stepper_plus_calc_position(struct stepper_kinematics *sk, struct move *m
-                                  , double move_time)
+corexy_stepper_plus_calc_position(struct stepper_kinematics *sk,
+                                  struct trapq_move *m, double move_time)
 {
     struct coord c = move_get_coord(m, move_time);
     return c.x + c.y;
 }
 
 static double
-corexy_stepper_minus_calc_position(struct stepper_kinematics *sk, struct move *m
-                                   , double move_time)
+corexy_stepper_minus_calc_position(struct stepper_kinematics *sk,
+                                   struct trapq_move *m, double move_time)
 {
     struct coord c = move_get_coord(m, move_time);
     return c.x - c.y;
