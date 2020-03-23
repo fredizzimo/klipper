@@ -12,6 +12,17 @@ from abc import abstractmethod
 import math
 from mathutil import newton_raphson
 from sys import float_info
+import chelper
+
+class MoveQueue(object):
+    def __init__(self, size):
+        ffi_main, ffi_lib = chelper.get_ffi()
+        self.move_alloc = ffi_lib.move_alloc
+        self.queue = ffi_main.gc(ffi_lib.move_queue_alloc(size),
+            ffi_lib.move_queue_free)
+    
+    def alloc(self):
+        return self.move_alloc(self.queue)
 
 
 # Class to track each move request
@@ -19,7 +30,16 @@ class Move(object):
     tolerance = 1e-13
     time_tolerance = 1e-6
 
-    def __init__(self, start_pos, end_pos, speed, accel, accel_to_decel, jerk):
+    @property
+    def move_d(self):
+        return self.c_move.move_d
+    @move_d.setter
+    def move_d(self, move_d):
+        self.c_move.move_d = move_d
+
+    def __init__(self, start_pos, end_pos, speed, accel, accel_to_decel, jerk,
+            queue):
+        self.c_move = queue.alloc() 
         self.start_pos = tuple(start_pos)
         self.end_pos = tuple(end_pos)
         self.timing_callbacks = []
@@ -475,6 +495,7 @@ class FeedratePlanner(object):
         self.flush_callback = flush_callback
         self.queue = []
         self.junction_flush = LOOKAHEAD_FLUSH_TIME
+
     def reset(self):
         del self.queue[:]
         self.junction_flush = LOOKAHEAD_FLUSH_TIME
@@ -594,11 +615,11 @@ class JerkFeedratePlanner(FeedratePlanner):
             self.current_segment = 0
             self.current_segment_offset = 0
 
-        def calculate_profile(self):
+        def calculate_profile(self, queue):
             start_pos = (0, 0, 0, 0)
             end_pos = (self.distance, 0, 0, 0)
             move = Move(start_pos, end_pos, self.cruise_v, self.accel,
-                self.accel, self.jerk)
+                self.accel, self.jerk, queue)
             move.calculate_jerk(self.start_v, self.end_v)
             self.move = move
 
@@ -682,6 +703,8 @@ class JerkFeedratePlanner(FeedratePlanner):
         super(JerkFeedratePlanner, self).__init__(flush_callback)
         self.virtual_moves = []
         self.current_v = 0
+        # TODO: Make sure that we use the same size as the main toolhead queue
+        self.virtual_move_queue = MoveQueue(2048)
 
     @staticmethod
     def can_combine_with_next(next_move, distance, start_v, end_v, end_v2,
@@ -790,7 +813,7 @@ class JerkFeedratePlanner(FeedratePlanner):
         flush_count = 0
         move_count = 0
         for vmove in self.virtual_moves:
-            vmove.calculate_profile()
+            vmove.calculate_profile(self.virtual_move_queue)
             vmove.calculate_first_segment()
 
             d = 0

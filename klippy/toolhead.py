@@ -5,7 +5,7 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import math, logging, importlib
 import mcu, homing, chelper, kinematics.extruder
-from feedrateplanner import TrapezoidalFeedratePlanner, Move
+from feedrateplanner import TrapezoidalFeedratePlanner, Move, MoveQueue
 
 # Common suffixes: _d is distance (in mm), _v is velocity (in
 #   mm/second), _v2 is velocity squared (mm^2/s^2), _t is time (in
@@ -67,6 +67,8 @@ class ToolHead:
         self.idle_flush_print_time = 0.
         self.print_stall = 0
         self.drip_completion = None
+        # TODO: Make sure that the flushing follows this limit
+        self.move_queue = MoveQueue(2048)
         # Kinematic step generation scan window time tracking
         self.kin_flush_delay = SDS_CHECK_TIME
         self.kin_flush_times = []
@@ -234,7 +236,7 @@ class ToolHead:
         self.kin.set_position(newpos, homing_axes)
     def move(self, newpos, speed):
         move = Move(self.commanded_pos, newpos, min(speed, self.max_velocity),
-            self.max_accel, self.max_accel_to_decel, self.jerk)
+            self.max_accel, self.max_accel_to_decel, self.jerk, self.move_queue)
         if not move.move_d:
             return
         if move.is_kinematic_move:

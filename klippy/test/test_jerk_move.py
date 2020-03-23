@@ -4,7 +4,7 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 from moveplotter import move_plotter, move_plotter_module
-from feedrateplanner import Move
+from feedrateplanner import Move, MoveQueue
 import pytest
 from math import sqrt
 from move_test_helpers import check_jerk_move as check_move
@@ -25,10 +25,12 @@ def get_min_allowed_distance(v1, v2, jerk):
     distance /= jerk
     return distance
 
+move_queue = MoveQueue(16)
+
 def calculate_jerk(distance, start_v, max_v, end_v, accel, jerk):
     start_pos = (0, 0, 0, 0)
     end_pos = (distance, 0, 0, 0)
-    move = Move(start_pos, end_pos, max_v, accel, accel, jerk)
+    move = Move(start_pos, end_pos, max_v, accel, accel, jerk, move_queue)
     move.calculate_jerk(start_v, end_v)
     return move
 

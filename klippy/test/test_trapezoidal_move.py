@@ -5,7 +5,7 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 
 from moveplotter import move_plotter, move_plotter_module
-from feedrateplanner import Move
+from feedrateplanner import MoveQueue, Move
 import pytest
 
 def calculate_speed(v, a, t):
@@ -39,10 +39,12 @@ def check_move(move, distance, start_v, cruise_v, end_v):
     assert pytest.approx(calculate_end_speed(move)) == end_v
     assert pytest.approx(calculate_distance(move)) == distance
 
+move_queue = MoveQueue(16)
+
 def calculate_trapezoidal(distance, start_v, max_v, end_v, accel):
     start_pos = (0, 0, 0, 0)
     end_pos = (distance, 0, 0, 0)
-    move = Move(start_pos, end_pos, max_v, accel, accel, 0)
+    move = Move(start_pos, end_pos, max_v, accel, accel, 0, move_queue)
     move.calculate_trapezoidal(start_v, end_v)
     return move
 
