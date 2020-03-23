@@ -126,11 +126,6 @@ class PrinterExtruder:
                 "Move exceeds maximum extrusion (%.3fmm^2 vs %.3fmm^2)\n"
                 "See the 'max_extrude_cross_section' config option for details"
                 % (area, self.max_extrude_ratio * self.filament_area))
-    def calc_junction(self, prev_move, move):
-        diff_r = move.axes_r[3] - prev_move.axes_r[3]
-        if diff_r:
-            return (self.instant_corner_v / abs(diff_r))**2
-        return move.max_cruise_v2
     def move(self, print_time, move):
         axis_r = move.axes_r[3]
         accel = move.accel * axis_r
@@ -200,13 +195,12 @@ class PrinterExtruder:
 
 # Dummy extruder class used when a printer has no extruder at all
 class DummyExtruder:
+    instant_corner_v = 99999999.0
     def update_move_time(self, flush_time):
         pass
     def check_move(self, move):
         raise homing.EndstopMoveError(
             move.end_pos, "Extrude when no extruder present")
-    def calc_junction(self, prev_move, move):
-        return move.max_cruise_v2
     def get_name(self):
         return ""
     def get_heater(self):

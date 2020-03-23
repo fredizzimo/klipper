@@ -12,13 +12,6 @@ import numpy as np
 from profile_test_helpers import check_jerk_profile
 from pytest import assume
 
-class TestExtruder(DummyExtruder):
-
-    def __init__(self):
-        self.instant_corner_v = 0
-
-    calc_junction = PrinterExtruder.__dict__["calc_junction"]
-
 
 class ToolHead(object):
     def __init__(self, FeedratePlanner):
@@ -31,7 +24,7 @@ class ToolHead(object):
         self.square_corner_velocity = None
         self.max_extrude_acc = None
         self.junction_deviation = None
-        self.extruder = TestExtruder()
+        self.extruder = DummyExtruder()
         self.pos = np.zeros(4)
         self.input_moves = []
 
@@ -55,13 +48,16 @@ class ToolHead(object):
             end = np.array([p for p in end_pos] + [0] * (4-len(end_pos)))
         else:
             end = np.array((end_pos, 0, 0, 0))
-        move = Move(self, self.pos, end, max_speed)
+        max_speed = min(max_speed, self.max_velocity)
+        move = Move(self.pos, end, max_speed, self.max_accel,
+            self.max_accel_to_decel, self.jerk)
         # Extrude only move, set extrude acceleration
         if not move.is_kinematic_move:
             move.limit_speed(max_speed, self.max_extrude_acc)
 
         self.input_moves.append(move)
-        self.feedrate_planner.add_move(move)
+        self.feedrate_planner.add_move(move, self.junction_deviation,
+            self.extruder.instant_corner_v)
         self.pos = end
 
     def flush(self, lazy=False):

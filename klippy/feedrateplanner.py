@@ -408,14 +408,11 @@ class MoveProfile(object):
 
 # Class to track each move request
 class Move(object):
-    def __init__(self, toolhead, start_pos, end_pos, speed):
-        self.toolhead = toolhead
+    def __init__(self, start_pos, end_pos, speed, accel, accel_to_decel, jerk):
         self.start_pos = tuple(start_pos)
         self.end_pos = tuple(end_pos)
-        accel = toolhead.max_accel
         self.timing_callbacks = []
-        self.jerk = toolhead.jerk
-        velocity = min(speed, toolhead.max_velocity)
+        self.jerk = jerk
         self.is_kinematic_move = True
         self.axes_d = axes_d = [end_pos[i] - start_pos[i] for i in (0, 1, 2, 3)]
         self.move_d = move_d = math.sqrt(sum([d*d for d in axes_d[:3]]))
@@ -430,7 +427,6 @@ class Move(object):
                 inv_move_d = 1. / move_d
             # The extruder will limit the acceleration later
             accel = 99999999.9
-            velocity = speed
             self.is_kinematic_move = False
         else:
             inv_move_d = 1. / move_d
@@ -448,7 +444,7 @@ class Move(object):
         self.min_move_t = 0.0
 
         # NOTE: max accel_to_decel is used for extrude only moves as well
-        self.limit_speed(velocity, accel, toolhead.max_accel_to_decel)
+        self.limit_speed(speed, accel, accel_to_decel)
 
         self.profile = MoveProfile(self.start_pos, self.is_kinematic_move,
             self.axes_r, self.axes_d, self.end_pos, self.timing_callbacks)
@@ -465,11 +461,12 @@ class Move(object):
             self.smooth_delta_v2 = min(self.smooth_delta_v2, smooth_delta_v2)
 
         self.smooth_delta_v2 = min(self.smooth_delta_v2, self.delta_v2)
-    def calc_junction(self, prev_move):
+    def calc_junction(self, prev_move, junction_deviation,
+            extruder_instant_v):
         if not self.is_kinematic_move or not prev_move.is_kinematic_move:
             return
         # Allow extruder to calculate its maximum junction
-        extruder_v2 = self.toolhead.extruder.calc_junction(prev_move, self)
+        extruder_v2 = self.calc_extruder_junction(prev_move, extruder_instant_v)
         # Find max velocity using "approximated centripetal velocity"
         axes_r = self.axes_r
         prev_axes_r = prev_move.axes_r
@@ -480,7 +477,7 @@ class Move(object):
             return
         junction_cos_theta = max(junction_cos_theta, -0.999999)
         sin_theta_d2 = math.sqrt(0.5*(1.0-junction_cos_theta))
-        R = (self.toolhead.junction_deviation * sin_theta_d2
+        R = (junction_deviation * sin_theta_d2
              / (1. - sin_theta_d2))
         tan_theta_d2 = sin_theta_d2 / math.sqrt(0.5*(1.0+junction_cos_theta))
         move_centripetal_v2 = .5 * self.move_d * tan_theta_d2 * self.accel
@@ -497,6 +494,12 @@ class Move(object):
             self.max_start_v2
             , prev_move.max_smoothed_v2 + prev_move.smooth_delta_v2)
 
+    def calc_extruder_junction(self, prev_move, instant_corner_v):
+        diff_r = self.axes_r[3] - prev_move.axes_r[3]
+        if diff_r:
+            return (instant_corner_v / abs(diff_r))**2
+        return self.max_cruise_v2
+
 LOOKAHEAD_FLUSH_TIME = 0.250
 
 class FeedratePlanner(object):
@@ -509,11 +512,12 @@ class FeedratePlanner(object):
         self.junction_flush = LOOKAHEAD_FLUSH_TIME
     def set_flush_time(self, flush_time):
         self.junction_flush = flush_time
-    def add_move(self, move):
+    def add_move(self, move, junction_deviation, extruder_instant_v):
         self.queue.append(move)
         if len(self.queue) == 1:
             return
-        move.calc_junction(self.queue[-2])
+        move.calc_junction(self.queue[-2], junction_deviation,
+            extruder_instant_v)
         self.junction_flush -= move.min_move_t
         if self.junction_flush <= 0.:
             # Enough moves have been queued to reach the target flush time.
@@ -898,17 +902,19 @@ class SmoothExtrusionFeedratePlanner(object):
         self.trapezoidal_planner.set_flush_time(flush_time)
         self.jerk_planner.set_flush_time(flush_time)
 
-    def add_move(self, move):
+    def add_move(self, move, junction_deviation, extruder_instant_v):
         if move.is_kinematic_move and move.axes_d[3] != 0:
             if self.mode == self.MODE_TRAPEZOIDAL:
                 self.flush(False)
             self.mode = self.MODE_JERK
-            self.jerk_planner.add_move(move)
+            self.jerk_planner.add_move(move, junction_deviation,
+                extruder_instant_v)
         else:
             if self.mode == self.MODE_JERK:
                 self.flush(False)
             self.mode = self.MODE_TRAPEZOIDAL
-            self.trapezoidal_planner.add_move(move)
+            self.trapezoidal_planner.add_move(move, junction_deviation,
+                extruder_instant_v)
 
     def flush(self, lazy=False):
         if self.mode == self.MODE_JERK:

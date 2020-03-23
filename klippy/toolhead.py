@@ -233,7 +233,8 @@ class ToolHead:
         self.commanded_pos[:] = newpos
         self.kin.set_position(newpos, homing_axes)
     def move(self, newpos, speed):
-        move = Move(self, self.commanded_pos, newpos, speed)
+        move = Move(self.commanded_pos, newpos, min(speed, self.max_velocity),
+            self.max_accel, self.max_accel_to_decel, self.jerk)
         if not move.move_d:
             return
         if move.is_kinematic_move:
@@ -241,7 +242,8 @@ class ToolHead:
         if move.axes_d[3]:
             self.extruder.check_move(move)
         self.commanded_pos[:] = move.end_pos
-        self.feedrate_planner.add_move(move)
+        self.feedrate_planner.add_move(move, self.junction_deviation,
+            self.extruder.instant_corner_v)
         if self.print_time > self.need_check_stall:
             self._check_stall()
     def dwell(self, delay):
