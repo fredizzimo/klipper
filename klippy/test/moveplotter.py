@@ -76,10 +76,6 @@ class MovePlotter(object):
         ]
 
         for move in moves:
-            if type(move) is Move:
-                profile = move.profile
-            else:
-                profile = move
 
             segments = []
             if simulated_extrusion:
@@ -89,23 +85,23 @@ class MovePlotter(object):
             start_x = x
 
 
-            if profile.jerk == 0:
-                if profile.accel_t:
-                    segments.append((profile.accel_t, profile.accel, 0))
-                if profile.cruise_t:
-                    segments.append((profile.cruise_t, 0, 0))
-                if profile.decel_t:
-                    segments.append((profile.decel_t, -profile.decel, 0))
+            if move.jerk == 0:
+                if move.accel_t:
+                    segments.append((move.accel_t, move.accel, 0))
+                if move.cruise_t:
+                    segments.append((move.cruise_t, 0, 0))
+                if move.decel_t:
+                    segments.append((move.decel_t, -move.accel, 0))
             else:
-                acceleration = profile.start_a
-                for index, jt in enumerate(profile.jerk_t):
+                acceleration = move.start_a
+                for index, jt in enumerate(move.jerk_t):
                     if jt:
                         segments.append((jt, acceleration,
-                            profile.jerk * jerk_multipliers[index]))
+                            move.jerk * jerk_multipliers[index]))
                         acceleration = np.nan
 
 
-            v = profile.start_v
+            v = move.start_v
 
             num_ticks = 0
             for segment in segments:

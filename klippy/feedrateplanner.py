@@ -14,56 +14,125 @@ from mathutil import newton_raphson
 from sys import float_info
 
 
-class MoveProfile(object):
+# Class to track each move request
+class Move(object):
     tolerance = 1e-13
     time_tolerance = 1e-6
-    def __init__(self, start_pos=0, is_kinematic_move=True, axes_r=None,
-                 axes_d=None, end_pos=None, timing_callbacks=None):
-        self.start_pos = start_pos
 
-        self.start_v = 0.0
-        self.cruise_v = 0.0
-        self.end_v = 0.0
-        self.start_a = 0.0
-
+    def __init__(self, start_pos, end_pos, speed, accel, accel_to_decel, jerk):
+        self.start_pos = tuple(start_pos)
+        self.end_pos = tuple(end_pos)
+        self.timing_callbacks = []
+        self.jerk = jerk
+        self.is_kinematic_move = True
+        self.axes_d = axes_d = [end_pos[i] - start_pos[i] for i in (0, 1, 2, 3)]
+        self.move_d = move_d = math.sqrt(sum([d*d for d in axes_d[:3]]))
+        if move_d < .000000001:
+            # Extrude only move
+            self.end_pos = (start_pos[0], start_pos[1], start_pos[2],
+                            end_pos[3])
+            axes_d[0] = axes_d[1] = axes_d[2] = 0.
+            self.move_d = move_d = abs(axes_d[3])
+            inv_move_d = 0.
+            if move_d:
+                inv_move_d = 1. / move_d
+            # The extruder will limit the acceleration later
+            accel = 99999999.9
+            self.is_kinematic_move = False
+        else:
+            inv_move_d = 1. / move_d
+        self.axes_r = tuple((d * inv_move_d for d in axes_d))
+        self.start_a = 0.
         self.accel_t = 0.0
         self.cruise_t = 0.0
         self.decel_t = 0.0
 
-        self.accel = 0
-        self.decel = 0
-
         self.jerk_t = [0.0] * 7
-        self.jerk = 0
+        # Junction speeds are tracked in velocity squared.  The
+        # delta_v2 is the maximum amount of this squared-velocity that
+        # can change in this move.
+        self.max_junction_v2 = 0.
+        self.max_start_v2 = 0.
+        self.max_smoothed_v2 = 0.
 
-        self.is_kinematic_move = is_kinematic_move
-        self.axes_r = axes_r
-        self.axes_d = axes_d
-        self.end_pos = end_pos
+        self.accel = float_info.max
+        self.max_cruise_v2 = float_info.max
+        self.smooth_delta_v2 = float_info.max
+        self.min_move_t = 0.0
 
-        self.timing_callbacks = timing_callbacks
+        # NOTE: max accel_to_decel is used for extrude only moves as well
+        self.limit_speed(speed, accel, accel_to_decel)
+
+    def limit_speed(self, speed, accel, max_accel_to_decel=None):
+        speed2 = speed**2
+        if speed2 < self.max_cruise_v2:
+            self.max_cruise_v2 = speed2
+            self.min_move_t = self.move_d / speed
+        self.accel = min(self.accel, accel)
+        self.delta_v2 = 2.0 * self.move_d * self.accel
+        if max_accel_to_decel is not None:
+            smooth_delta_v2 = 2.0 * self.move_d * max_accel_to_decel
+            self.smooth_delta_v2 = min(self.smooth_delta_v2, smooth_delta_v2)
+
+        self.smooth_delta_v2 = min(self.smooth_delta_v2, self.delta_v2)
+
+    def calc_junction(self, prev_move, junction_deviation,
+            extruder_instant_v):
+        if not self.is_kinematic_move or not prev_move.is_kinematic_move:
+            return
+        # Allow extruder to calculate its maximum junction
+        extruder_v2 = self.calc_extruder_junction(prev_move, extruder_instant_v)
+        # Find max velocity using "approximated centripetal velocity"
+        axes_r = self.axes_r
+        prev_axes_r = prev_move.axes_r
+        junction_cos_theta = -(axes_r[0] * prev_axes_r[0]
+                               + axes_r[1] * prev_axes_r[1]
+                               + axes_r[2] * prev_axes_r[2])
+        if junction_cos_theta > 0.999999:
+            return
+        junction_cos_theta = max(junction_cos_theta, -0.999999)
+        sin_theta_d2 = math.sqrt(0.5*(1.0-junction_cos_theta))
+        R = (junction_deviation * sin_theta_d2
+             / (1. - sin_theta_d2))
+        tan_theta_d2 = sin_theta_d2 / math.sqrt(0.5*(1.0+junction_cos_theta))
+        move_centripetal_v2 = .5 * self.move_d * tan_theta_d2 * self.accel
+        prev_move_centripetal_v2 = (.5 * prev_move.move_d * tan_theta_d2
+                                    * prev_move.accel)
+        self.max_junction_v2 = min(
+            R * self.accel, R * prev_move.accel,
+            move_centripetal_v2, prev_move_centripetal_v2,
+            extruder_v2, self.max_cruise_v2, prev_move.max_cruise_v2)
+        self.max_start_v2 = min(
+            self.max_junction_v2,
+            prev_move.max_start_v2 + prev_move.delta_v2)
+        self.max_smoothed_v2 = min(
+            self.max_start_v2
+            , prev_move.max_smoothed_v2 + prev_move.smooth_delta_v2)
+
+    def calc_extruder_junction(self, prev_move, instant_corner_v):
+        diff_r = self.axes_r[3] - prev_move.axes_r[3]
+        if diff_r:
+            return (instant_corner_v / abs(diff_r))**2
+        return self.max_cruise_v2
 
     def set_trapezoidal_times(self, distance, start_v2, cruise_v2, end_v2,
-                             accel, decel=None):
-        if decel is None:
-            decel = accel
+                             accel):
         start_v2 = min(start_v2, cruise_v2)
         end_v2 = min(end_v2, cruise_v2)
         self.accel = accel
-        self.decel = decel
+        self.jerk = 0.0
         # Determine accel, cruise, and decel portions of the move distance
         half_inv_accel = .5 / accel
-        half_inv_decel = .5 / decel
         accel_d = (cruise_v2 - start_v2) * half_inv_accel
-        decel_d = (cruise_v2 - end_v2) * half_inv_decel
+        decel_d = (cruise_v2 - end_v2) * half_inv_accel
         cruise_d = distance - accel_d - decel_d
         # Make sure that all distances and therefore the times are positive
         # Clamp to zero if close to it, so that the whole segment is removed
-        if accel_d < MoveProfile.tolerance:
+        if accel_d < self.tolerance:
             accel_d = 0
-        if decel_d < MoveProfile.tolerance:
+        if decel_d < self.tolerance:
             decel_d = 0
-        if cruise_d < MoveProfile.tolerance:
+        if cruise_d < self.tolerance:
             cruise_d = 0
 
         # Determine move velocities
@@ -76,36 +145,30 @@ class MoveProfile(object):
         self.cruise_t = cruise_d / cruise_v
         self.decel_t = decel_d / ((end_v + cruise_v) * 0.5)
 
-    def calculate_trapezoidal(self, distance, start_v, max_v, end_v, accel,
-            decel=None):
-
-        max_v2 = max_v**2
-        start_v2 = start_v**2
+    def calculate_trapezoidal(self, start_v, end_v):
+        max_v2 = self.max_cruise_v2
+        start_v2 = start_v**2 
         end_v2 = end_v**2
+        accel = self.accel
+        distance = self.move_d
         # The formula is calculated by solving cruise_v2 from
         # distance = (cruise_v2 - start_v2) / 2 + (cruise_v2 - end_v2) / 2
         # which is derived from the standard timeless kinematic formula
-        if decel is None:
-            decel = accel
-            cruise_v2 = distance * accel + 0.5 * (start_v2 + end_v2)
-        else:
-            cruise_v2 = 2.0 * accel * decel * distance
-            cruise_v2 += accel * end_v2
-            cruise_v2 += decel * start_v2
-            cruise_v2 /= accel + decel
+        cruise_v2 = distance * accel + 0.5 * (start_v2 + end_v2)
         cruise_v2 = min(max_v2, cruise_v2)
-        self.set_trapezoidal_times(distance, start_v2, cruise_v2, end_v2, accel,
-            decel)
+        self.set_trapezoidal_times(distance, start_v2, cruise_v2, end_v2, accel)
 
-    def calculate_jerk(self, distance, start_v, max_v, end_v, accel, jerk,
-        decel=None):
+    def calculate_jerk(self, start_v, end_v):
         # Calculate a jerk limited profile based on the paper
         # FIR filter-based online jerk-constrained trajectory generation
         # by Pierre Besset and Richard Béarée
 
         # Make sure that max_v not smaller than the endpoints, due to rounding
         # errors
-        max_v = max(max_v, start_v, end_v)
+        max_v = max(math.sqrt(self.max_cruise_v2), start_v, end_v)
+        distance = self.move_d
+        jerk = self.jerk
+        accel = self.accel
         abs_max_v = max_v
 
         # If no speed change is allowed, then create a constant
@@ -128,8 +191,7 @@ class MoveProfile(object):
                 ]
                 return
 
-        if decel is None:
-            decel = accel
+        decel = accel
 
         accel_jerk_t = accel / jerk
         decel_jerk_t = decel / jerk
@@ -315,10 +377,10 @@ class MoveProfile(object):
 
         # TODO: This code is duplicated
         accel_jerk_t = accel / jerk
-        if accel_jerk_t < MoveProfile.time_tolerance:
+        if accel_jerk_t < self.time_tolerance:
             accel_jerk_t = 0
         decel_jerk_t = decel / jerk
-        if decel_jerk_t < MoveProfile.time_tolerance:
+        if decel_jerk_t < self.time_tolerance:
             decel_jerk_t = 0
         delta_accel_v = max_v - start_v
         delta_decel_v = max_v - end_v
@@ -340,11 +402,11 @@ class MoveProfile(object):
         cruise_t = dist_cruise / max_v
 
         # Clamp to zero to remove empty segments
-        if accel_const_t < MoveProfile.time_tolerance:
+        if accel_const_t < self.time_tolerance:
             accel_const_t = 0
-        if cruise_t < MoveProfile.time_tolerance:
+        if cruise_t < self.time_tolerance:
             cruise_t = 0
-        if decel_const_t < MoveProfile.time_tolerance:
+        if decel_const_t < self.time_tolerance:
             decel_const_t = 0
 
         self.jerk_t = [
@@ -405,100 +467,6 @@ class MoveProfile(object):
             d *= 2*start_v + end_v
             d /= 3.0
         return d > distance
-
-# Class to track each move request
-class Move(object):
-    def __init__(self, start_pos, end_pos, speed, accel, accel_to_decel, jerk):
-        self.start_pos = tuple(start_pos)
-        self.end_pos = tuple(end_pos)
-        self.timing_callbacks = []
-        self.jerk = jerk
-        self.is_kinematic_move = True
-        self.axes_d = axes_d = [end_pos[i] - start_pos[i] for i in (0, 1, 2, 3)]
-        self.move_d = move_d = math.sqrt(sum([d*d for d in axes_d[:3]]))
-        if move_d < .000000001:
-            # Extrude only move
-            self.end_pos = (start_pos[0], start_pos[1], start_pos[2],
-                            end_pos[3])
-            axes_d[0] = axes_d[1] = axes_d[2] = 0.
-            self.move_d = move_d = abs(axes_d[3])
-            inv_move_d = 0.
-            if move_d:
-                inv_move_d = 1. / move_d
-            # The extruder will limit the acceleration later
-            accel = 99999999.9
-            self.is_kinematic_move = False
-        else:
-            inv_move_d = 1. / move_d
-        self.axes_r = tuple((d * inv_move_d for d in axes_d))
-        # Junction speeds are tracked in velocity squared.  The
-        # delta_v2 is the maximum amount of this squared-velocity that
-        # can change in this move.
-        self.max_junction_v2 = 0.
-        self.max_start_v2 = 0.
-        self.max_smoothed_v2 = 0.
-
-        self.accel = float_info.max
-        self.max_cruise_v2 = float_info.max
-        self.smooth_delta_v2 = float_info.max
-        self.min_move_t = 0.0
-
-        # NOTE: max accel_to_decel is used for extrude only moves as well
-        self.limit_speed(speed, accel, accel_to_decel)
-
-        self.profile = MoveProfile(self.start_pos, self.is_kinematic_move,
-            self.axes_r, self.axes_d, self.end_pos, self.timing_callbacks)
-
-    def limit_speed(self, speed, accel, max_accel_to_decel=None):
-        speed2 = speed**2
-        if speed2 < self.max_cruise_v2:
-            self.max_cruise_v2 = speed2
-            self.min_move_t = self.move_d / speed
-        self.accel = min(self.accel, accel)
-        self.delta_v2 = 2.0 * self.move_d * self.accel
-        if max_accel_to_decel is not None:
-            smooth_delta_v2 = 2.0 * self.move_d * max_accel_to_decel
-            self.smooth_delta_v2 = min(self.smooth_delta_v2, smooth_delta_v2)
-
-        self.smooth_delta_v2 = min(self.smooth_delta_v2, self.delta_v2)
-    def calc_junction(self, prev_move, junction_deviation,
-            extruder_instant_v):
-        if not self.is_kinematic_move or not prev_move.is_kinematic_move:
-            return
-        # Allow extruder to calculate its maximum junction
-        extruder_v2 = self.calc_extruder_junction(prev_move, extruder_instant_v)
-        # Find max velocity using "approximated centripetal velocity"
-        axes_r = self.axes_r
-        prev_axes_r = prev_move.axes_r
-        junction_cos_theta = -(axes_r[0] * prev_axes_r[0]
-                               + axes_r[1] * prev_axes_r[1]
-                               + axes_r[2] * prev_axes_r[2])
-        if junction_cos_theta > 0.999999:
-            return
-        junction_cos_theta = max(junction_cos_theta, -0.999999)
-        sin_theta_d2 = math.sqrt(0.5*(1.0-junction_cos_theta))
-        R = (junction_deviation * sin_theta_d2
-             / (1. - sin_theta_d2))
-        tan_theta_d2 = sin_theta_d2 / math.sqrt(0.5*(1.0+junction_cos_theta))
-        move_centripetal_v2 = .5 * self.move_d * tan_theta_d2 * self.accel
-        prev_move_centripetal_v2 = (.5 * prev_move.move_d * tan_theta_d2
-                                    * prev_move.accel)
-        self.max_junction_v2 = min(
-            R * self.accel, R * prev_move.accel,
-            move_centripetal_v2, prev_move_centripetal_v2,
-            extruder_v2, self.max_cruise_v2, prev_move.max_cruise_v2)
-        self.max_start_v2 = min(
-            self.max_junction_v2,
-            prev_move.max_start_v2 + prev_move.delta_v2)
-        self.max_smoothed_v2 = min(
-            self.max_start_v2
-            , prev_move.max_smoothed_v2 + prev_move.smooth_delta_v2)
-
-    def calc_extruder_junction(self, prev_move, instant_corner_v):
-        diff_r = self.axes_r[3] - prev_move.axes_r[3]
-        if diff_r:
-            return (instant_corner_v / abs(diff_r))**2
-        return self.max_cruise_v2
 
 LOOKAHEAD_FLUSH_TIME = 0.250
 
@@ -568,13 +536,13 @@ class TrapezoidalFeedratePlanner(FeedratePlanner):
                             mc_v2 = peak_cruise_v2
                             for m, ms_v2, me_v2 in reversed(delayed):
                                 mc_v2 = min(mc_v2, ms_v2)
-                                m.profile.set_trapezoidal_times(m.move_d,
+                                m.set_trapezoidal_times(m.move_d,
                                     ms_v2, mc_v2, me_v2, m.accel)
                         del delayed[:]
                 if not update_flush_count and i < flush_count:
                     cruise_v2 = min((start_v2 + reachable_start_v2) * .5
                                     , move.max_cruise_v2, peak_cruise_v2)
-                    move.profile.set_trapezoidal_times(move.move_d, start_v2,
+                    move.set_trapezoidal_times(move.move_d, start_v2,
                         cruise_v2, next_end_v2, move.accel)
             else:
                 # Delay calculating this move until peak_cruise_v2 is known
@@ -584,9 +552,8 @@ class TrapezoidalFeedratePlanner(FeedratePlanner):
         if update_flush_count or not flush_count:
             return
 
-        profiles = (move.profile for move in queue[:flush_count])
         # Generate step times for all moves ready to be flushed
-        self.flush_callback(profiles)
+        self.flush_callback(queue[:flush_count])
         # Remove processed moves from the queue
         del queue[:flush_count]
 
@@ -611,7 +578,7 @@ class JerkFeedratePlanner(FeedratePlanner):
             self.end_v = 0
             self.cruise_v = 0
             self.moves = []
-            self.profile = None
+            self.move = None
 
 
             self.x = 0
@@ -627,11 +594,13 @@ class JerkFeedratePlanner(FeedratePlanner):
             self.current_segment = 0
             self.current_segment_offset = 0
 
-        def calculate_profile(self, profile):
-            profile = MoveProfile()
-            profile.calculate_jerk(self.distance, self.start_v,
-                self.cruise_v, self.end_v, self.accel, self.jerk)
-            self.profile = profile
+        def calculate_profile(self):
+            start_pos = (0, 0, 0, 0)
+            end_pos = (self.distance, 0, 0, 0)
+            move = Move(start_pos, end_pos, self.cruise_v, self.accel,
+                self.accel, self.jerk)
+            move.calculate_jerk(self.start_v, self.end_v)
+            self.move = move
 
         def calculate_first_segment(self):
             self.x = 0
@@ -656,7 +625,7 @@ class JerkFeedratePlanner(FeedratePlanner):
 
         def calculate_segment_end(self):
             j = self.jerk_multipliers[self.current_segment] * self.jerk
-            t = self.profile.jerk_t[self.current_segment]
+            t = self.move.jerk_t[self.current_segment]
 
             x = self.segment_start_x
             v = self.segment_start_v
@@ -684,7 +653,7 @@ class JerkFeedratePlanner(FeedratePlanner):
 
         def move_to(self, d):
             tolerance = 1e-16
-            t = 0.5 * self.profile.jerk_t[self.current_segment]
+            t = 0.5 * self.move.jerk_t[self.current_segment]
             x = self.segment_start_x - d
             v = self.segment_start_v
             a = self.segment_start_a
@@ -698,7 +667,7 @@ class JerkFeedratePlanner(FeedratePlanner):
                 return new_x, new_v
 
             t, new_x, new_v = newton_raphson(
-                f, 0, self.profile.jerk_t[self.current_segment], tolerance, 16)
+                f, 0, self.move.jerk_t[self.current_segment], tolerance, 16)
 
             self.x = new_x
             self.v = new_v
@@ -717,7 +686,7 @@ class JerkFeedratePlanner(FeedratePlanner):
     @staticmethod
     def can_combine_with_next(next_move, distance, start_v, end_v, end_v2,
         accel, jerk):
-        reachable_end_v = MoveProfile.get_max_allowed_jerk_end_speed(
+        reachable_end_v = Move.get_max_allowed_jerk_end_speed(
             distance, start_v, end_v, accel, jerk)
 
         if next_move is None or next_move.accel != accel or \
@@ -737,7 +706,7 @@ class JerkFeedratePlanner(FeedratePlanner):
             if next_move.cruise_v == end_v:
                 return (True, end_v)
 
-        return (MoveProfile.can_accelerate_fully(distance,
+        return (Move.can_accelerate_fully(distance,
             start_v, end_v, accel, jerk), reachable_end_v)
 
 
@@ -818,36 +787,29 @@ class JerkFeedratePlanner(FeedratePlanner):
         self.virtual_moves = []
         self.forward_pass()
         self.backward_pass()
-        profiles = []
         flush_count = 0
         move_count = 0
         for vmove in self.virtual_moves:
-            vmove.calculate_profile(vmove.profile)
+            vmove.calculate_profile()
             vmove.calculate_first_segment()
 
             d = 0
 
             for move in vmove.moves:
                 move_count += 1
-                is_kinematic_move = move.is_kinematic_move
-                start_pos = move.start_pos
-                axes_r = move.axes_r
-                axes_d = move.axes_d
-                end_pos = move.end_pos
 
-                profile = MoveProfile(start_pos, is_kinematic_move,
-                    axes_r=axes_r, axes_d=axes_d, end_pos=end_pos)
-                profile.jerk = vmove.jerk
+                move.jerk = vmove.jerk
 
                 d += move.move_d
 
-                profile.start_v = vmove.v
-                profile.start_a = vmove.a
+                move.start_v = vmove.v
+                move.start_a = vmove.a
+                move.jerk_t = [0.0] * 7
                 cruise_v = vmove.segment_end_v
                 at_end = False
                 while d >= vmove.segment_end_x - tolerance:
                     s = vmove.current_segment
-                    profile.jerk_t[s] = vmove.profile.jerk_t[s]\
+                    move.jerk_t[s] = vmove.move.jerk_t[s]\
                         - vmove.current_segment_offset
                     cruise_v = max(cruise_v, vmove.segment_start_v)
                     if s == 6:
@@ -857,12 +819,12 @@ class JerkFeedratePlanner(FeedratePlanner):
                     vmove.calculate_next_segment()
 
                 if d < vmove.segment_end_x - tolerance:
-                    profile.jerk_t[vmove.current_segment] = vmove.move_to(d)
-                    profile.end_v = vmove.v
+                    move.jerk_t[vmove.current_segment] = vmove.move_to(d)
+                    move.end_v = vmove.v
                 else:
-                    profile.end_v = vmove.segment_end_v
+                    move.end_v = vmove.segment_end_v
 
-                profile.cruise_v = max(cruise_v, vmove.v)
+                move.cruise_v = max(cruise_v, vmove.v)
 
                 target_end_v2 = move.max_cruise_v2
                 if move_count < len(self.queue):
@@ -870,17 +832,16 @@ class JerkFeedratePlanner(FeedratePlanner):
                 # Flush when the top speed is reached, and there's no
                 # acceleration (at a cruise segment, or at the end)
                 if vmove.current_segment == 3 or at_end:
-                    if abs(profile.end_v**2 - target_end_v2) < tolerance:
+                    if abs(move.end_v**2 - target_end_v2) < tolerance:
                         flush_count = move_count
 
-                profile.start_v = max(0, profile.start_v)
-                profile.end_v = max(0, profile.end_v)
-                profiles.append(profile)
+                move.start_v = max(0, move.start_v)
+                move.end_v = max(0, move.end_v)
         if not lazy:
             flush_count = move_count
-        if profiles and flush_count > 0:
-            self.flush_callback(profiles[:flush_count])
-            self.current_v = profiles[flush_count-1].end_v
+        if flush_count > 0:
+            self.flush_callback(self.queue[:flush_count])
+            self.current_v = self.queue[flush_count-1].end_v
             del self.queue[:flush_count]
         self.virtual_moves = []
 

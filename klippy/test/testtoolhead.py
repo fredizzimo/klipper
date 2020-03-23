@@ -9,7 +9,7 @@ from feedrateplanner import (TrapezoidalFeedratePlanner, JerkFeedratePlanner,
 from kinematics.extruder import DummyExtruder, PrinterExtruder
 from math import sqrt
 import numpy as np
-from profile_test_helpers import check_jerk_profile
+from move_test_helpers import check_jerk_move
 from pytest import assume
 
 
@@ -29,7 +29,7 @@ class TestToolHead(object):
         self.input_moves = []
 
     def set_limits(self, max_vel, max_acc, max_acc_to_dec,
-        square_corner_velocity, jerk=None, max_extrude_acc=None,
+        square_corner_velocity, jerk=0, max_extrude_acc=None,
         extruder_corner_v=0):
         self.max_accel = max_acc
         self.max_velocity = max_vel
@@ -88,7 +88,7 @@ class TestToolHead(object):
                         max_accel, max_decel, jerk, is_kinematic_move, axes_r,
                         axes_d, end_pos):
         move = self.moves[idx]
-        check_jerk_profile(move, distance, start_v, cruise_v, end_v, max_accel,
+        check_jerk_move(move, distance, start_v, cruise_v, end_v, max_accel,
                            max_decel, jerk)
         with assume: assert move.is_kinematic_move == is_kinematic_move
         with assume: assert pytest.approx(move.axes_r) == axes_r

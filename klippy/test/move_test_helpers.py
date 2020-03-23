@@ -6,11 +6,11 @@
 import pytest
 from pytest import assume
 
-def calculate_move(profile):
+def calculate_move(move):
     x = 0
-    v = profile.start_v
-    a = profile.start_a
-    j = profile.jerk
+    v = move.start_v
+    a = move.start_a
+    j = move.jerk
     jerk_multipliers = [
         1,
         0,
@@ -26,10 +26,10 @@ def calculate_move(profile):
     accs = []
     jerks = []
 
-    for i, segment in enumerate(profile.jerk_t):
+    for i, segment in enumerate(move.jerk_t):
         t = segment
         if t:
-            j = profile.jerk * jerk_multipliers[i]
+            j = move.jerk * jerk_multipliers[i]
             x += v * t + 0.5 * a * t**2 + j * t**3 / 6.0
             v += a * t + 0.5 * j * t**2
             a += j * t
@@ -39,19 +39,19 @@ def calculate_move(profile):
         jerks.append(j)
     return distances, speeds, accs, jerks
 
-def check_jerk_profile(profile, distance, start_v, cruise_v, end_v, max_accel,
-                       max_decel, jerk):
-    distances, speeds, accs, _ = calculate_move(profile)
+def check_jerk_move(move, distance, start_v, cruise_v, end_v, max_accel,
+                    max_decel, jerk):
+    distances, speeds, accs, _ = calculate_move(move)
 
-    has_acc = (profile.jerk_t[0] > 0 or profile.jerk_t[1] > 0 or
-        profile.jerk_t[2] > 0)
-    has_dec = (profile.jerk_t[4] > 0 or profile.jerk_t[5] > 0 or
-        profile.jerk_t[6] > 0)
-    for t in profile.jerk_t:
-        with assume: assert t >= 0, str(profile.jerk_t)
-    with assume: assert profile.jerk == jerk
-    with assume: assert profile.start_v >= 0
-    with assume: assert pytest.approx(profile.start_v) == start_v
+    has_acc = (move.jerk_t[0] > 0 or move.jerk_t[1] > 0 or
+        move.jerk_t[2] > 0)
+    has_dec = (move.jerk_t[4] > 0 or move.jerk_t[5] > 0 or
+        move.jerk_t[6] > 0)
+    for t in move.jerk_t:
+        with assume: assert t >= 0, str(move.jerk_t)
+    with assume: assert move.jerk == jerk
+    with assume: assert move.start_v >= 0
+    with assume: assert pytest.approx(move.start_v) == start_v
     with assume: assert pytest.approx(speeds[2]) == cruise_v
     with assume: assert pytest.approx(speeds[-1]) == end_v
     with assume: assert pytest.approx(accs[0] if has_acc else 0) == max_accel
