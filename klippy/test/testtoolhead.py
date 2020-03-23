@@ -1,4 +1,4 @@
-# Helpers for the feedrate planner tests
+# A fake toolhad for unit tests of moves
 #
 # Copyright (C) 2020  Fred Sundvik <fsundvik@gmail.com>
 #
@@ -13,7 +13,7 @@ from profile_test_helpers import check_jerk_profile
 from pytest import assume
 
 
-class ToolHead(object):
+class TestToolHead(object):
     def __init__(self, FeedratePlanner):
         self.moves = []
         self.feedrate_planner = FeedratePlanner(self._process_moves)
@@ -103,7 +103,7 @@ def get_distance(move):
 
 @pytest.fixture
 def trapezoidal_toolhead(move_plotter, request):
-    toolhead = ToolHead(TrapezoidalFeedratePlanner)
+    toolhead = TestToolHead(TrapezoidalFeedratePlanner)
     yield toolhead
     move_plotter.plot(
         toolhead.moves,
@@ -112,7 +112,7 @@ def trapezoidal_toolhead(move_plotter, request):
 
 @pytest.fixture
 def jerk_toolhead(move_plotter, request):
-    toolhead = ToolHead(JerkFeedratePlanner)
+    toolhead = TestToolHead(JerkFeedratePlanner)
     yield toolhead
     move_plotter.plot(
         toolhead.moves,
@@ -121,7 +121,7 @@ def jerk_toolhead(move_plotter, request):
 
 @pytest.fixture
 def smooth_extrusion_toolhead(move_plotter, request):
-    toolhead = ToolHead(SmoothExtrusionFeedratePlanner)
+    toolhead = TestToolHead(SmoothExtrusionFeedratePlanner)
     yield toolhead
     move_plotter.plot(
         toolhead.moves,

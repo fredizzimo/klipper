@@ -5,7 +5,7 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 
 from moveplotter import move_plotter, move_plotter_module
-from feedrateplanner_test_helpers import trapezoidal_toolhead as toolhead
+from testtoolhead import trapezoidal_toolhead as toolhead
 from math import sqrt
 
 # A move long enough to accelerate to cruise_v
