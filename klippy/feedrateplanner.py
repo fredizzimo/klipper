@@ -11,6 +11,7 @@ from __future__ import division
 from abc import abstractmethod
 import math
 from mathutil import newton_raphson
+from sys import float_info
 
 
 class MoveProfile(object):
@@ -411,7 +412,7 @@ class Move(object):
         self.toolhead = toolhead
         self.start_pos = tuple(start_pos)
         self.end_pos = tuple(end_pos)
-        self.accel = toolhead.max_accel
+        accel = toolhead.max_accel
         self.timing_callbacks = []
         self.jerk = toolhead.jerk
         velocity = min(speed, toolhead.max_velocity)
@@ -427,32 +428,42 @@ class Move(object):
             inv_move_d = 0.
             if move_d:
                 inv_move_d = 1. / move_d
-            self.accel = 99999999.9
+            # The extruder will limit the acceleration later
+            accel = 99999999.9
             velocity = speed
             self.is_kinematic_move = False
         else:
             inv_move_d = 1. / move_d
         self.axes_r = tuple((d * inv_move_d for d in axes_d))
-        self.min_move_t = move_d / velocity
         # Junction speeds are tracked in velocity squared.  The
         # delta_v2 is the maximum amount of this squared-velocity that
         # can change in this move.
         self.max_junction_v2 = 0.
         self.max_start_v2 = 0.
-        self.max_cruise_v2 = velocity**2
-        self.delta_v2 = 2.0 * move_d * self.accel
         self.max_smoothed_v2 = 0.
-        self.smooth_delta_v2 = 2.0 * move_d * toolhead.max_accel_to_decel
+
+        self.accel = float_info.max
+        self.max_cruise_v2 = float_info.max
+        self.smooth_delta_v2 = float_info.max
+        self.min_move_t = 0.0
+
+        # NOTE: max accel_to_decel is used for extrude only moves as well
+        self.limit_speed(velocity, accel, toolhead.max_accel_to_decel)
 
         self.profile = MoveProfile(self.start_pos, self.is_kinematic_move,
             self.axes_r, self.axes_d, self.end_pos, self.timing_callbacks)
-    def limit_speed(self, speed, accel):
+
+    def limit_speed(self, speed, accel, max_accel_to_decel=None):
         speed2 = speed**2
         if speed2 < self.max_cruise_v2:
             self.max_cruise_v2 = speed2
             self.min_move_t = self.move_d / speed
         self.accel = min(self.accel, accel)
         self.delta_v2 = 2.0 * self.move_d * self.accel
+        if max_accel_to_decel is not None:
+            smooth_delta_v2 = 2.0 * self.move_d * max_accel_to_decel
+            self.smooth_delta_v2 = min(self.smooth_delta_v2, smooth_delta_v2)
+
         self.smooth_delta_v2 = min(self.smooth_delta_v2, self.delta_v2)
     def calc_junction(self, prev_move):
         if not self.is_kinematic_move or not prev_move.is_kinematic_move:

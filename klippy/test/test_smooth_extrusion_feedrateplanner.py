@@ -191,6 +191,32 @@ def test_extrude_only_move(toolhead):
         max_acc_to_dec=2000,
         square_corner_velocity=5,
         jerk=100000,
+        max_extrude_acc=50)
+    toolhead.move((0, 0, 0, 2), max_speed=100)
+    toolhead.flush()
+    assert len(toolhead.moves) == 1
+    toolhead.check_move(0,
+        pos=(0, 0, 0, 0),
+        start_v=0,
+        cruise_v=10,
+        accel_t=0.2,
+        cruise_t=0,
+        decel_t=0.2,
+        distance=2,
+        axes_r=(0, 0, 0, 1),
+        axes_d=(0, 0, 0, 2),
+        end_pos=(0, 0, 0, 2)
+    )
+
+def test_extrude_only_move_uses_max_acc_to_dec(toolhead):
+    # NOTE: That this should probably not be the case, but this is how it works
+    # currently
+    toolhead.set_limits(
+        max_vel=100,
+        max_acc=1000,
+        max_acc_to_dec=2000,
+        square_corner_velocity=5,
+        jerk=100000,
         max_extrude_acc=5000)
     toolhead.move((0, 0, 0, 2), max_speed=100)
     toolhead.flush()
