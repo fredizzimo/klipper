@@ -503,8 +503,8 @@ class Move(object):
 LOOKAHEAD_FLUSH_TIME = 0.250
 
 class FeedratePlanner(object):
-    def __init__(self, toolhead):
-        self.toolhead = toolhead
+    def __init__(self, flush_callback):
+        self.flush_callback = flush_callback
         self.queue = []
         self.junction_flush = LOOKAHEAD_FLUSH_TIME
     def reset(self):
@@ -533,8 +533,8 @@ class FeedratePlanner(object):
 # Class to track a list of pending move requests and to facilitate
 # "look-ahead" across moves to reduce acceleration between moves.
 class TrapezoidalFeedratePlanner(FeedratePlanner):
-    def __init__(self, toolhead):
-        super(TrapezoidalFeedratePlanner, self).__init__(toolhead)
+    def __init__(self, flush_callback):
+        super(TrapezoidalFeedratePlanner, self).__init__(flush_callback)
     def flush(self, lazy=False):
         self.junction_flush = LOOKAHEAD_FLUSH_TIME
         update_flush_count = lazy
@@ -586,7 +586,7 @@ class TrapezoidalFeedratePlanner(FeedratePlanner):
 
         profiles = (move.profile for move in queue[:flush_count])
         # Generate step times for all moves ready to be flushed
-        self.toolhead._process_moves(profiles)
+        self.flush_callback(profiles)
         # Remove processed moves from the queue
         del queue[:flush_count]
 
@@ -709,8 +709,8 @@ class JerkFeedratePlanner(FeedratePlanner):
             return ret
 
 
-    def __init__(self, toolhead):
-        super(JerkFeedratePlanner, self).__init__(toolhead)
+    def __init__(self, flush_callback):
+        super(JerkFeedratePlanner, self).__init__(flush_callback)
         self.virtual_moves = []
         self.current_v = 0
 
@@ -879,7 +879,7 @@ class JerkFeedratePlanner(FeedratePlanner):
         if not lazy:
             flush_count = move_count
         if profiles and flush_count > 0:
-            self.toolhead._process_moves(profiles[:flush_count])
+            self.flush_callback(profiles[:flush_count])
             self.current_v = profiles[flush_count-1].end_v
             del self.queue[:flush_count]
         self.virtual_moves = []
@@ -889,9 +889,9 @@ class SmoothExtrusionFeedratePlanner(object):
     MODE_JERK = 1
     MODE_TRAPEZOIDAL = 2
 
-    def __init__(self, toolhead):
-        self.trapezoidal_planner = TrapezoidalFeedratePlanner(toolhead)
-        self.jerk_planner = JerkFeedratePlanner(toolhead)
+    def __init__(self, flush_callback):
+        self.trapezoidal_planner = TrapezoidalFeedratePlanner(flush_callback)
+        self.jerk_planner = JerkFeedratePlanner(flush_callback)
         self.mode = self.MODE_NONE
 
     def reset(self):

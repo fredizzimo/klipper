@@ -31,7 +31,7 @@ class ToolHead:
         self.can_pause = True
         if self.mcu.is_fileoutput():
             self.can_pause = False
-        self.feedrate_planner = TrapezoidalFeedratePlanner(self)
+        self.feedrate_planner = TrapezoidalFeedratePlanner(self._process_moves)
         self.commanded_pos = [0., 0., 0., 0.]
         self.printer.register_event_handler("klippy:shutdown",
                                             self._handle_shutdown)

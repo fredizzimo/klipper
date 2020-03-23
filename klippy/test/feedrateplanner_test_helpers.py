@@ -16,7 +16,7 @@ from pytest import assume
 class ToolHead(object):
     def __init__(self, FeedratePlanner):
         self.moves = []
-        self.feedrate_planner = FeedratePlanner(self)
+        self.feedrate_planner = FeedratePlanner(self._process_moves)
         self.max_accel = None
         self.jerk = None
         self.max_velocity = None
