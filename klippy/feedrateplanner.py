@@ -24,6 +24,9 @@ class MoveQueue(object):
         self.ffi_main = ffi_main
 
     def alloc(self, start_pos, end_pos, speed, accel, accel_to_decel, jerk):
+        # TODO: Let the moves re-use the same C move until it's added to the 
+        # planner
+        # That ensures that the moves are continuous for the planner
         return self.move_alloc(start_pos, end_pos, speed, accel, accel_to_decel,
             jerk, self.queue)
 

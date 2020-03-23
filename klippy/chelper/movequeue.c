@@ -131,6 +131,9 @@ move_alloc(
     double jerk,
     struct move_queue* q)
 {
+    // TODO: Let the moves re-use the same C move until it's added to the 
+    // planner
+    // That ensures that the moves are continuous for the planner
     struct move *m = q->moves + (q->next_free % q->num_moves); 
     ++q->next_free;
     init_move(m, start_pos, end_pos, speed, accel, accel_to_decel, jerk);
