@@ -20,9 +20,12 @@ class MoveQueue(object):
         self.move_alloc = ffi_lib.move_alloc
         self.queue = ffi_main.gc(ffi_lib.move_queue_alloc(size),
             ffi_lib.move_queue_free)
-    
-    def alloc(self):
-        return self.move_alloc(self.queue)
+        self.ffi_lib = ffi_lib
+        self.ffi_main = ffi_main
+
+    def alloc(self, start_pos, end_pos, speed, accel, accel_to_decel, jerk):
+        return self.move_alloc(start_pos, end_pos, speed, accel, accel_to_decel,
+            jerk, self.queue)
 
 
 # Class to track each move request
@@ -33,68 +36,104 @@ class Move(object):
     @property
     def move_d(self):
         return self.c_move.move_d
-    @move_d.setter
-    def move_d(self, move_d):
-        self.c_move.move_d = move_d
+    @property
+    def start_pos(self):
+        return tuple(self.c_move.start_pos)
+    @property
+    def end_pos(self):
+        return tuple(self.c_move.end_pos)
+    @property    
+    def axes_d(self):
+        return tuple(self.c_move.axes_d)
+    @property    
+    def axes_r(self):
+        return tuple(self.c_move.axes_r)
+    @property
+    def is_kinematic_move(self):
+        return self.c_move.is_kinematic_move
+    @property
+    def start_a(self):
+        return self.c_move.start_a
+    @start_a.setter
+    def start_a(self, start_a):
+        self.c_move.start_a = start_a
+    @property
+    def accel_t(self):
+        return self.c_move.accel_t
+    @accel_t.setter
+    def accel_t(self, accel_t):
+        self.c_move.accel_t = accel_t
+    @property
+    def cruise_t(self):
+        return self.c_move.cruise_t
+    @cruise_t.setter
+    def cruise_t(self, cruise_t):
+        self.c_move.cruise_t = cruise_t
+    @property
+    def decel_t(self):
+        return self.c_move.decel_t
+    @decel_t.setter
+    def decel_t(self, decel_t):
+        self.c_move.decel_t = decel_t
+    @property    
+    def jerk_t(self):
+        return self.c_move.jerk_t
+    @jerk_t.setter
+    def jerk_t(self, jerk_t):
+        self.c_move.jerk_t = jerk_t
+    @property    
+    def max_junction_v2(self):
+        return self.c_move.max_junction_v2
+    @max_junction_v2.setter
+    def max_junction_v2(self, max_junction_v2):
+        self.c_move.max_junction_v2 = max_junction_v2
+    @property    
+    def max_start_v2(self):
+        return self.c_move.max_start_v2
+    @max_start_v2.setter
+    def max_start_v2(self, max_start_v2):
+        self.c_move.max_start_v2 = max_start_v2
+    @property    
+    def max_smoothed_v2(self):
+        return self.c_move.max_smoothed_v2
+    @max_smoothed_v2.setter
+    def max_smoothed_v2(self, max_smoothed_v2):
+        self.c_move.max_smoothed_v2 = max_smoothed_v2
+    @property    
+    def accel(self):
+        return self.c_move.accel
+    @accel.setter
+    def accel(self, accel):
+        self.c_move.accel = accel
+    @property    
+    def jerk(self):
+        return self.c_move.jerk
+    @jerk.setter
+    def jerk(self, jerk):
+        self.c_move.jerk = jerk
+    @property    
+    def max_cruise_v2(self):
+        return self.c_move.max_cruise_v2
+    @property    
+    def delta_v2(self):
+        return self.c_move.delta_v2
+    @property    
+    def smooth_delta_v2(self):
+        return self.c_move.smooth_delta_v2
+    @property    
+    def min_move_t(self):
+        return self.c_move.min_move_t
 
     def __init__(self, start_pos, end_pos, speed, accel, accel_to_decel, jerk,
             queue):
-        self.c_move = queue.alloc() 
-        self.start_pos = tuple(start_pos)
-        self.end_pos = tuple(end_pos)
+
+        self.c_limit_speed = queue.ffi_lib.limit_speed
+        self.c_move = queue.alloc(start_pos, end_pos, speed, accel,
+            accel_to_decel, jerk) 
         self.timing_callbacks = []
-        self.jerk = jerk
-        self.is_kinematic_move = True
-        self.axes_d = axes_d = [end_pos[i] - start_pos[i] for i in (0, 1, 2, 3)]
-        self.move_d = move_d = math.sqrt(sum([d*d for d in axes_d[:3]]))
-        if move_d < .000000001:
-            # Extrude only move
-            self.end_pos = (start_pos[0], start_pos[1], start_pos[2],
-                            end_pos[3])
-            axes_d[0] = axes_d[1] = axes_d[2] = 0.
-            self.move_d = move_d = abs(axes_d[3])
-            inv_move_d = 0.
-            if move_d:
-                inv_move_d = 1. / move_d
-            # The extruder will limit the acceleration later
-            accel = 99999999.9
-            self.is_kinematic_move = False
-        else:
-            inv_move_d = 1. / move_d
-        self.axes_r = tuple((d * inv_move_d for d in axes_d))
-        self.start_a = 0.
-        self.accel_t = 0.0
-        self.cruise_t = 0.0
-        self.decel_t = 0.0
 
-        self.jerk_t = [0.0] * 7
-        # Junction speeds are tracked in velocity squared.  The
-        # delta_v2 is the maximum amount of this squared-velocity that
-        # can change in this move.
-        self.max_junction_v2 = 0.
-        self.max_start_v2 = 0.
-        self.max_smoothed_v2 = 0.
-
-        self.accel = float_info.max
-        self.max_cruise_v2 = float_info.max
-        self.smooth_delta_v2 = float_info.max
-        self.min_move_t = 0.0
-
-        # NOTE: max accel_to_decel is used for extrude only moves as well
-        self.limit_speed(speed, accel, accel_to_decel)
-
-    def limit_speed(self, speed, accel, max_accel_to_decel=None):
-        speed2 = speed**2
-        if speed2 < self.max_cruise_v2:
-            self.max_cruise_v2 = speed2
-            self.min_move_t = self.move_d / speed
-        self.accel = min(self.accel, accel)
-        self.delta_v2 = 2.0 * self.move_d * self.accel
-        if max_accel_to_decel is not None:
-            smooth_delta_v2 = 2.0 * self.move_d * max_accel_to_decel
-            self.smooth_delta_v2 = min(self.smooth_delta_v2, smooth_delta_v2)
-
-        self.smooth_delta_v2 = min(self.smooth_delta_v2, self.delta_v2)
+    def limit_speed(self, speed, accel, max_accel_to_decel=-1):
+        self.c_limit_speed(self.c_move, speed, accel, max_accel_to_decel)
 
     def calc_junction(self, prev_move, junction_deviation,
             extruder_instant_v):

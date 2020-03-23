@@ -25,7 +25,7 @@ class TestToolHead(object):
         self.max_extrude_acc = None
         self.junction_deviation = None
         self.extruder = DummyExtruder()
-        self.pos = np.zeros(4)
+        self.pos = [0.0, 0.0, 0.0, 0.0]
         self.input_moves = []
         self.move_queue = MoveQueue(2048)
 
@@ -46,9 +46,9 @@ class TestToolHead(object):
 
     def move(self, end_pos, max_speed):
         if type(end_pos) == tuple:
-            end = np.array([p for p in end_pos] + [0] * (4-len(end_pos)))
+            end = [p for p in end_pos] + [0] * (4-len(end_pos))
         else:
-            end = np.array((end_pos, 0, 0, 0))
+            end = [end_pos, 0, 0, 0]
         max_speed = min(max_speed, self.max_velocity)
         move = Move(self.pos, end, max_speed, self.max_accel,
             self.max_accel_to_decel, self.jerk, self.move_queue)
