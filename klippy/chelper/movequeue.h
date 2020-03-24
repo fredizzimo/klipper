@@ -48,3 +48,5 @@ struct move* move_alloc(
     struct move_queue* q);
 void limit_speed(struct move *m, double speed, double accel,
     double max_accel_to_decel);
+void calc_junction(struct move *m, struct move *prev_move,
+    double junction_deviation, double extruder_instant_v);

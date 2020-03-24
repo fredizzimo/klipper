@@ -131,6 +131,7 @@ class Move(object):
             queue):
 
         self.c_limit_speed = queue.ffi_lib.limit_speed
+        self.c_calc_junction = queue.ffi_lib.calc_junction
         self.c_move = queue.alloc(start_pos, end_pos, speed, accel,
             accel_to_decel, jerk) 
         self.timing_callbacks = []
@@ -140,42 +141,8 @@ class Move(object):
 
     def calc_junction(self, prev_move, junction_deviation,
             extruder_instant_v):
-        if not self.is_kinematic_move or not prev_move.is_kinematic_move:
-            return
-        # Allow extruder to calculate its maximum junction
-        extruder_v2 = self.calc_extruder_junction(prev_move, extruder_instant_v)
-        # Find max velocity using "approximated centripetal velocity"
-        axes_r = self.axes_r
-        prev_axes_r = prev_move.axes_r
-        junction_cos_theta = -(axes_r[0] * prev_axes_r[0]
-                               + axes_r[1] * prev_axes_r[1]
-                               + axes_r[2] * prev_axes_r[2])
-        if junction_cos_theta > 0.999999:
-            return
-        junction_cos_theta = max(junction_cos_theta, -0.999999)
-        sin_theta_d2 = math.sqrt(0.5*(1.0-junction_cos_theta))
-        R = (junction_deviation * sin_theta_d2
-             / (1. - sin_theta_d2))
-        tan_theta_d2 = sin_theta_d2 / math.sqrt(0.5*(1.0+junction_cos_theta))
-        move_centripetal_v2 = .5 * self.move_d * tan_theta_d2 * self.accel
-        prev_move_centripetal_v2 = (.5 * prev_move.move_d * tan_theta_d2
-                                    * prev_move.accel)
-        self.max_junction_v2 = min(
-            R * self.accel, R * prev_move.accel,
-            move_centripetal_v2, prev_move_centripetal_v2,
-            extruder_v2, self.max_cruise_v2, prev_move.max_cruise_v2)
-        self.max_start_v2 = min(
-            self.max_junction_v2,
-            prev_move.max_start_v2 + prev_move.delta_v2)
-        self.max_smoothed_v2 = min(
-            self.max_start_v2
-            , prev_move.max_smoothed_v2 + prev_move.smooth_delta_v2)
-
-    def calc_extruder_junction(self, prev_move, instant_corner_v):
-        diff_r = self.axes_r[3] - prev_move.axes_r[3]
-        if diff_r:
-            return (instant_corner_v / abs(diff_r))**2
-        return self.max_cruise_v2
+        self.c_calc_junction(self.c_move, prev_move.c_move,
+            junction_deviation, extruder_instant_v)
 
     def set_trapezoidal_times(self, distance, start_v2, cruise_v2, end_v2,
                              accel):

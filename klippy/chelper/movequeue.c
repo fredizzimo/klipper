@@ -81,7 +81,7 @@ static void init_move(
             m->end_pos[i] = m->start_pos[i];
             m->axes_d[i] = 0.0;
         }
-        move_d = abs(m->axes_d[3]);
+        move_d = fabs(m->axes_d[3]);
         m->move_d = move_d;
 
         // The extruder will limit the acceleration later
@@ -119,6 +119,57 @@ static void init_move(
 
     // NOTE: max accel_to_decel is used for extrude only moves as well
     limit_speed(m, speed, accel, accel_to_decel);
+}
+
+static double calc_extruder_junction(struct move *m, struct move *prev_move,
+    double instant_corner_v)
+{
+    double diff_r = m->axes_r[3] - prev_move->axes_r[3];
+    if (diff_r != 0)
+    {
+        double v = instant_corner_v / fabs(diff_r);
+        return v*v;
+    }
+    return m->max_cruise_v2;
+}
+
+void __visible
+calc_junction(struct move *m, struct move *prev_move,
+    double junction_deviation, double extruder_instant_v)
+{
+    if (!m->is_kinematic_move || !prev_move->is_kinematic_move)
+        return;
+    // Allow extruder to calculate its maximum junction
+    double extruder_v2 =
+        calc_extruder_junction(m, prev_move, extruder_instant_v);
+    // Find max velocity using "approximated centripetal velocity"
+    double *axes_r = m->axes_r;
+    double *prev_axes_r = prev_move->axes_r;
+    double junction_cos_theta = -(axes_r[0] * prev_axes_r[0]
+                                + axes_r[1] * prev_axes_r[1]
+                                + axes_r[2] * prev_axes_r[2]);
+    if (junction_cos_theta > 0.999999)
+        return;
+    junction_cos_theta = fmax(junction_cos_theta, -0.999999);
+    double sin_theta_d2 = sqrt(0.5*(1.0-junction_cos_theta));
+    double R = (junction_deviation * sin_theta_d2
+               / (1. - sin_theta_d2));
+    double tan_theta_d2 = sin_theta_d2
+                         / sqrt(0.5*(1.0+junction_cos_theta));
+    double move_centripetal_v2 = .5 * m->move_d * tan_theta_d2 * m->accel;
+    double prev_move_centripetal_v2 = (.5 * prev_move->move_d * tan_theta_d2
+                                      * prev_move->accel);
+    m->max_junction_v2 = fmin(fmin(fmin(
+        fmin(R * m->accel, R * prev_move->accel),
+        fmin(move_centripetal_v2, prev_move_centripetal_v2)),
+        fmin(extruder_v2, m->max_cruise_v2)),
+        prev_move->max_cruise_v2);
+    m->max_start_v2 = fmin(
+        m->max_junction_v2,
+        prev_move->max_start_v2 + prev_move->delta_v2);
+    m->max_smoothed_v2 = fmin(
+        m->max_start_v2
+        , prev_move->max_smoothed_v2 + prev_move->smooth_delta_v2);
 }
 
 struct move* __visible
