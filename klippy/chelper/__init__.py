@@ -16,9 +16,8 @@ COMPILE_CMD = ("gcc -Wall -g -O2 -shared -fPIC"
                " -o %s %s")
 SOURCE_FILES = [
     'pyhelper.c', 'serialqueue.c', 'stepcompress.c', 'itersolve.c', 'trapq.c',
-    'movequeue.c', 'mathutil.c',
-    'kin_cartesian.c', 'kin_corexy.c', 'kin_delta.c', 'kin_polar.c',
-    'kin_rotary_delta.c', 'kin_winch.c', 'kin_extruder.c',
+    'move.c', 'mathutil.c', 'kin_cartesian.c', 'kin_corexy.c', 'kin_delta.c',
+    'kin_polar.c', 'kin_rotary_delta.c', 'kin_winch.c', 'kin_extruder.c',
 ]
 DEST_LIB = "c_helper.so"
 OTHER_FILES = [
@@ -71,7 +70,7 @@ defs_trapq = """
     void trapq_free_moves(struct trapq *tq, double print_time);
 """
 
-defs_movequeue = """
+defs_move = """
     struct move {
         double start_pos[4];
         double end_pos[4];
@@ -203,7 +202,7 @@ defs_std = """
 
 defs_all = [
     defs_pyhelper, defs_serialqueue, defs_std,
-    defs_stepcompress, defs_itersolve, defs_trapq, defs_movequeue,
+    defs_stepcompress, defs_itersolve, defs_trapq, defs_move,
     defs_kin_cartesian, defs_kin_corexy, defs_kin_delta, defs_kin_polar,
     defs_kin_rotary_delta, defs_kin_winch, defs_kin_extruder
 ]

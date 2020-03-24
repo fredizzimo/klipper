@@ -1,13 +1,12 @@
-// Move queue
+// The C side implementation of the Move class
 //
 // Copyright (C) 2020  Fred Sundvik
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
-#include "movequeue.h"
+#include "move.h"
 #include "compiler.h"
 #include "mathutil.h"
-#include "pyhelper.h"
 #include <stdlib.h>
 #include <float.h>
 #include <math.h>

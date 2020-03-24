@@ -1,4 +1,4 @@
-// Move queue
+// The C side implementation of the Move class
 //
 // Copyright (C) 2020  Fred Sundvik
 //
