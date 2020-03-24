@@ -610,6 +610,103 @@ calculate_jerk(struct move* m, double start_v, double end_v)
     m->jerk_t[6] = decel_jerk_t;
 }
 
+struct get_max_allowed_jerk_end_speed_state
+{
+    double d2;
+    double jerk;
+    double start_v;
+};
+
+static
+void eval_get_max_allowed_jerk_end_speed(
+    struct newton_raphson_result *result, void* user_data)
+{
+    struct get_max_allowed_jerk_end_speed_state *state = user_data;
+    double d2 = state->d2;
+    double jerk = state->jerk;
+    double start_v = state->start_v;
+    double v = result->x;
+
+    double x0 = v - start_v;
+    double x1 = v + start_v;
+    double y = (x1/jerk)*x0*x1 - d2;
+    result->y = y;
+
+    double dy = x1 * (3.0*v - start_v);
+    dy /= jerk;
+    result->dy = dy;
+}
+
+double __visible
+get_max_allowed_jerk_end_speed(double distance, double start_v, double end_v,
+    double max_a, double jerk)
+{
+    // TODO Should we use the same tolerances as the global one
+    double tolerance = 1e-6;
+
+    double max_a_2 = max_a*max_a;
+    double max_a_3 = max_a_2*max_a;
+    double max_a_dist = max_a_3 / (jerk*jerk) + 2.0 * max_a * start_v / jerk;
+    if (distance < max_a_dist)
+    {
+        struct get_max_allowed_jerk_end_speed_state state = {
+            .d2 = distance*distance,
+            .jerk = jerk,
+            .start_v = start_v,
+        };
+        struct newton_raphson_result res;
+        newton_raphson(eval_get_max_allowed_jerk_end_speed, start_v, end_v,
+            tolerance, 16, &res, &state);
+
+        return res.x;
+    }
+    else
+    {
+        double max_a_4 = max_a_3*max_a;
+        double end_v = 8.0 * max_a * distance + 4.0 * start_v*start_v;
+        end_v *= jerk;
+        end_v -= 4.0 * max_a_2 * start_v;
+        end_v *= jerk;
+        end_v += max_a_4;
+        
+        end_v = sqrt(end_v);
+        end_v -= max_a_2;
+        end_v /= 2.0 * jerk;
+        return end_v;
+    }
+}
+
+bool __visible
+can_accelerate_fully(double distance, double start_v, double end_v,
+    double accel, double jerk)
+{
+    double jerk_t2 = end_v - start_v;
+    jerk_t2 /= jerk;
+    jerk_t2 *= 2.0;
+
+    double a_div_jerk = accel / jerk;
+    double d;
+
+    // If there's a constant acceleration phase
+    if (jerk_t2 > a_div_jerk*a_div_jerk)
+    {
+        double d1 = end_v*end_v - start_v*start_v;
+        d1 /= 2.0 * accel;
+
+        double d2 = accel*accel / (12.0*jerk);
+        d2 += start_v;
+        d2 *= accel / (2.0*jerk);
+        d = d1 + d2;
+    }
+    else
+    {
+        d = sqrt(jerk_t2);
+        d *= 2.0*start_v + end_v;
+        d /= 3.0;
+    }
+    return d > distance;
+}
+
 struct move* __visible
 move_alloc(
     double *start_pos,

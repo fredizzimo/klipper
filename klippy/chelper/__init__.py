@@ -122,6 +122,10 @@ defs_movequeue = """
         double cruise_v2, double end_v2, double accel);
     void calculate_trapezoidal(struct move* m, double start_v, double end_v);
     void calculate_jerk(struct move* m, double start_v, double end_v);
+    double get_max_allowed_jerk_end_speed(double distance, double start_v,
+        double end_v, double max_a, double jerk);
+    bool can_accelerate_fully(double distance, double start_v, double end_v,
+        double accel, double jerk);
 """
 
 defs_kin_cartesian = """

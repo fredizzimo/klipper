@@ -178,52 +178,18 @@ class Move(object):
 
     @staticmethod
     def get_max_allowed_jerk_end_speed(distance, start_v, end_v, max_a, jerk):
-        tolerance = 1e-6
-        max_a_dist = max_a**3 / jerk**2 + 2.0 * max_a * start_v / jerk
-        if distance < max_a_dist:
-            d2 = distance**2
-            def f(v):
-                x0 = v - start_v
-                x1 = v + start_v
-                f = (x1/jerk)*x0*x1 - d2
-                df = x1 * (3.0*v - start_v)
-                df /= jerk
-                return f, df
-
-            new_v, _, _ = newton_raphson(f, start_v, end_v, tolerance, 16)
-
-            return new_v
-        else:
-            end_v = 8.0 * max_a * distance + 4.0 * start_v**2
-            end_v *= jerk
-            end_v -= 4.0 * max_a**2 * start_v
-            end_v *= jerk
-            end_v += max_a**4
-            end_v = math.sqrt(end_v)
-            end_v -= max_a**2
-            end_v /= 2.0 * jerk
-            return end_v
+        # TODO don't lookup the function each time
+        _, ffi_lib = chelper.get_ffi()
+        return ffi_lib.get_max_allowed_jerk_end_speed(distance, start_v, end_v,
+            max_a, jerk)
 
     @staticmethod
     def can_accelerate_fully(distance, start_v, end_v, accel, jerk):
-        jerk_t2 = end_v - start_v
-        jerk_t2 /= jerk
-        jerk_t2 *= 2
+        # TODO don't lookup the function each time
+        _, ffi_lib = chelper.get_ffi()
+        return ffi_lib.can_accelerate_fully(distance, start_v, end_v, accel,
+            jerk)
 
-        # If there's a constant acceleration phase
-        if jerk_t2 > (accel / jerk)**2:
-            d1 = end_v**2 - start_v**2
-            d1 /= 2.0 * accel
-
-            d2 = accel**2 / (12.0*jerk)
-            d2 += start_v
-            d2 *= accel / (2*jerk)
-            d = d1 + d2
-        else:
-            d = math.sqrt(jerk_t2)
-            d *= 2*start_v + end_v
-            d /= 3.0
-        return d > distance
 
 LOOKAHEAD_FLUSH_TIME = 0.250
 
