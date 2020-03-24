@@ -57,3 +57,4 @@ void calc_junction(struct move *m, struct move *prev_move,
 void set_trapezoidal_times(struct move *m, double distance, double start_v2,
     double cruise_v2, double end_v2, double accel);
 void calculate_trapezoidal(struct move* m, double start_v, double end_v);
+void calculate_jerk(struct move* m, double start_v, double end_v);

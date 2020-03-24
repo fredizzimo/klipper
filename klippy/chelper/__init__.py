@@ -16,14 +16,14 @@ COMPILE_CMD = ("gcc -Wall -g -O2 -shared -fPIC"
                " -o %s %s")
 SOURCE_FILES = [
     'pyhelper.c', 'serialqueue.c', 'stepcompress.c', 'itersolve.c', 'trapq.c',
-    'movequeue.c',
+    'movequeue.c', 'mathutil.c',
     'kin_cartesian.c', 'kin_corexy.c', 'kin_delta.c', 'kin_polar.c',
     'kin_rotary_delta.c', 'kin_winch.c', 'kin_extruder.c',
 ]
 DEST_LIB = "c_helper.so"
 OTHER_FILES = [
     'list.h', 'serialqueue.h', 'stepcompress.h', 'itersolve.h', 'pyhelper.h',
-    'trapq.h',
+    'trapq.h', 'mathutil.h'
 ]
 
 defs_stepcompress = """
@@ -121,6 +121,7 @@ defs_movequeue = """
     void set_trapezoidal_times(struct move *m, double distance, double start_v2,
         double cruise_v2, double end_v2, double accel);
     void calculate_trapezoidal(struct move* m, double start_v, double end_v);
+    void calculate_jerk(struct move* m, double start_v, double end_v);
 """
 
 defs_kin_cartesian = """
