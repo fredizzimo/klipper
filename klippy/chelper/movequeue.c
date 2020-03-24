@@ -10,6 +10,9 @@
 #include <float.h>
 #include <math.h>
 
+static const double tolerance = 1e-13;
+static const double time_tolerance = 1e-6;
+
 struct move_queue* __visible
 move_queue_alloc(unsigned int num_moves)
 {
@@ -170,6 +173,58 @@ calc_junction(struct move *m, struct move *prev_move,
     m->max_smoothed_v2 = fmin(
         m->max_start_v2
         , prev_move->max_smoothed_v2 + prev_move->smooth_delta_v2);
+}
+
+void __visible
+set_trapezoidal_times(struct move *m, double distance, double start_v2,
+    double cruise_v2, double end_v2, double accel)
+{
+    start_v2 = fmin(start_v2, cruise_v2);
+    end_v2 = fmin(end_v2, cruise_v2);
+    m->accel = accel;
+    m->jerk = 0.0;
+    // Determine accel, cruise, and decel portions of the move distance
+    double half_inv_accel = .5 / accel;
+    double accel_d = (cruise_v2 - start_v2) * half_inv_accel;
+    double decel_d = (cruise_v2 - end_v2) * half_inv_accel;
+    double cruise_d = distance - accel_d - decel_d;
+    // Make sure that all distances and therefore the times are positive
+    // Clamp to zero if close to it, so that the whole segment is removed
+    if (accel_d < tolerance)
+        accel_d = 0;
+    if (decel_d < tolerance)
+        decel_d = 0;
+    if (cruise_d < tolerance)
+        cruise_d = 0;
+
+    // Determine move velocities
+    double start_v = sqrt(start_v2);
+    m->start_v = start_v; 
+    double cruise_v = sqrt(cruise_v2);
+    m->cruise_v = cruise_v; 
+    double end_v = sqrt(end_v2);
+    m->end_v = end_v;
+    // Determine time spent in each portion of move (time is the
+    // distance divided by average velocity)
+    m->accel_t = accel_d / ((start_v + cruise_v) * 0.5);
+    m->cruise_t = cruise_d / cruise_v;
+    m->decel_t = decel_d / ((end_v + cruise_v) * 0.5);
+}
+
+void __visible
+calculate_trapezoidal(struct move* m, double start_v, double end_v)
+{
+    double max_v2 = m->max_cruise_v2;
+    double start_v2 = start_v * start_v;
+    double end_v2 = end_v * end_v;
+    double accel = m->accel;
+    double distance = m->move_d;
+    // The formula is calculated by solving cruise_v2 from
+    // distance = (cruise_v2 - start_v2) / 2 + (cruise_v2 - end_v2) / 2
+    // which is derived from the standard timeless kinematic formula
+    double cruise_v2 = distance * accel + 0.5 * (start_v2 + end_v2);
+    cruise_v2 = fmin(max_v2, cruise_v2);
+    set_trapezoidal_times(m, distance, start_v2, cruise_v2, end_v2, accel);
 }
 
 struct move* __visible

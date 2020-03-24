@@ -61,6 +61,21 @@ class Move(object):
     def start_a(self, start_a):
         self.c_move.start_a = start_a
     @property
+    def start_v(self):
+        return self.c_move.start_v
+    @start_v.setter
+    def start_v(self, start_v):
+        self.c_move.start_v = start_v
+    @property
+    def cruise_v(self):
+        return self.c_move.cruise_v
+    @cruise_v.setter
+    def cruise_v(self, cruise_v):
+        self.c_move.cruise_v = cruise_v
+    @property
+    def end_v(self):
+        return self.c_move.end_v
+    @property
     def accel_t(self):
         return self.c_move.accel_t
     @accel_t.setter
@@ -132,6 +147,8 @@ class Move(object):
 
         self.c_limit_speed = queue.ffi_lib.limit_speed
         self.c_calc_junction = queue.ffi_lib.calc_junction
+        self.c_set_trapezoidal_times = queue.ffi_lib.set_trapezoidal_times
+        self.c_calculate_trapezoidal = queue.ffi_lib.calculate_trapezoidal
         self.c_move = queue.alloc(start_pos, end_pos, speed, accel,
             accel_to_decel, jerk) 
         self.timing_callbacks = []
@@ -146,46 +163,11 @@ class Move(object):
 
     def set_trapezoidal_times(self, distance, start_v2, cruise_v2, end_v2,
                              accel):
-        start_v2 = min(start_v2, cruise_v2)
-        end_v2 = min(end_v2, cruise_v2)
-        self.accel = accel
-        self.jerk = 0.0
-        # Determine accel, cruise, and decel portions of the move distance
-        half_inv_accel = .5 / accel
-        accel_d = (cruise_v2 - start_v2) * half_inv_accel
-        decel_d = (cruise_v2 - end_v2) * half_inv_accel
-        cruise_d = distance - accel_d - decel_d
-        # Make sure that all distances and therefore the times are positive
-        # Clamp to zero if close to it, so that the whole segment is removed
-        if accel_d < self.tolerance:
-            accel_d = 0
-        if decel_d < self.tolerance:
-            decel_d = 0
-        if cruise_d < self.tolerance:
-            cruise_d = 0
-
-        # Determine move velocities
-        self.start_v = start_v = math.sqrt(start_v2)
-        self.cruise_v = cruise_v = math.sqrt(cruise_v2)
-        self.end_v = end_v = math.sqrt(end_v2)
-        # Determine time spent in each portion of move (time is the
-        # distance divided by average velocity)
-        self.accel_t = accel_d / ((start_v + cruise_v) * 0.5)
-        self.cruise_t = cruise_d / cruise_v
-        self.decel_t = decel_d / ((end_v + cruise_v) * 0.5)
+        self.c_set_trapezoidal_times(self.c_move, distance, start_v2, cruise_v2,
+            end_v2, accel)
 
     def calculate_trapezoidal(self, start_v, end_v):
-        max_v2 = self.max_cruise_v2
-        start_v2 = start_v**2 
-        end_v2 = end_v**2
-        accel = self.accel
-        distance = self.move_d
-        # The formula is calculated by solving cruise_v2 from
-        # distance = (cruise_v2 - start_v2) / 2 + (cruise_v2 - end_v2) / 2
-        # which is derived from the standard timeless kinematic formula
-        cruise_v2 = distance * accel + 0.5 * (start_v2 + end_v2)
-        cruise_v2 = min(max_v2, cruise_v2)
-        self.set_trapezoidal_times(distance, start_v2, cruise_v2, end_v2, accel)
+        self.c_calculate_trapezoidal(self.c_move, start_v, end_v)
 
     def calculate_jerk(self, start_v, end_v):
         # Calculate a jerk limited profile based on the paper
