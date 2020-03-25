@@ -18,6 +18,7 @@ SOURCE_FILES = [
     'pyhelper.c', 'serialqueue.c', 'stepcompress.c', 'itersolve.c', 'trapq.c',
     'move.c', 'mathutil.c', 'kin_cartesian.c', 'kin_corexy.c', 'kin_delta.c',
     'kin_polar.c', 'kin_rotary_delta.c', 'kin_winch.c', 'kin_extruder.c',
+    'planner_trapezoidal.c'
 ]
 DEST_LIB = "c_helper.so"
 OTHER_FILES = [
@@ -98,14 +99,14 @@ defs_move = """
     };
 
     struct move_queue {
-        struct move *moves;
-        unsigned int num_moves;
-        unsigned int next_free;
+        unsigned int allocated_size;
+        unsigned int first;
+        unsigned int size;
     };
 
     struct move_queue* move_queue_alloc(unsigned int num_moves);
     void move_queue_free(struct move_queue *queue);
-    struct move* move_alloc(
+    struct move* move_reserve(
         double *start_pos,
         double *end_pos,
         double speed,
@@ -113,6 +114,8 @@ defs_move = """
         double accel_to_decel,
         double jerk,
         struct move_queue* q);
+    void move_commit(struct move_queue *queue);
+    void move_queue_flush(struct move_queue *queue, unsigned int count);
     void limit_speed(struct move *m, double speed, double accel,
         double max_accel_to_decel);
     void calc_junction(struct move *m, struct move *prev_move,
@@ -200,11 +203,21 @@ defs_std = """
     void free(void*);
 """
 
+defs_planner_trapezoidal = """
+    struct trapezoidal_planner*
+    trapezoidal_planner_alloc(struct move_queue *queue);
+    void trapezoidal_planner_free(struct trapezoidal_planner *planner);
+    // Returns the number of moves flushed
+    unsigned int trapezoidal_planner_flush(struct trapezoidal_planner *planner,
+        bool lazy);
+"""
+
 defs_all = [
     defs_pyhelper, defs_serialqueue, defs_std,
     defs_stepcompress, defs_itersolve, defs_trapq, defs_move,
     defs_kin_cartesian, defs_kin_corexy, defs_kin_delta, defs_kin_polar,
-    defs_kin_rotary_delta, defs_kin_winch, defs_kin_extruder
+    defs_kin_rotary_delta, defs_kin_winch, defs_kin_extruder,
+    defs_planner_trapezoidal
 ]
 
 # Return the list of file modification times

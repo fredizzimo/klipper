@@ -7,6 +7,7 @@
 #include "move.h"
 #include "compiler.h"
 #include "mathutil.h"
+#include "pyhelper.h"
 #include <stdlib.h>
 #include <float.h>
 #include <math.h>
@@ -14,13 +15,23 @@
 static const double tolerance = 1e-13;
 static const double time_tolerance = 1e-6;
 
+static bool is_non_zero_power_of_two(unsigned int value)
+{
+    return (value & (value -1)) == 0 && value > 0;
+}
+
 struct move_queue* __visible
 move_queue_alloc(unsigned int num_moves)
 {
+    if (!is_non_zero_power_of_two(num_moves))
+    {
+        errorf("The move queue size has to be a power of two");
+    }
     struct move_queue *m = malloc(sizeof(*m));
     m->moves = malloc(sizeof(struct move)*num_moves);
-    m->num_moves = num_moves;
-    m->next_free = 0;
+    m->allocated_size = num_moves;
+    m->size = 0;
+    m->first = 0;
     return m;
 }
 
@@ -707,7 +718,7 @@ can_accelerate_fully(double distance, double start_v, double end_v,
 }
 
 struct move* __visible
-move_alloc(
+move_reserve(
     double *start_pos,
     double *end_pos,
     double speed,
@@ -716,12 +727,20 @@ move_alloc(
     double jerk,
     struct move_queue* q)
 {
-    // TODO: Let the moves re-use the same C move until it's added to the 
-    // planner
-    // That ensures that the moves are continuous for the planner
-    struct move *m = q->moves + (q->next_free % q->num_moves); 
-    ++q->next_free;
+    unsigned int index = (q->first + q->size) & (q->allocated_size - 1);
+    struct move *m = &q->moves[index];
     init_move(m, start_pos, end_pos, speed, accel, accel_to_decel, jerk);
-
     return m;
+}
+
+void __visible move_commit(struct move_queue *queue)
+{
+    queue->size++;
+}
+
+void __visible
+move_queue_flush(struct move_queue *queue, unsigned int count)
+{
+    queue->first += count;
+    queue->size -= count;
 }

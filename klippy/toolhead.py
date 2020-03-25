@@ -31,7 +31,10 @@ class ToolHead:
         self.can_pause = True
         if self.mcu.is_fileoutput():
             self.can_pause = False
-        self.feedrate_planner = TrapezoidalFeedratePlanner(self._process_moves)
+        # TODO: Make sure that the flushing follows this limit
+        self.move_queue = MoveQueue(2048)
+        self.feedrate_planner = TrapezoidalFeedratePlanner(self.move_queue,
+            self._process_moves)
         self.commanded_pos = [0., 0., 0., 0.]
         self.printer.register_event_handler("klippy:shutdown",
                                             self._handle_shutdown)
@@ -67,8 +70,6 @@ class ToolHead:
         self.idle_flush_print_time = 0.
         self.print_stall = 0
         self.drip_completion = None
-        # TODO: Make sure that the flushing follows this limit
-        self.move_queue = MoveQueue(2048)
         # Kinematic step generation scan window time tracking
         self.kin_flush_delay = SDS_CHECK_TIME
         self.kin_flush_times = []

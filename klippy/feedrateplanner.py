@@ -17,18 +17,22 @@ import chelper
 class MoveQueue(object):
     def __init__(self, size):
         ffi_main, ffi_lib = chelper.get_ffi()
-        self.move_alloc = ffi_lib.move_alloc
+        self.move_reserve = ffi_lib.move_reserve
+        self.move_commit = ffi_lib.move_commit
+        self.move_queue_flush = ffi_lib.move_queue_flush
         self.queue = ffi_main.gc(ffi_lib.move_queue_alloc(size),
             ffi_lib.move_queue_free)
         self.ffi_lib = ffi_lib
         self.ffi_main = ffi_main
 
-    def alloc(self, start_pos, end_pos, speed, accel, accel_to_decel, jerk):
-        # TODO: Let the moves re-use the same C move until it's added to the 
-        # planner
-        # That ensures that the moves are continuous for the planner
-        return self.move_alloc(start_pos, end_pos, speed, accel, accel_to_decel,
-            jerk, self.queue)
+    def reserve(self, start_pos, end_pos, speed, accel, accel_to_decel, jerk):
+        return self.move_reserve(start_pos, end_pos, speed, accel,
+            accel_to_decel, jerk, self.queue)
+    def commit(self):
+        self.move_commit(self.queue)
+    def flush(self, count):
+        self.move_queue_flush(self.queue, count)
+        
 
 
 # Class to track each move request
@@ -147,14 +151,14 @@ class Move(object):
 
     def __init__(self, start_pos, end_pos, speed, accel, accel_to_decel, jerk,
             queue):
-
         self.c_limit_speed = queue.ffi_lib.limit_speed
         self.c_calc_junction = queue.ffi_lib.calc_junction
         self.c_set_trapezoidal_times = queue.ffi_lib.set_trapezoidal_times
         self.c_calculate_trapezoidal = queue.ffi_lib.calculate_trapezoidal
         self.c_calculate_jerk = queue.ffi_lib.calculate_jerk
-        self.c_move = queue.alloc(start_pos, end_pos, speed, accel,
+        self.c_move = queue.reserve(start_pos, end_pos, speed, accel,
             accel_to_decel, jerk) 
+        self.queue = queue
         self.timing_callbacks = []
 
     def limit_speed(self, speed, accel, max_accel_to_decel=-1):
@@ -206,6 +210,7 @@ class FeedratePlanner(object):
         self.junction_flush = flush_time
     def add_move(self, move, junction_deviation, extruder_instant_v):
         self.queue.append(move)
+        move.queue.commit()
         if len(self.queue) == 1:
             return
         move.calc_junction(self.queue[-2], junction_deviation,
@@ -225,61 +230,24 @@ class FeedratePlanner(object):
 # Class to track a list of pending move requests and to facilitate
 # "look-ahead" across moves to reduce acceleration between moves.
 class TrapezoidalFeedratePlanner(FeedratePlanner):
-    def __init__(self, flush_callback):
+    def __init__(self, move_queue, flush_callback):
         super(TrapezoidalFeedratePlanner, self).__init__(flush_callback)
+        ffi_main, ffi_lib = chelper.get_ffi()
+        self.c_planner = ffi_main.gc(
+            ffi_lib.trapezoidal_planner_alloc(move_queue.queue),
+            ffi_lib.trapezoidal_planner_free)
+        self.trapezoidal_planner_flush = ffi_lib.trapezoidal_planner_flush
+        self.move_queue = move_queue
+        
     def flush(self, lazy=False):
         self.junction_flush = LOOKAHEAD_FLUSH_TIME
-        update_flush_count = lazy
-        queue = self.queue
-        flush_count = len(queue)
-        # Traverse queue from last to first move and determine maximum
-        # junction speed assuming the robot comes to a complete stop
-        # after the last move.
-        delayed = []
-        next_end_v2 = next_smoothed_v2 = peak_cruise_v2 = 0.
-        for i in range(flush_count-1, -1, -1):
-            move = queue[i]
-            reachable_start_v2 = next_end_v2 + move.delta_v2
-            start_v2 = min(move.max_start_v2, reachable_start_v2)
-            reachable_smoothed_v2 = next_smoothed_v2 + move.smooth_delta_v2
-            smoothed_v2 = min(move.max_smoothed_v2, reachable_smoothed_v2)
-            if smoothed_v2 < reachable_smoothed_v2:
-                # It's possible for this move to accelerate
-                if (smoothed_v2 + move.smooth_delta_v2 > next_smoothed_v2
-                    or delayed):
-                    # This move can decelerate or this is a full accel
-                    # move after a full decel move
-                    if update_flush_count and peak_cruise_v2:
-                        flush_count = i
-                        update_flush_count = False
-                    peak_cruise_v2 = min(move.max_cruise_v2, (
-                        smoothed_v2 + reachable_smoothed_v2) * .5)
-                    if delayed:
-                        # Propagate peak_cruise_v2 to any delayed moves
-                        if not update_flush_count and i < flush_count:
-                            mc_v2 = peak_cruise_v2
-                            for m, ms_v2, me_v2 in reversed(delayed):
-                                mc_v2 = min(mc_v2, ms_v2)
-                                m.set_trapezoidal_times(m.move_d,
-                                    ms_v2, mc_v2, me_v2, m.accel)
-                        del delayed[:]
-                if not update_flush_count and i < flush_count:
-                    cruise_v2 = min((start_v2 + reachable_start_v2) * .5
-                                    , move.max_cruise_v2, peak_cruise_v2)
-                    move.set_trapezoidal_times(move.move_d, start_v2,
-                        cruise_v2, next_end_v2, move.accel)
-            else:
-                # Delay calculating this move until peak_cruise_v2 is known
-                delayed.append((move, start_v2, next_end_v2))
-            next_end_v2 = start_v2
-            next_smoothed_v2 = smoothed_v2
-        if update_flush_count or not flush_count:
-            return
-
-        # Generate step times for all moves ready to be flushed
-        self.flush_callback(queue[:flush_count])
-        # Remove processed moves from the queue
-        del queue[:flush_count]
+        flush_count = self.trapezoidal_planner_flush(self.c_planner, lazy)
+        if flush_count > 0:
+            # Generate step times for all moves ready to be flushed
+            self.flush_callback(self.queue[:flush_count])
+            # Remove processed moves from the queue
+            del self.queue[:flush_count]
+            self.move_queue.flush(flush_count) 
 
 
 class JerkFeedratePlanner(FeedratePlanner):
@@ -402,12 +370,13 @@ class JerkFeedratePlanner(FeedratePlanner):
             return ret
 
 
-    def __init__(self, flush_callback):
+    def __init__(self, move_queue, flush_callback):
         super(JerkFeedratePlanner, self).__init__(flush_callback)
         self.virtual_moves = []
         self.current_v = 0
         # TODO: Make sure that we use the same size as the main toolhead queue
         self.virtual_move_queue = MoveQueue(2048)
+        self.move_queue = move_queue
 
     @staticmethod
     def can_combine_with_next(next_move, distance, start_v, end_v, end_v2,
@@ -569,6 +538,7 @@ class JerkFeedratePlanner(FeedratePlanner):
             self.flush_callback(self.queue[:flush_count])
             self.current_v = self.queue[flush_count-1].end_v
             del self.queue[:flush_count]
+            self.move_queue.flush(flush_count) 
         self.virtual_moves = []
 
 class SmoothExtrusionFeedratePlanner(object):
@@ -576,9 +546,10 @@ class SmoothExtrusionFeedratePlanner(object):
     MODE_JERK = 1
     MODE_TRAPEZOIDAL = 2
 
-    def __init__(self, flush_callback):
-        self.trapezoidal_planner = TrapezoidalFeedratePlanner(flush_callback)
-        self.jerk_planner = JerkFeedratePlanner(flush_callback)
+    def __init__(self, move_queue, flush_callback):
+        self.trapezoidal_planner = TrapezoidalFeedratePlanner(move_queue,
+            flush_callback)
+        self.jerk_planner = JerkFeedratePlanner(move_queue, flush_callback)
         self.mode = self.MODE_NONE
 
     def reset(self):

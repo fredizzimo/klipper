@@ -16,7 +16,9 @@ from pytest import assume
 class TestToolHead(object):
     def __init__(self, FeedratePlanner):
         self.moves = []
-        self.feedrate_planner = FeedratePlanner(self._process_moves)
+        self.move_queue = MoveQueue(2048)
+        self.feedrate_planner = FeedratePlanner(self.move_queue,
+            self._process_moves)
         self.max_accel = None
         self.jerk = None
         self.max_velocity = None
@@ -27,7 +29,6 @@ class TestToolHead(object):
         self.extruder = DummyExtruder()
         self.pos = [0.0, 0.0, 0.0, 0.0]
         self.input_moves = []
-        self.move_queue = MoveQueue(2048)
 
     def set_limits(self, max_vel, max_acc, max_acc_to_dec,
         square_corner_velocity, jerk=0, max_extrude_acc=None,

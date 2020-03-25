@@ -36,13 +36,14 @@ struct move {
 
 struct move_queue {
     struct move *moves;
-    unsigned int num_moves;
-    unsigned int next_free;
+    unsigned int allocated_size;
+    unsigned int first;
+    unsigned int size;
 };
 
 struct move_queue* move_queue_alloc(unsigned int num_moves);
 void move_queue_free(struct move_queue *queue);
-struct move* move_alloc(
+struct move* move_reserve(
     double *start_pos,
     double *end_pos,
     double speed,
@@ -50,6 +51,8 @@ struct move* move_alloc(
     double accel_to_decel,
     double jerk,
     struct move_queue* q);
+void move_commit(struct move_queue *queue);
+void move_queue_flush(struct move_queue *queue, unsigned int count);
 void limit_speed(struct move *m, double speed, double accel,
     double max_accel_to_decel);
 void calc_junction(struct move *m, struct move *prev_move,
