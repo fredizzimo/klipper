@@ -18,7 +18,7 @@ SOURCE_FILES = [
     'pyhelper.c', 'serialqueue.c', 'stepcompress.c', 'itersolve.c', 'trapq.c',
     'move.c', 'mathutil.c', 'kin_cartesian.c', 'kin_corexy.c', 'kin_delta.c',
     'kin_polar.c', 'kin_rotary_delta.c', 'kin_winch.c', 'kin_extruder.c',
-    'planner_trapezoidal.c'
+    'planner_trapezoidal.c', 'planner_jerk.c'
 ]
 DEST_LIB = "c_helper.so"
 OTHER_FILES = [
@@ -212,12 +212,19 @@ defs_planner_trapezoidal = """
         bool lazy);
 """
 
+defs_planner_jerk = """
+    struct jerk_planner* jerk_planner_alloc(struct move_queue *queue);
+    void jerk_planner_free(struct jerk_planner *planner);
+    // Returns the number of moves flushed
+    unsigned int jerk_planner_flush(struct jerk_planner *planner, bool lazy);
+"""
+
 defs_all = [
     defs_pyhelper, defs_serialqueue, defs_std,
     defs_stepcompress, defs_itersolve, defs_trapq, defs_move,
     defs_kin_cartesian, defs_kin_corexy, defs_kin_delta, defs_kin_polar,
     defs_kin_rotary_delta, defs_kin_winch, defs_kin_extruder,
-    defs_planner_trapezoidal
+    defs_planner_trapezoidal, defs_planner_jerk
 ]
 
 # Return the list of file modification times

@@ -63,7 +63,7 @@ limit_speed(struct move *m, double speed, double accel,
     m->smooth_delta_v2 = fmin(m->smooth_delta_v2, m->delta_v2);
 }
 
-static void init_move(
+void move_init(
     struct move *m,
     double *start_pos,
     double *end_pos,
@@ -729,7 +729,7 @@ move_reserve(
 {
     unsigned int index = (q->first + q->size) & (q->allocated_size - 1);
     struct move *m = &q->moves[index];
-    init_move(m, start_pos, end_pos, speed, accel, accel_to_decel, jerk);
+    move_init(m, start_pos, end_pos, speed, accel, accel_to_decel, jerk);
     return m;
 }
 

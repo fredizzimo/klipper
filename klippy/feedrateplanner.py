@@ -372,6 +372,12 @@ class JerkFeedratePlanner(FeedratePlanner):
 
     def __init__(self, move_queue, flush_callback):
         super(JerkFeedratePlanner, self).__init__(flush_callback)
+        ffi_main, ffi_lib = chelper.get_ffi()
+        self.c_planner = ffi_main.gc(
+            ffi_lib.jerk_planner_alloc(move_queue.queue),
+            ffi_lib.jerk_planner_free)
+        self.jerk_planner_flush = ffi_lib.jerk_planner_flush
+
         self.virtual_moves = []
         self.current_v = 0
         # TODO: Make sure that we use the same size as the main toolhead queue
@@ -475,71 +481,81 @@ class JerkFeedratePlanner(FeedratePlanner):
 
 
     def flush(self, lazy=False):
-        self.junction_flush = LOOKAHEAD_FLUSH_TIME
-        if not self.queue:
-            return
-        tolerance = 1e-9
-        self.virtual_moves = []
-        self.forward_pass()
-        self.backward_pass()
-        flush_count = 0
-        move_count = 0
-        for vmove in self.virtual_moves:
-            vmove.calculate_profile(self.virtual_move_queue)
-            vmove.calculate_first_segment()
+        if True:
+            self.junction_flush = LOOKAHEAD_FLUSH_TIME
+            flush_count = self.jerk_planner_flush(self.c_planner, lazy)
+            if flush_count > 0:
+                # Generate step times for all moves ready to be flushed
+                self.flush_callback(self.queue[:flush_count])
+                # Remove processed moves from the queue
+                del self.queue[:flush_count]
+                self.move_queue.flush(flush_count) 
+        else:
+            self.junction_flush = LOOKAHEAD_FLUSH_TIME
+            if not self.queue:
+                return
+            tolerance = 1e-9
+            self.virtual_moves = []
+            self.forward_pass()
+            self.backward_pass()
+            flush_count = 0
+            move_count = 0
+            for vmove in self.virtual_moves:
+                vmove.calculate_profile(self.virtual_move_queue)
+                vmove.calculate_first_segment()
 
-            d = 0
+                d = 0
 
-            for move in vmove.moves:
-                move_count += 1
+                for move in vmove.moves:
+                    move_count += 1
 
-                move.jerk = vmove.jerk
+                    move.jerk = vmove.jerk
 
-                d += move.move_d
+                    d += move.move_d
 
-                move.start_v = vmove.v
-                move.start_a = vmove.a
-                move.jerk_t = [0.0] * 7
-                cruise_v = vmove.segment_end_v
-                at_end = False
-                while d >= vmove.segment_end_x - tolerance:
-                    s = vmove.current_segment
-                    move.jerk_t[s] = vmove.move.jerk_t[s]\
-                        - vmove.current_segment_offset
-                    cruise_v = max(cruise_v, vmove.segment_start_v)
-                    if s == 6:
-                        at_end = True
-                        break
+                    move.start_v = vmove.v
+                    move.start_a = vmove.a
+                    move.jerk_t = [0.0] * 7
+                    cruise_v = vmove.segment_end_v
+                    at_end = False
+                    while d >= vmove.segment_end_x - tolerance:
+                        s = vmove.current_segment
+                        move.jerk_t[s] = vmove.move.jerk_t[s]\
+                            - vmove.current_segment_offset
+                        cruise_v = max(cruise_v, vmove.segment_start_v)
+                        if s == 6:
+                            at_end = True
+                            break
 
-                    vmove.calculate_next_segment()
+                        vmove.calculate_next_segment()
 
-                if d < vmove.segment_end_x - tolerance:
-                    move.jerk_t[vmove.current_segment] = vmove.move_to(d)
-                    move.end_v = vmove.v
-                else:
-                    move.end_v = vmove.segment_end_v
+                    if d < vmove.segment_end_x - tolerance:
+                        move.jerk_t[vmove.current_segment] = vmove.move_to(d)
+                        move.end_v = vmove.v
+                    else:
+                        move.end_v = vmove.segment_end_v
 
-                move.cruise_v = max(cruise_v, vmove.v)
+                    move.cruise_v = max(cruise_v, vmove.v)
 
-                target_end_v2 = move.max_cruise_v2
-                if move_count < len(self.queue):
-                    target_end_v2 = self.queue[move_count].max_junction_v2
-                # Flush when the top speed is reached, and there's no
-                # acceleration (at a cruise segment, or at the end)
-                if vmove.current_segment == 3 or at_end:
-                    if abs(move.end_v**2 - target_end_v2) < tolerance:
-                        flush_count = move_count
+                    target_end_v2 = move.max_cruise_v2
+                    if move_count < len(self.queue):
+                        target_end_v2 = self.queue[move_count].max_junction_v2
+                    # Flush when the top speed is reached, and there's no
+                    # acceleration (at a cruise segment, or at the end)
+                    if vmove.current_segment == 3 or at_end:
+                        if abs(move.end_v**2 - target_end_v2) < tolerance:
+                            flush_count = move_count
 
-                move.start_v = max(0, move.start_v)
-                move.end_v = max(0, move.end_v)
-        if not lazy:
-            flush_count = move_count
-        if flush_count > 0:
-            self.flush_callback(self.queue[:flush_count])
-            self.current_v = self.queue[flush_count-1].end_v
-            del self.queue[:flush_count]
-            self.move_queue.flush(flush_count) 
-        self.virtual_moves = []
+                    move.start_v = max(0, move.start_v)
+                    move.end_v = max(0, move.end_v)
+            if not lazy:
+                flush_count = move_count
+            if flush_count > 0:
+                self.flush_callback(self.queue[:flush_count])
+                self.current_v = self.queue[flush_count-1].end_v
+                del self.queue[:flush_count]
+                self.move_queue.flush(flush_count) 
+            self.virtual_moves = []
 
 class SmoothExtrusionFeedratePlanner(object):
     MODE_NONE = 0

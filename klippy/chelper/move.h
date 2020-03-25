@@ -51,6 +51,14 @@ struct move* move_reserve(
     double accel_to_decel,
     double jerk,
     struct move_queue* q);
+void move_init(
+    struct move *m,
+    double *start_pos,
+    double *end_pos,
+    double speed,
+    double accel,
+    double accel_to_decel,
+    double jerk);
 void move_commit(struct move_queue *queue);
 void move_queue_flush(struct move_queue *queue, unsigned int count);
 void limit_speed(struct move *m, double speed, double accel,
