@@ -525,6 +525,7 @@ jerk_planner_flush(struct jerk_planner *planner, bool lazy)
         struct move *last_flushed = 
             &moves[(planner->queue->first + flush_count - 1) & mask];
         planner->current_v = last_flushed->end_v;
+        move_queue_flush(planner->queue, flush_count);
     }
     return flush_count;
 }

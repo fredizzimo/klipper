@@ -16,7 +16,6 @@ class MoveQueue(object):
         ffi_main, ffi_lib = chelper.get_ffi()
         self.move_reserve = ffi_lib.move_reserve
         self.move_commit = ffi_lib.move_commit
-        self.move_queue_flush = ffi_lib.move_queue_flush
         self.queue = ffi_main.gc(ffi_lib.move_queue_alloc(size),
             ffi_lib.move_queue_free)
         self.ffi_lib = ffi_lib
@@ -27,9 +26,6 @@ class MoveQueue(object):
             accel_to_decel, jerk, self.queue)
     def commit(self):
         self.move_commit(self.queue)
-    def flush(self, count):
-        self.move_queue_flush(self.queue, count)
-        
 
 
 # Class to track each move request
@@ -192,7 +188,6 @@ class TrapezoidalFeedratePlanner(FeedratePlanner):
             ffi_lib.trapezoidal_planner_alloc(move_queue.queue),
             ffi_lib.trapezoidal_planner_free)
         self.trapezoidal_planner_flush = ffi_lib.trapezoidal_planner_flush
-        self.move_queue = move_queue
         
     def flush(self, lazy=False):
         self.junction_flush = LOOKAHEAD_FLUSH_TIME
@@ -202,7 +197,6 @@ class TrapezoidalFeedratePlanner(FeedratePlanner):
             self.flush_callback(self.queue[:flush_count])
             # Remove processed moves from the queue
             del self.queue[:flush_count]
-            self.move_queue.flush(flush_count) 
 
 
 class JerkFeedratePlanner(FeedratePlanner):
@@ -214,9 +208,6 @@ class JerkFeedratePlanner(FeedratePlanner):
             ffi_lib.jerk_planner_free)
         self.jerk_planner_flush = ffi_lib.jerk_planner_flush
 
-        self.virtual_moves = []
-        self.move_queue = move_queue
-
     def flush(self, lazy=False):
         self.junction_flush = LOOKAHEAD_FLUSH_TIME
         flush_count = self.jerk_planner_flush(self.c_planner, lazy)
@@ -225,7 +216,6 @@ class JerkFeedratePlanner(FeedratePlanner):
             self.flush_callback(self.queue[:flush_count])
             # Remove processed moves from the queue
             del self.queue[:flush_count]
-            self.move_queue.flush(flush_count) 
 
 class SmoothExtrusionFeedratePlanner(object):
     MODE_NONE = 0

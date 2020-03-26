@@ -738,8 +738,7 @@ void __visible move_commit(struct move_queue *queue)
     queue->size++;
 }
 
-void __visible
-move_queue_flush(struct move_queue *queue, unsigned int count)
+void move_queue_flush(struct move_queue *queue, unsigned int count)
 {
     queue->first += count;
     queue->size -= count;

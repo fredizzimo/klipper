@@ -115,7 +115,6 @@ defs_move = """
         double jerk,
         struct move_queue* q);
     void move_commit(struct move_queue *queue);
-    void move_queue_flush(struct move_queue *queue, unsigned int count);
     void limit_speed(struct move *m, double speed, double accel,
         double max_accel_to_decel);
     void calc_junction(struct move *m, struct move *prev_move,

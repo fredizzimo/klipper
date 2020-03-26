@@ -123,5 +123,10 @@ trapezoidal_planner_flush(struct trapezoidal_planner *planner, bool lazy)
     if (update_flush_count)
         return 0;
 
+    if (flush_count > 0)
+    {
+        move_queue_flush(planner->queue, flush_count);
+    }
+
     return flush_count;
 }
