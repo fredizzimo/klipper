@@ -37,9 +37,6 @@ class MoveQueue(object):
 
 # Class to track each move request
 class Move(object):
-    tolerance = 1e-13
-    time_tolerance = 1e-6
-
     @property
     def move_d(self):
         return self.c_move.move_d
@@ -61,81 +58,42 @@ class Move(object):
     @property
     def start_a(self):
         return self.c_move.start_a
-    @start_a.setter
-    def start_a(self, start_a):
-        self.c_move.start_a = start_a
     @property
     def start_v(self):
         return self.c_move.start_v
-    @start_v.setter
-    def start_v(self, start_v):
-        self.c_move.start_v = start_v
     @property
     def cruise_v(self):
         return self.c_move.cruise_v
-    @cruise_v.setter
-    def cruise_v(self, cruise_v):
-        self.c_move.cruise_v = cruise_v
     @property
     def end_v(self):
         return self.c_move.end_v
-    @end_v.setter
-    def end_v(self, end_v):
-        self.c_move.end_v = end_v
     @property
     def accel_t(self):
         return self.c_move.accel_t
-    @accel_t.setter
-    def accel_t(self, accel_t):
-        self.c_move.accel_t = accel_t
     @property
     def cruise_t(self):
         return self.c_move.cruise_t
-    @cruise_t.setter
-    def cruise_t(self, cruise_t):
-        self.c_move.cruise_t = cruise_t
     @property
     def decel_t(self):
         return self.c_move.decel_t
-    @decel_t.setter
-    def decel_t(self, decel_t):
-        self.c_move.decel_t = decel_t
     @property    
     def jerk_t(self):
         return self.c_move.jerk_t
-    @jerk_t.setter
-    def jerk_t(self, jerk_t):
-        self.c_move.jerk_t = jerk_t
     @property    
     def max_junction_v2(self):
         return self.c_move.max_junction_v2
-    @max_junction_v2.setter
-    def max_junction_v2(self, max_junction_v2):
-        self.c_move.max_junction_v2 = max_junction_v2
     @property    
     def max_start_v2(self):
         return self.c_move.max_start_v2
-    @max_start_v2.setter
-    def max_start_v2(self, max_start_v2):
-        self.c_move.max_start_v2 = max_start_v2
     @property    
     def max_smoothed_v2(self):
         return self.c_move.max_smoothed_v2
-    @max_smoothed_v2.setter
-    def max_smoothed_v2(self, max_smoothed_v2):
-        self.c_move.max_smoothed_v2 = max_smoothed_v2
     @property    
     def accel(self):
         return self.c_move.accel
-    @accel.setter
-    def accel(self, accel):
-        self.c_move.accel = accel
     @property    
     def jerk(self):
         return self.c_move.jerk
-    @jerk.setter
-    def jerk(self, jerk):
-        self.c_move.jerk = jerk
     @property    
     def max_cruise_v2(self):
         return self.c_move.max_cruise_v2
