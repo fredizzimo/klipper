@@ -245,6 +245,9 @@ class SmoothExtrusionFeedratePlanner(object):
         elif self.mode == self.MODE_TRAPEZOIDAL:
             self.trapezoidal_planner.flush(lazy)
 
+        # Make sure that both planners are using the lookahead flush time
+        self.set_flush_time(LOOKAHEAD_FLUSH_TIME)
+
     def get_last(self):
         if self.mode == self.MODE_JERK:
             return self.jerk_planner.get_last()
