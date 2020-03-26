@@ -161,82 +161,6 @@ static void append_moves(struct virtual_move *to, struct virtual_move *from)
     // This assumes that we are moving backwards, and the moves are continuous
     to->move_count += from->move_count;
 }
-
-static bool can_combine_with_next(
-    struct move *next_move, double distance, double start_v, double end_v,
-    double end_v2, double accel, double jerk, double *reachable_speed)
-{
-    double reachable_end_v = get_max_allowed_jerk_end_speed(
-        distance, start_v, end_v, accel, jerk);
-
-    if (next_move == NULL || next_move->accel != accel ||
-            next_move->jerk != jerk)
-    {
-        *reachable_speed = reachable_end_v;
-        return false;
-    }
-
-    bool can_reach_end = reachable_end_v >= end_v;
-    if (can_reach_end)
-    {
-        *reachable_speed = reachable_end_v;
-        return false;
-    }
-
-    if (next_move->max_cruise_v2 == end_v2)
-    {
-        *reachable_speed = end_v;
-        return true;
-    }
-
-    *reachable_speed = reachable_end_v;
-    return can_accelerate_fully(
-        distance, start_v, end_v, accel, jerk);
-}
-
-//TODO: Eliminate the code duplication here
-static bool can_combine_with_next_vmove(
-    struct virtual_move *next_move, double distance, double start_v, double end_v,
-    double end_v2, double accel, double jerk, double *reachable_speed)
-{
-    double reachable_end_v = get_max_allowed_jerk_end_speed(
-        distance, start_v, end_v, accel, jerk);
-
-    if (next_move == NULL || next_move->accel != accel ||
-            next_move->jerk != jerk)
-    {
-        *reachable_speed = reachable_end_v;
-        return false;
-    }
-
-    bool can_reach_end = reachable_end_v >= end_v;
-    if (can_reach_end)
-    {
-        *reachable_speed = reachable_end_v;
-        return false;
-    }
-
-    if (next_move->cruise_v == end_v)
-    {
-        *reachable_speed = end_v;
-        return true;
-    }
-
-    *reachable_speed = reachable_end_v;
-    return can_accelerate_fully(
-        distance, start_v, end_v, accel, jerk);
-}
-
-
-static void calculate_profile(struct virtual_move *vmove)
-{
-    double start_pos[] = {0.0, 0.0, 0.0, 0.0};
-    double end_pos[] = {vmove->distance, 0.0, 0.0, 0.0};
-    move_init(&vmove->move, start_pos, end_pos, vmove->cruise_v, vmove->accel,
-        vmove->accel, vmove->jerk);
-    calculate_jerk(&vmove->move, vmove->start_v, vmove->end_v);
-}
-
 static double calculate_x(double x, double v, double a, double j, double t)
 {
     const double t2 = t*t;
@@ -343,6 +267,81 @@ static double move_to(struct virtual_move *vmove, double d)
 
     return ret;
 }
+
+static void calculate_profile(struct virtual_move *vmove)
+{
+    double start_pos[] = {0.0, 0.0, 0.0, 0.0};
+    double end_pos[] = {vmove->distance, 0.0, 0.0, 0.0};
+    move_init(&vmove->move, start_pos, end_pos, vmove->cruise_v, vmove->accel,
+        vmove->accel, vmove->jerk);
+    calculate_jerk(&vmove->move, vmove->start_v, vmove->end_v);
+}
+
+static bool can_combine_with_next(
+    struct move *next_move, double distance, double start_v, double end_v,
+    double end_v2, double accel, double jerk, double *reachable_speed)
+{
+    double reachable_end_v = get_max_allowed_jerk_end_speed(
+        distance, start_v, end_v, accel, jerk);
+
+    if (next_move == NULL || next_move->accel != accel ||
+            next_move->jerk != jerk)
+    {
+        *reachable_speed = reachable_end_v;
+        return false;
+    }
+
+    bool can_reach_end = reachable_end_v >= end_v;
+    if (can_reach_end)
+    {
+        *reachable_speed = reachable_end_v;
+        return false;
+    }
+
+    if (next_move->max_cruise_v2 == end_v2)
+    {
+        *reachable_speed = end_v;
+        return true;
+    }
+
+    *reachable_speed = reachable_end_v;
+    return can_accelerate_fully(
+        distance, start_v, end_v, accel, jerk);
+}
+
+//TODO: Eliminate the code duplication here
+static bool can_combine_with_next_vmove(
+    struct virtual_move *next_move, double distance, double start_v, double end_v,
+    double end_v2, double accel, double jerk, double *reachable_speed)
+{
+    double reachable_end_v = get_max_allowed_jerk_end_speed(
+        distance, start_v, end_v, accel, jerk);
+
+    if (next_move == NULL || next_move->accel != accel ||
+            next_move->jerk != jerk)
+    {
+        *reachable_speed = reachable_end_v;
+        return false;
+    }
+
+    bool can_reach_end = reachable_end_v >= end_v;
+    if (can_reach_end)
+    {
+        *reachable_speed = reachable_end_v;
+        return false;
+    }
+
+    if (next_move->cruise_v == end_v)
+    {
+        *reachable_speed = end_v;
+        return true;
+    }
+
+    *reachable_speed = reachable_end_v;
+    return can_accelerate_fully(
+        distance, start_v, end_v, accel, jerk);
+}
+
 
 static void forward_pass(struct jerk_planner *planner)
 {
