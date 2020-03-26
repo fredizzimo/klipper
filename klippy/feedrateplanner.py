@@ -8,7 +8,6 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 
 from __future__ import division
-from abc import abstractmethod
 import chelper
 
 class MoveQueue(object):
@@ -148,11 +147,26 @@ class Move(object):
 
 LOOKAHEAD_FLUSH_TIME = 0.250
 
+# Class to track a list of pending move requests and to facilitate
+# "look-ahead" across moves to reduce acceleration between moves.
 class FeedratePlanner(object):
-    def __init__(self, flush_callback):
+    planner_type = "invalid"
+
+    def __init__(self, move_queue, flush_callback):
         self.flush_callback = flush_callback
         self.queue = []
         self.junction_flush = LOOKAHEAD_FLUSH_TIME
+
+        planner_type = self.planner_type
+        ffi_main, ffi_lib = chelper.get_ffi()
+        planner_alloc = getattr(ffi_lib, planner_type + "_planner_alloc")
+        planner_free = getattr(ffi_lib, planner_type + "_planner_free")
+        planner_flush = getattr(ffi_lib, planner_type + "_planner_flush")
+
+        self.c_planner = ffi_main.gc(
+            planner_alloc(move_queue.queue),
+            planner_free)
+        self.c_flush = planner_flush
 
     def reset(self):
         del self.queue[:]
@@ -174,48 +188,20 @@ class FeedratePlanner(object):
         if self.queue:
             return self.queue[-1]
         return None
-    @abstractmethod
-    def flush(self, lazy=False):
-        return
-
-# Class to track a list of pending move requests and to facilitate
-# "look-ahead" across moves to reduce acceleration between moves.
-class TrapezoidalFeedratePlanner(FeedratePlanner):
-    def __init__(self, move_queue, flush_callback):
-        super(TrapezoidalFeedratePlanner, self).__init__(flush_callback)
-        ffi_main, ffi_lib = chelper.get_ffi()
-        self.c_planner = ffi_main.gc(
-            ffi_lib.trapezoidal_planner_alloc(move_queue.queue),
-            ffi_lib.trapezoidal_planner_free)
-        self.trapezoidal_planner_flush = ffi_lib.trapezoidal_planner_flush
-        
     def flush(self, lazy=False):
         self.junction_flush = LOOKAHEAD_FLUSH_TIME
-        flush_count = self.trapezoidal_planner_flush(self.c_planner, lazy)
+        flush_count = self.c_flush(self.c_planner, lazy)
         if flush_count > 0:
             # Generate step times for all moves ready to be flushed
             self.flush_callback(self.queue[:flush_count])
             # Remove processed moves from the queue
             del self.queue[:flush_count]
-
+    
+class TrapezoidalFeedratePlanner(FeedratePlanner):
+    planner_type = "trapezoidal"
 
 class JerkFeedratePlanner(FeedratePlanner):
-    def __init__(self, move_queue, flush_callback):
-        super(JerkFeedratePlanner, self).__init__(flush_callback)
-        ffi_main, ffi_lib = chelper.get_ffi()
-        self.c_planner = ffi_main.gc(
-            ffi_lib.jerk_planner_alloc(move_queue.queue),
-            ffi_lib.jerk_planner_free)
-        self.jerk_planner_flush = ffi_lib.jerk_planner_flush
-
-    def flush(self, lazy=False):
-        self.junction_flush = LOOKAHEAD_FLUSH_TIME
-        flush_count = self.jerk_planner_flush(self.c_planner, lazy)
-        if flush_count > 0:
-            # Generate step times for all moves ready to be flushed
-            self.flush_callback(self.queue[:flush_count])
-            # Remove processed moves from the queue
-            del self.queue[:flush_count]
+    planner_type = "jerk"
 
 class SmoothExtrusionFeedratePlanner(object):
     MODE_NONE = 0
