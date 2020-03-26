@@ -8,7 +8,6 @@
 #include "move.h"
 #include "mathutil.h"
 #include "compiler.h"
-#include "pyhelper.h"
 #include <stdlib.h>
 #include <math.h>
 
@@ -88,7 +87,7 @@ struct jerk_planner
 
     double current_v;
 
-    struct virtual_move **ouput_vmoves;
+    struct virtual_move **output_vmoves;
     unsigned num_output_moves;
 };
 
@@ -99,7 +98,7 @@ jerk_planner_alloc(struct move_queue *queue)
     planner->queue = queue;
     planner->virtual_moves =
         malloc(sizeof(struct virtual_move)*planner->queue->allocated_size);
-    planner->ouput_vmoves = 
+    planner->output_vmoves = 
         malloc(sizeof(struct virtual_move*)*planner->queue->allocated_size);
     
     planner->current_v = 0.0;
@@ -110,7 +109,7 @@ void __visible
 jerk_planner_free(struct jerk_planner *planner)
 {
     free(planner->virtual_moves);
-    free(planner->ouput_vmoves);
+    free(planner->output_vmoves);
     free(planner);
 }
 
@@ -218,97 +217,6 @@ static bool can_combine_with_next_vmove(
         distance, start_v, end_v, accel, jerk);
 }
 
-static void forward_pass(struct jerk_planner *planner)
-{
-    struct virtual_move *v_move = NULL;
-    double current_v = planner->current_v;
-    const unsigned queue_start = planner->queue->first;
-    const unsigned mask = planner->queue->allocated_size - 1;
-    struct move* moves = planner->queue->moves;
-    const unsigned queue_size = planner->queue->size;
-    for (unsigned i=0; i<queue_size; i++)
-    {
-        struct move *move= &moves[(queue_start + i) & mask];
-        struct move *next_move;
-        double end_v2;
-        if (i != queue_size - 1)
-        {
-            next_move = &moves[(queue_start + i + 1) & mask];
-            end_v2 = next_move->max_junction_v2;
-        }
-        else
-        {
-            next_move = NULL;
-            end_v2 = move->max_cruise_v2;
-        }
-        if (v_move == NULL)
-        {
-            v_move = create_virtual_move(
-                planner, current_v, move->accel, move->jerk);
-        }
-        double end_v = sqrt(end_v2);
-
-        append_move(v_move, queue_start + i);
-
-        v_move->distance += move->move_d;
-
-        double reachable_end_v;
-        bool can_combine = can_combine_with_next(
-            next_move, v_move->distance, v_move->start_v, end_v, end_v2,
-            v_move->accel, v_move->jerk, &reachable_end_v);
-
-        if (!can_combine)
-        {
-            double current_v = fmin(end_v, reachable_end_v);
-            v_move->end_v = current_v;
-            v_move->cruise_v =
-                fmax(v_move->end_v, sqrt(move->max_cruise_v2));
-            append_move(v_move, queue_start + i);
-            v_move = NULL;
-        }
-    }
-}
-
-static void backward_pass(struct jerk_planner *planner)
-{
-    double current_v = 0;
-    planner->num_output_moves = 0;
-    for(struct virtual_move *move = planner->end_vmove-1;
-        move != planner->start_vmove-1;
-        --move)
-    {
-        struct virtual_move *prev_move = NULL;
-        if (move != planner->start_vmove)
-        {
-            prev_move = move - 1;
-        }
-
-        if (move->end_v > current_v)
-        {
-            move->end_v = current_v;
-        }
-
-        double start_v = move->start_v;
-        double start_v2 = start_v * start_v;
-
-        double reachable_start_v;
-        bool can_combine = can_combine_with_next_vmove(
-            prev_move, move->distance, move->end_v, start_v,
-            start_v2, move->accel, move->jerk, &reachable_start_v);
-
-        if (!can_combine)
-        {
-            current_v = fmin(start_v, reachable_start_v);
-            move->start_v = current_v;
-            planner->ouput_vmoves[planner->num_output_moves++] = move;
-        }
-        else
-        {
-            prev_move->distance += move->distance;
-            append_moves(prev_move, move);
-        }
-    }
-}
 
 static void calculate_profile(struct virtual_move *vmove)
 {
@@ -426,6 +334,97 @@ static double move_to(struct virtual_move *vmove, double d)
     return ret;
 }
 
+static void forward_pass(struct jerk_planner *planner)
+{
+    struct virtual_move *v_move = NULL;
+    double current_v = planner->current_v;
+    const unsigned queue_start = planner->queue->first;
+    const unsigned mask = planner->queue->allocated_size - 1;
+    struct move* moves = planner->queue->moves;
+    const unsigned queue_size = planner->queue->size;
+    for (unsigned i=0; i<queue_size; i++)
+    {
+        struct move *move= &moves[(queue_start + i) & mask];
+        struct move *next_move;
+        double end_v2;
+        if (i != queue_size - 1)
+        {
+            next_move = &moves[(queue_start + i + 1) & mask];
+            end_v2 = next_move->max_junction_v2;
+        }
+        else
+        {
+            next_move = NULL;
+            end_v2 = move->max_cruise_v2;
+        }
+        if (v_move == NULL)
+        {
+            v_move = create_virtual_move(
+                planner, current_v, move->accel, move->jerk);
+        }
+        double end_v = sqrt(end_v2);
+
+        append_move(v_move, queue_start + i);
+
+        v_move->distance += move->move_d;
+
+        double reachable_end_v;
+        bool can_combine = can_combine_with_next(
+            next_move, v_move->distance, v_move->start_v, end_v, end_v2,
+            v_move->accel, v_move->jerk, &reachable_end_v);
+
+        if (!can_combine)
+        {
+            current_v = fmin(end_v, reachable_end_v);
+            v_move->end_v = current_v;
+            v_move->cruise_v =
+                fmax(v_move->end_v, sqrt(move->max_cruise_v2));
+            v_move = NULL;
+        }
+    }
+}
+
+static void backward_pass(struct jerk_planner *planner)
+{
+    double current_v = 0;
+    planner->num_output_moves = 0;
+    for(struct virtual_move *move = planner->end_vmove-1;
+        move != planner->start_vmove-1;
+        --move)
+    {
+        struct virtual_move *prev_move = NULL;
+        if (move != planner->start_vmove)
+        {
+            prev_move = move - 1;
+        }
+
+        if (move->end_v > current_v)
+        {
+            move->end_v = current_v;
+        }
+
+        double start_v = move->start_v;
+        double start_v2 = start_v * start_v;
+
+        double reachable_start_v;
+        bool can_combine = can_combine_with_next_vmove(
+            prev_move, move->distance, move->end_v, start_v,
+            start_v2, move->accel, move->jerk, &reachable_start_v);
+
+        if (!can_combine)
+        {
+            current_v = fmin(start_v, reachable_start_v);
+            move->start_v = current_v;
+            planner->output_vmoves[planner->num_output_moves++] = move;
+        }
+        else
+        {
+            prev_move->distance += move->distance;
+            append_moves(prev_move, move);
+        }
+    }
+}
+
 unsigned int __visible
 jerk_planner_flush(struct jerk_planner *planner, bool lazy)
 {
@@ -442,12 +441,11 @@ jerk_planner_flush(struct jerk_planner *planner, bool lazy)
     struct move* moves = planner->queue->moves;
 
     struct virtual_move **end = 
-        planner->ouput_vmoves + planner->num_output_moves - 1;
-    struct virtual_move **start = planner->ouput_vmoves - 1;
+        planner->output_vmoves + planner->num_output_moves - 1;
+    struct virtual_move **start = planner->output_vmoves - 1;
     for(struct virtual_move **itr=end; itr != start; --itr)
     {
         struct virtual_move* vmove = *itr;
-        errorf("num output moves %u", planner->num_output_moves);
 
         calculate_profile(vmove);
         calculate_first_segment(vmove);
@@ -518,11 +516,15 @@ jerk_planner_flush(struct jerk_planner *planner, bool lazy)
             move->end_v = fmax(0, move->end_v);
         }
     }
-    errorf("flush_count %d", flush_count);
-    return 0;
     if (!lazy)
     {
         flush_count = move_count;
+    }
+    if (flush_count > 0)
+    {
+        struct move *last_flushed = 
+            &moves[(planner->queue->first + flush_count - 1) & mask];
+        planner->current_v = last_flushed->end_v;
     }
     return flush_count;
 }
