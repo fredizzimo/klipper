@@ -9,9 +9,6 @@
 
 from __future__ import division
 from abc import abstractmethod
-import math
-from mathutil import newton_raphson
-from sys import float_info
 import chelper
 
 class MoveQueue(object):
