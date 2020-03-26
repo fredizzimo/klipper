@@ -119,14 +119,10 @@ defs_move = """
         double max_accel_to_decel);
     void calc_junction(struct move *m, struct move *prev_move,
         double junction_deviation, double extruder_instant_v);
-    void set_trapezoidal_times(struct move *m, double distance, double start_v2,
-        double cruise_v2, double end_v2, double accel);
     void calculate_trapezoidal(struct move* m, double start_v, double end_v);
     void calculate_jerk(struct move* m, double start_v, double end_v);
     double get_max_allowed_jerk_end_speed(double distance, double start_v,
         double end_v, double max_a, double jerk);
-    bool can_accelerate_fully(double distance, double start_v, double end_v,
-        double accel, double jerk);
 """
 
 defs_kin_cartesian = """

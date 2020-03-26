@@ -198,8 +198,7 @@ calc_junction(struct move *m, struct move *prev_move,
         , prev_move->max_smoothed_v2 + prev_move->smooth_delta_v2);
 }
 
-void __visible
-set_trapezoidal_times(struct move *m, double distance, double start_v2,
+void set_trapezoidal_times(struct move *m, double distance, double start_v2,
     double cruise_v2, double end_v2, double accel)
 {
     start_v2 = fmin(start_v2, cruise_v2);
@@ -697,8 +696,7 @@ get_max_allowed_jerk_end_speed(double distance, double start_v, double end_v,
     }
 }
 
-bool __visible
-can_accelerate_fully(double distance, double start_v, double end_v,
+bool can_accelerate_fully(double distance, double start_v, double end_v,
     double accel, double jerk)
 {
     double jerk_t2 = end_v - start_v;

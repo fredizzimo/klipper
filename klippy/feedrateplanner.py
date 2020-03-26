@@ -103,7 +103,6 @@ class Move(object):
             queue):
         self.c_limit_speed = queue.ffi_lib.limit_speed
         self.c_calc_junction = queue.ffi_lib.calc_junction
-        self.c_set_trapezoidal_times = queue.ffi_lib.set_trapezoidal_times
         self.c_calculate_trapezoidal = queue.ffi_lib.calculate_trapezoidal
         self.c_calculate_jerk = queue.ffi_lib.calculate_jerk
         self.c_move = queue.reserve(start_pos, end_pos, speed, accel,
@@ -119,30 +118,11 @@ class Move(object):
         self.c_calc_junction(self.c_move, prev_move.c_move,
             junction_deviation, extruder_instant_v)
 
-    def set_trapezoidal_times(self, distance, start_v2, cruise_v2, end_v2,
-                             accel):
-        self.c_set_trapezoidal_times(self.c_move, distance, start_v2, cruise_v2,
-            end_v2, accel)
-
     def calculate_trapezoidal(self, start_v, end_v):
         self.c_calculate_trapezoidal(self.c_move, start_v, end_v)
 
     def calculate_jerk(self, start_v, end_v):
         self.c_calculate_jerk(self.c_move, start_v, end_v)
-
-    @staticmethod
-    def get_max_allowed_jerk_end_speed(distance, start_v, end_v, max_a, jerk):
-        # TODO don't lookup the function each time
-        _, ffi_lib = chelper.get_ffi()
-        return ffi_lib.get_max_allowed_jerk_end_speed(distance, start_v, end_v,
-            max_a, jerk)
-
-    @staticmethod
-    def can_accelerate_fully(distance, start_v, end_v, accel, jerk):
-        # TODO don't lookup the function each time
-        _, ffi_lib = chelper.get_ffi()
-        return ffi_lib.can_accelerate_fully(distance, start_v, end_v, accel,
-            jerk)
 
 
 LOOKAHEAD_FLUSH_TIME = 0.250

@@ -8,6 +8,7 @@ from feedrateplanner import Move, MoveQueue
 import pytest
 from math import sqrt
 from move_test_helpers import check_jerk_move as check_move
+import chelper
 
 
 def get_min_allowed_distance_with_const_acc(v1, v2, a_max, jerk):
@@ -24,6 +25,11 @@ def get_min_allowed_distance(v1, v2, jerk):
     distance *= v_e + v_s
     distance /= jerk
     return distance
+
+def get_max_allowed_jerk_end_speed(distance, start_v, end_v, max_a, jerk):
+    _, ffi_lib = chelper.get_ffi()
+    return ffi_lib.get_max_allowed_jerk_end_speed(distance, start_v, end_v,
+        max_a, jerk)
 
 move_queue = MoveQueue(16)
 
@@ -744,7 +750,7 @@ def test_forced_decelerate_even_shorter(move_plotter):
 def test_forced_decelerate_very_short(move_plotter):
     distance = get_min_allowed_distance_with_const_acc(35, 30, 1000, 100000)
     distance -= 0.1
-    end_speed = Move.get_max_allowed_jerk_end_speed(
+    end_speed = get_max_allowed_jerk_end_speed(
         distance, 35, 0, -1000, -100000)
     move = calculate_jerk(distance, 35, 35, end_speed, 1000, 100000)
     move_plotter.plot(move)
@@ -760,7 +766,7 @@ def test_forced_decelerate_very_short(move_plotter):
 
 def test_forced_accelerate(move_plotter):
     distance = get_min_allowed_distance_with_const_acc(30, 35, 1000, 100000)
-    end_speed = Move.get_max_allowed_jerk_end_speed(
+    end_speed = get_max_allowed_jerk_end_speed(
         distance, 30, 100, 1000, 100000)
     move = calculate_jerk(distance, 30, end_speed, end_speed, 1000, 100000)
     move_plotter.plot(move)
@@ -777,7 +783,7 @@ def test_forced_accelerate(move_plotter):
 def test_forced_accelerate_very_short(move_plotter):
     distance = get_min_allowed_distance_with_const_acc(30, 35, 1000, 100000)
     distance -= 0.1
-    end_speed = Move.get_max_allowed_jerk_end_speed(
+    end_speed = get_max_allowed_jerk_end_speed(
         distance, 30, 100, 1000, 100000)
     move = calculate_jerk(distance, 30, end_speed, end_speed, 1000, 100000)
     move_plotter.plot(move)
@@ -792,7 +798,7 @@ def test_forced_accelerate_very_short(move_plotter):
     )
 
 def test_jerk_to_max_allowed_no_const_acc(move_plotter):
-    end_v = Move.get_max_allowed_jerk_end_speed(0.5, 35, 100, 1000, 100000)
+    end_v = get_max_allowed_jerk_end_speed(0.5, 35, 100, 1000, 100000)
     move = calculate_jerk(0.5, 35, end_v, end_v, 1000, 100000)
     move_plotter.plot(move)
     check_move(move,
@@ -806,7 +812,7 @@ def test_jerk_to_max_allowed_no_const_acc(move_plotter):
     )
 
 def test_jerk_to_max_allowed_const_acc(move_plotter):
-    end_v = Move.get_max_allowed_jerk_end_speed(1, 35, 100, 1000, 100000)
+    end_v = get_max_allowed_jerk_end_speed(1, 35, 100, 1000, 100000)
     move = calculate_jerk(1, 35, end_v, end_v, 1000, 100000)
     move_plotter.plot(move)
     check_move(move,
@@ -820,7 +826,7 @@ def test_jerk_to_max_allowed_const_acc(move_plotter):
     )
 
 def test_jerk_to_max_allowed_from_zero_no_const_acc(move_plotter):
-    end_v = Move.get_max_allowed_jerk_end_speed(0.5, 0, 100, 2000, 100000)
+    end_v = get_max_allowed_jerk_end_speed(0.5, 0, 100, 2000, 100000)
     move = calculate_jerk(0.5, 0, end_v, end_v, 2000, 100000)
     move_plotter.plot(move)
     check_move(move,
