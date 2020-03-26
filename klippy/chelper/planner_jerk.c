@@ -88,7 +88,7 @@ struct jerk_planner
     double current_v;
 
     struct virtual_move **output_vmoves;
-    unsigned num_output_moves;
+    unsigned num_output_vmoves;
 };
 
 struct jerk_planner* __visible
@@ -112,7 +112,7 @@ jerk_planner_reset(struct jerk_planner * planner)
     planner->start_vmove = NULL;
     planner->end_vmove = NULL;
     planner->current_v = 0.0;
-    planner->num_output_moves = 0;
+    planner->num_output_vmoves = 0;
 }
 
 void __visible
@@ -232,7 +232,7 @@ struct eval_move_to_state
     double j;
 };
 
-void eval_move_to(struct newton_raphson_result *result, void* user_data)
+static void eval_move_to(struct newton_raphson_result *result, void* user_data)
 {
     struct eval_move_to_state *state = user_data;
     double t = result->x;
@@ -423,7 +423,7 @@ static void backward_pass(struct jerk_planner *planner)
         {
             current_v = fmin(start_v, reachable_start_v);
             move->start_v = current_v;
-            planner->output_vmoves[planner->num_output_moves++] = move;
+            planner->output_vmoves[planner->num_output_vmoves++] = move;
         }
         else
         {
@@ -433,24 +433,79 @@ static void backward_pass(struct jerk_planner *planner)
     }
 }
 
-unsigned int __visible
-jerk_planner_flush(struct jerk_planner *planner, bool lazy)
+static void generate_output_move(
+    struct jerk_planner *planner, struct move *move, struct virtual_move *vmove,
+    const unsigned queue_size, const unsigned mask,
+    unsigned* move_count, unsigned* flush_count, double* distance)
 {
-    const unsigned queue_size = planner->queue->size;
-    const unsigned mask = planner->queue->allocated_size - 1;
-    if (queue_size == 0)
-        return 0;
-    planner->start_vmove = NULL;
-    planner->end_vmove = NULL;
-    planner->num_output_moves = 0;
-    forward_pass(planner);
-    backward_pass(planner);
-    unsigned flush_count = 0;
-    unsigned move_count = 0;
-    struct move* moves = planner->queue->moves;
+    (*move_count)++;
+    move->jerk = vmove->jerk;
 
+    double d = *distance;
+    d += move->move_d;
+
+    move->start_v = vmove->v;
+    move->start_a = vmove->a;
+    for (int j=0;j<7;j++)
+    {
+        move->jerk_t[j] = 0.0;
+    }
+    double cruise_v = vmove->segment_end_v;
+    bool at_end = false;
+    while (d >= vmove->segment_end_x - tolerance)
+    {
+        unsigned s = vmove->current_segment;
+        move->jerk_t[s] = vmove->move.jerk_t[s]
+            - vmove->current_segment_offset;
+        cruise_v = fmax(cruise_v, vmove->segment_start_v);
+        if (s == 6)
+        {
+            at_end = true;
+            break;
+        }
+
+        calculate_next_segment(vmove);
+    }
+
+    if (d < vmove->segment_end_x - tolerance)
+    {
+        move->jerk_t[vmove->current_segment] = move_to(vmove, d);
+        move->end_v = vmove->v;
+    }
+    else
+    {
+        move->end_v = vmove->segment_end_v;
+    }
+
+    move->cruise_v = fmax(cruise_v, vmove->v);
+
+    double target_end_v2 = move->max_cruise_v2;
+    if (*move_count < queue_size)
+    {
+        unsigned index = (planner->queue->first + *move_count) & mask;
+        target_end_v2 = planner->queue->moves[index].max_junction_v2;
+    }
+    // Flush when the top speed is reached, and there's no
+    // acceleration (at a cruise segment, or at the end)
+    if (vmove->current_segment == 3 || at_end)
+    {
+        if (fabs(move->end_v * move->end_v - target_end_v2) < tolerance)
+        {
+            *flush_count = *move_count;
+        }
+    }
+
+    move->start_v = fmax(0, move->start_v);
+    move->end_v = fmax(0, move->end_v);
+    *distance = d;
+}
+
+static void generate_output_moves(struct jerk_planner *planner,
+    struct move *moves, const unsigned queue_size, const unsigned mask,
+    unsigned *move_count, unsigned *flush_count)
+{
     struct virtual_move **end = 
-        planner->output_vmoves + planner->num_output_moves - 1;
+        planner->output_vmoves + planner->num_output_vmoves - 1;
     struct virtual_move **start = planner->output_vmoves - 1;
     for(struct virtual_move **itr=end; itr != start; --itr)
     {
@@ -464,67 +519,33 @@ jerk_planner_flush(struct jerk_planner *planner, bool lazy)
         for (int i=0; i<vmove->move_count;i++)
         {
             struct move *move = &moves[(vmove->start_move_index + i) & mask];
-            move_count += 1;
-
-            move->jerk = vmove->jerk;
-
-            d += move->move_d;
-
-            move->start_v = vmove->v;
-            move->start_a = vmove->a;
-            for (int j=0;j<7;j++)
-            {
-                move->jerk_t[j] = 0.0;
-            }
-            double cruise_v = vmove->segment_end_v;
-            bool at_end = false;
-            while (d >= vmove->segment_end_x - tolerance)
-            {
-                unsigned s = vmove->current_segment;
-                move->jerk_t[s] = vmove->move.jerk_t[s]
-                    - vmove->current_segment_offset;
-                cruise_v = fmax(cruise_v, vmove->segment_start_v);
-                if (s == 6)
-                {
-                    at_end = true;
-                    break;
-                }
-
-                calculate_next_segment(vmove);
-            }
-
-            if (d < vmove->segment_end_x - tolerance)
-            {
-                move->jerk_t[vmove->current_segment] = move_to(vmove, d);
-                move->end_v = vmove->v;
-            }
-            else
-            {
-                move->end_v = vmove->segment_end_v;
-            }
-
-            move->cruise_v = fmax(cruise_v, vmove->v);
-
-            double target_end_v2 = move->max_cruise_v2;
-            if (move_count < queue_size)
-            {
-                unsigned index = (planner->queue->first + move_count) & mask;
-                target_end_v2 = planner->queue->moves[index].max_junction_v2;
-            }
-            // Flush when the top speed is reached, and there's no
-            // acceleration (at a cruise segment, or at the end)
-            if (vmove->current_segment == 3 || at_end)
-            {
-                if (fabs(move->end_v * move->end_v - target_end_v2) < tolerance)
-                {
-                    flush_count = move_count;
-                }
-            }
-
-            move->start_v = fmax(0, move->start_v);
-            move->end_v = fmax(0, move->end_v);
+            generate_output_move(planner, move, vmove, queue_size, mask,
+                move_count, flush_count, &d);
         }
     }
+}
+
+unsigned int __visible
+jerk_planner_flush(struct jerk_planner *planner, bool lazy)
+{
+    const unsigned queue_size = planner->queue->size;
+    if (queue_size == 0)
+        return 0;
+    planner->start_vmove = NULL;
+    planner->end_vmove = NULL;
+    planner->num_output_vmoves = 0;
+
+    const unsigned mask = planner->queue->allocated_size - 1;
+    struct move* moves = planner->queue->moves;
+
+    forward_pass(planner);
+    backward_pass(planner);
+
+    unsigned flush_count = 0;
+    unsigned move_count = 0;
+    generate_output_moves(planner, moves, queue_size, mask, &move_count,
+        &flush_count);
+
     if (!lazy)
     {
         flush_count = move_count;
