@@ -28,7 +28,7 @@ def get_min_allowed_distance(v1, v2, jerk):
 
 def get_max_allowed_jerk_end_speed(distance, start_v, end_v, max_a, jerk):
     _, ffi_lib = chelper.get_ffi()
-    return ffi_lib.get_max_allowed_jerk_end_speed(distance, start_v, end_v,
+    return ffi_lib.move_get_max_allowed_jerk_end_speed(distance, start_v, end_v,
         max_a, jerk)
 
 move_queue = MoveQueue(16)

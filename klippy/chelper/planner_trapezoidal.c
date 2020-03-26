@@ -99,7 +99,7 @@ trapezoidal_planner_flush(struct trapezoidal_planner *planner, bool lazy)
                             const double me_v2 = dm->end_v2;
                             
                             mc_v2 = fmin(mc_v2, ms_v2);
-                            set_trapezoidal_times(m, m->move_d,
+                            move_set_trapezoidal_times(m, m->move_d,
                                 ms_v2, mc_v2, me_v2, m->accel);
                         }
                     }
@@ -112,7 +112,7 @@ trapezoidal_planner_flush(struct trapezoidal_planner *planner, bool lazy)
                     (start_v2 + reachable_start_v2) * .5,
                     move->max_cruise_v2),
                     peak_cruise_v2);
-                set_trapezoidal_times(move, move->move_d, start_v2,
+                move_set_trapezoidal_times(move, move->move_d, start_v2,
                     cruise_v2, next_end_v2, move->accel);
             }
         }

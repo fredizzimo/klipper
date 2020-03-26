@@ -274,7 +274,7 @@ static void calculate_profile(struct virtual_move *vmove)
     double end_pos[] = {vmove->distance, 0.0, 0.0, 0.0};
     move_init(&vmove->move, start_pos, end_pos, vmove->cruise_v, vmove->accel,
         vmove->accel, vmove->jerk);
-    calculate_jerk(&vmove->move, vmove->start_v, vmove->end_v);
+    move_calculate_jerk(&vmove->move, vmove->start_v, vmove->end_v);
 }
 
 static bool try_combine_with_next(
@@ -282,7 +282,7 @@ static bool try_combine_with_next(
     double next_max_cruise_v2, double distance, double start_v, double end_v,
     double end_v2, double accel, double jerk, double *reachable_speed)
 {
-    double reachable_end_v = get_max_allowed_jerk_end_speed(
+    double reachable_end_v = move_get_max_allowed_jerk_end_speed(
         distance, start_v, end_v, accel, jerk);
 
     if (!next_move || next_accel != accel ||
@@ -306,7 +306,7 @@ static bool try_combine_with_next(
     }
 
     *reachable_speed = reachable_end_v;
-    return can_accelerate_fully(
+    return move_can_accelerate_fully(
         distance, start_v, end_v, accel, jerk);
 }
 

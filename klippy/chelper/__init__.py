@@ -115,13 +115,14 @@ defs_move = """
         double jerk,
         struct move_queue* q);
     void move_commit(struct move_queue *queue);
-    void limit_speed(struct move *m, double speed, double accel,
+    void move_limit_speed(struct move *m, double speed, double accel,
         double max_accel_to_decel);
-    void calc_junction(struct move *m, struct move *prev_move,
+    void move_calc_junction(struct move *m, struct move *prev_move,
         double junction_deviation, double extruder_instant_v);
-    void calculate_trapezoidal(struct move* m, double start_v, double end_v);
-    void calculate_jerk(struct move* m, double start_v, double end_v);
-    double get_max_allowed_jerk_end_speed(double distance, double start_v,
+    void move_calculate_trapezoidal(struct move* m, double start_v,
+        double end_v);
+    void move_calculate_jerk(struct move* m, double start_v, double end_v);
+    double move_get_max_allowed_jerk_end_speed(double distance, double start_v,
         double end_v, double max_a, double jerk);
 """
 

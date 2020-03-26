@@ -53,27 +53,6 @@ void move_queue_flush(struct move_queue *queue, unsigned int count)
     queue->size -= count;
 }
 
-void __visible
-limit_speed(struct move *m, double speed, double accel,
-    double max_accel_to_decel)
-{
-    double speed2 = speed * speed;
-    if (speed2 < m->max_cruise_v2)
-    {
-        m->max_cruise_v2 = speed2;
-        m->min_move_t = m->move_d / speed;
-    }
-    m->accel = fmin(m->accel, accel);
-    m->delta_v2 = 2.0 * m->move_d * m->accel;
-    if (max_accel_to_decel > 0)
-    {
-        double smooth_delta_v2 = 2.0 * m->move_d * max_accel_to_decel;
-        m->smooth_delta_v2 = fmin(m->smooth_delta_v2, smooth_delta_v2);
-    }
-
-    m->smooth_delta_v2 = fmin(m->smooth_delta_v2, m->delta_v2);
-}
-
 void move_init(
     struct move *m,
     double *start_pos,
@@ -144,7 +123,28 @@ void move_init(
     m->min_move_t = 0.0;
 
     // NOTE: max accel_to_decel is used for extrude only moves as well
-    limit_speed(m, speed, accel, accel_to_decel);
+    move_limit_speed(m, speed, accel, accel_to_decel);
+}
+
+void __visible
+move_limit_speed(struct move *m, double speed, double accel,
+    double max_accel_to_decel)
+{
+    double speed2 = speed * speed;
+    if (speed2 < m->max_cruise_v2)
+    {
+        m->max_cruise_v2 = speed2;
+        m->min_move_t = m->move_d / speed;
+    }
+    m->accel = fmin(m->accel, accel);
+    m->delta_v2 = 2.0 * m->move_d * m->accel;
+    if (max_accel_to_decel > 0)
+    {
+        double smooth_delta_v2 = 2.0 * m->move_d * max_accel_to_decel;
+        m->smooth_delta_v2 = fmin(m->smooth_delta_v2, smooth_delta_v2);
+    }
+
+    m->smooth_delta_v2 = fmin(m->smooth_delta_v2, m->delta_v2);
 }
 
 static double calc_extruder_junction(struct move *m, struct move *prev_move,
@@ -160,7 +160,7 @@ static double calc_extruder_junction(struct move *m, struct move *prev_move,
 }
 
 void __visible
-calc_junction(struct move *m, struct move *prev_move,
+move_calc_junction(struct move *m, struct move *prev_move,
     double junction_deviation, double extruder_instant_v)
 {
     if (!m->is_kinematic_move || !prev_move->is_kinematic_move)
@@ -198,7 +198,7 @@ calc_junction(struct move *m, struct move *prev_move,
         , prev_move->max_smoothed_v2 + prev_move->smooth_delta_v2);
 }
 
-void set_trapezoidal_times(struct move *m, double distance, double start_v2,
+void move_set_trapezoidal_times(struct move *m, double distance, double start_v2,
     double cruise_v2, double end_v2, double accel)
 {
     start_v2 = fmin(start_v2, cruise_v2);
@@ -234,7 +234,7 @@ void set_trapezoidal_times(struct move *m, double distance, double start_v2,
 }
 
 void __visible
-calculate_trapezoidal(struct move* m, double start_v, double end_v)
+move_calculate_trapezoidal(struct move* m, double start_v, double end_v)
 {
     double max_v2 = m->max_cruise_v2;
     double start_v2 = start_v * start_v;
@@ -246,7 +246,7 @@ calculate_trapezoidal(struct move* m, double start_v, double end_v)
     // which is derived from the standard timeless kinematic formula
     double cruise_v2 = distance * accel + 0.5 * (start_v2 + end_v2);
     cruise_v2 = fmin(max_v2, cruise_v2);
-    set_trapezoidal_times(m, distance, start_v2, cruise_v2, end_v2, accel);
+    move_set_trapezoidal_times(m, distance, start_v2, cruise_v2, end_v2, accel);
 }
 
 struct eval_type_IIII_a_state
@@ -397,7 +397,7 @@ void eval_type_IIII_c(struct newton_raphson_result *result, void* user_data)
 }
 
 void __visible
-calculate_jerk(struct move* m, double start_v, double end_v)
+move_calculate_jerk(struct move* m, double start_v, double end_v)
 {
     // Calculate a jerk limited profile based on the paper
     // FIR filter-based online jerk-constrained trajectory generation
@@ -658,7 +658,7 @@ void eval_get_max_allowed_jerk_end_speed(
 }
 
 double __visible
-get_max_allowed_jerk_end_speed(double distance, double start_v, double end_v,
+move_get_max_allowed_jerk_end_speed(double distance, double start_v, double end_v,
     double max_a, double jerk)
 {
     // TODO Should we use the same tolerances as the global one
@@ -696,7 +696,7 @@ get_max_allowed_jerk_end_speed(double distance, double start_v, double end_v,
     }
 }
 
-bool can_accelerate_fully(double distance, double start_v, double end_v,
+bool move_can_accelerate_fully(double distance, double start_v, double end_v,
     double accel, double jerk)
 {
     double jerk_t2 = end_v - start_v;

@@ -101,10 +101,10 @@ class Move(object):
 
     def __init__(self, start_pos, end_pos, speed, accel, accel_to_decel, jerk,
             queue):
-        self.c_limit_speed = queue.ffi_lib.limit_speed
-        self.c_calc_junction = queue.ffi_lib.calc_junction
-        self.c_calculate_trapezoidal = queue.ffi_lib.calculate_trapezoidal
-        self.c_calculate_jerk = queue.ffi_lib.calculate_jerk
+        self.c_limit_speed = queue.ffi_lib.move_limit_speed
+        self.c_calc_junction = queue.ffi_lib.move_calc_junction
+        self.c_calculate_trapezoidal = queue.ffi_lib.move_calculate_trapezoidal
+        self.c_calculate_jerk = queue.ffi_lib.move_calculate_jerk
         self.c_move = queue.reserve(start_pos, end_pos, speed, accel,
             accel_to_decel, jerk) 
         self.queue = queue
