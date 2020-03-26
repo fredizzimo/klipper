@@ -490,10 +490,11 @@ move_calculate_jerk(struct move* m, double start_v, double end_v)
             c += decel * jerk * start_v2;
             c /= two_accel_decel_jerk;
 
-            // TODO Use the other form of the formula to prevent precision
-            // issues
-            max_v = -b - sqrt(b*b - 4.0*a*c);
-            max_v /= 2.0*a;
+            // b is always negative so use Citardauq formulation to solve the
+            // quadratic equation. Which is more stable especially when
+            // a*c is small compared to b^2
+            max_v = 2.0*c;
+            max_v /= -b + sqrt(b*b - 4.0*a*c);
 
             accel_jerk_t = accel / jerk;
             decel_jerk_t = decel / jerk;
