@@ -101,8 +101,18 @@ jerk_planner_alloc(struct move_queue *queue)
     planner->output_vmoves = 
         malloc(sizeof(struct virtual_move*)*planner->queue->allocated_size);
     
-    planner->current_v = 0.0;
+    jerk_planner_reset(planner);
+    
     return planner;
+}
+
+void __visible
+jerk_planner_reset(struct jerk_planner * planner)
+{
+    planner->start_vmove = NULL;
+    planner->end_vmove = NULL;
+    planner->current_v = 0.0;
+    planner->num_output_moves = 0;
 }
 
 void __visible
@@ -387,7 +397,6 @@ static void forward_pass(struct jerk_planner *planner)
 static void backward_pass(struct jerk_planner *planner)
 {
     double current_v = 0;
-    planner->num_output_moves = 0;
     for(struct virtual_move *move = planner->end_vmove-1;
         move != planner->start_vmove-1;
         --move)
@@ -434,6 +443,7 @@ jerk_planner_flush(struct jerk_planner *planner, bool lazy)
         return 0;
     planner->start_vmove = NULL;
     planner->end_vmove = NULL;
+    planner->num_output_moves = 0;
     forward_pass(planner);
     backward_pass(planner);
     unsigned flush_count = 0;

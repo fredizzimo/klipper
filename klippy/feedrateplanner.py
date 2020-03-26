@@ -162,15 +162,18 @@ class FeedratePlanner(object):
         planner_alloc = getattr(ffi_lib, planner_type + "_planner_alloc")
         planner_free = getattr(ffi_lib, planner_type + "_planner_free")
         planner_flush = getattr(ffi_lib, planner_type + "_planner_flush")
+        planner_reset = getattr(ffi_lib, planner_type + "_planner_reset")
 
         self.c_planner = ffi_main.gc(
             planner_alloc(move_queue.queue),
             planner_free)
         self.c_flush = planner_flush
+        self.c_reset = planner_reset
 
     def reset(self):
         del self.queue[:]
         self.junction_flush = LOOKAHEAD_FLUSH_TIME
+        self.c_reset(self.c_planner)
     def set_flush_time(self, flush_time):
         self.junction_flush = flush_time
     def add_move(self, move, junction_deviation, extruder_instant_v):

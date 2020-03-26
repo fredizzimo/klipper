@@ -30,7 +30,14 @@ trapezoidal_planner_alloc(struct move_queue *queue)
     planner->queue = queue;
     planner->delayed_moves =
         malloc(sizeof(struct delayed_move) * queue->allocated_size);
+    trapezoidal_planner_reset(planner);
     return planner;
+}
+
+void __visible
+trapezoidal_planner_reset(struct trapezoidal_planner *planner)
+{
+    move_queue_reset(planner->queue);
 }
 
 void __visible

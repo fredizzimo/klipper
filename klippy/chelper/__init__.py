@@ -205,6 +205,7 @@ defs_std = """
 defs_planner_trapezoidal = """
     struct trapezoidal_planner*
     trapezoidal_planner_alloc(struct move_queue *queue);
+    void trapezoidal_planner_reset(struct trapezoidal_planner *planner);
     void trapezoidal_planner_free(struct trapezoidal_planner *planner);
     // Returns the number of moves flushed
     unsigned int trapezoidal_planner_flush(struct trapezoidal_planner *planner,
@@ -213,6 +214,7 @@ defs_planner_trapezoidal = """
 
 defs_planner_jerk = """
     struct jerk_planner* jerk_planner_alloc(struct move_queue *queue);
+    void jerk_planner_reset(struct jerk_planner *planner);
     void jerk_planner_free(struct jerk_planner *planner);
     // Returns the number of moves flushed
     unsigned int jerk_planner_flush(struct jerk_planner *planner, bool lazy);

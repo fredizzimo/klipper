@@ -30,9 +30,14 @@ move_queue_alloc(unsigned int num_moves)
     struct move_queue *m = malloc(sizeof(*m));
     m->moves = malloc(sizeof(struct move)*num_moves);
     m->allocated_size = num_moves;
-    m->size = 0;
-    m->first = 0;
+    move_queue_reset(m);
     return m;
+}
+
+void move_queue_reset(struct move_queue *queue)
+{
+    queue->size = 0;
+    queue->first = 0;
 }
 
 void __visible
@@ -40,6 +45,12 @@ move_queue_free(struct move_queue *queue)
 {
     free(queue->moves);
     free(queue);
+}
+
+void move_queue_flush(struct move_queue *queue, unsigned int count)
+{
+    queue->first += count;
+    queue->size -= count;
 }
 
 void __visible
@@ -736,10 +747,4 @@ move_reserve(
 void __visible move_commit(struct move_queue *queue)
 {
     queue->size++;
-}
-
-void move_queue_flush(struct move_queue *queue, unsigned int count)
-{
-    queue->first += count;
-    queue->size -= count;
 }
