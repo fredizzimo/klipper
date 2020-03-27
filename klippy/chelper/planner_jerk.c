@@ -11,11 +11,10 @@
 #include <stdlib.h>
 #include <math.h>
 
-const double tolerance = 1e-9;
-// The move_to tolerance is a time tolerance
+// The tolerance is a time tolerance
 // so to get the distance tolerance you have to divide by the expected 
 // maximum speed 
-const double move_to_tolerance = 1e-9;
+const double tolerance = 1e-9;
 double jerk_multipliers[] = {
     1.0,
     0.0,
@@ -269,7 +268,7 @@ static double move_to(struct virtual_move *vmove, double d)
     struct newton_raphson_result res;
 
     newton_raphson(eval_move_to, 0, vmove->move.jerk_t[vmove->current_segment],
-        move_to_tolerance, 16, &res, &state);
+        tolerance, 16, &res, &state);
 
     double t = res.x;
     vmove->x = res.y + d;
