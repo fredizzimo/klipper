@@ -290,6 +290,26 @@ static void calculate_profile(struct virtual_move *vmove)
     move_calculate_jerk(&vmove->move, vmove->start_v, vmove->end_v);
 }
 
+static void fixup_ratios(struct jerk_planner *planner, struct move *moves,
+    unsigned mask, unsigned flush_count)
+{
+    // Adjust the ratios slightly so that the distances moved becomes correct
+    // that way there will be a slight speed discontinuity rather than position
+    // continuity error because of floating point precision issues
+    unsigned first = planner->queue->first;
+    unsigned last = first + flush_count;
+    for (int i=first;i<last;i++)
+    {
+        struct move *move = &moves[i & mask];
+        double actual_d = calculate_full_distance(move);
+        double ratio = move->move_d / actual_d;
+        for (int j=0;j<4;j++)
+        {
+            move->axes_r[j] *= ratio;
+        }
+    }
+}
+
 static bool try_combine_with_next(
     bool next_move, double next_accel, double next_jerk,
     double next_max_cruise_v2, double distance, double start_v, double end_v,
@@ -569,21 +589,7 @@ jerk_planner_flush(struct jerk_planner *planner, bool lazy)
     }
     if (flush_count > 0)
     {
-        // Adjust the ratios slightly so that the distances moved becomes correct
-        // that way there will be a slight speed discontinuity rather than position
-        // continuity error because of floating point precision issues
-        unsigned first = planner->queue->first;
-        unsigned last = first + flush_count;
-        for (int i=first;i<last;i++)
-        {
-            struct move *move = &moves[i & mask];
-            double actual_d = calculate_full_distance(move);
-            double ratio = move->move_d / actual_d;
-            for (int j=0;j<4;j++)
-            {
-                move->axes_r[j] *= ratio;
-            }
-        }
+        fixup_ratios(planner, moves, mask, flush_count);
 
         struct move *last_flushed = 
             &moves[(planner->queue->first + flush_count - 1) & mask];
