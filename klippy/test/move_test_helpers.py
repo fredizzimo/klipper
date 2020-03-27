@@ -68,4 +68,36 @@ def check_jerk_move(move, distance, start_v, cruise_v, end_v, max_accel,
           for i in range(4))
     with assume: 
         assert pytest.approx(move.end_pos, abs=end_pos_tol) == actual_end_pos
+
+def calculate_speed(v, a, t):
+    return v + a * t
+
+def calculate_cruise_speed(move):
+    return calculate_speed(move.start_v, move.accel,
+        move.accel_t)
+
+def calculate_end_speed(move):
+    return calculate_speed(move.cruise_v, -move.accel,
+        move.decel_t)
+
+def calculate_distance(move):
+    return (move.start_v * move.accel_t +
+        0.5 * move.accel * move.accel_t**2 +
+        move.cruise_v * (move.cruise_t + move.decel_t) -
+        0.5 * move.accel * move.decel_t**2)
+
+def check_trapezoidal_move(move, distance, start_v, cruise_v, end_v):
+    assert move.start_v >= 0
+    assert move.cruise_v >= 0
+    assert move.end_v >= 0
+    assert move.accel_t >= 0
+    assert move.cruise_t >= 0
+    assert move.decel_t >= 0
+    assert pytest.approx(move.start_v) == start_v
+    assert pytest.approx(move.cruise_v) == cruise_v
+    assert pytest.approx(move.end_v) == end_v
+    assert pytest.approx(calculate_cruise_speed(move)) == cruise_v
+    assert pytest.approx(calculate_end_speed(move)) == end_v
+    assert pytest.approx(calculate_distance(move)) == distance
+
     
