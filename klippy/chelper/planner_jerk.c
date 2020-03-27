@@ -12,6 +12,10 @@
 #include <math.h>
 
 const double tolerance = 1e-9;
+// The move_to tolerance is a time tolerance
+// so to get the distance tolerance you have to divide by the expected 
+// maximum speed 
+const double move_to_tolerance = 1e-9;
 double jerk_multipliers[] = {
     1.0,
     0.0,
@@ -183,6 +187,24 @@ static double calculate_a(double a, double j, double t)
     return a + j*t;
 }
 
+static double calculate_full_distance(struct move* m)
+{
+    double* jerk_t = m->jerk_t;
+    double abs_jerk = m->jerk;
+    double x=0.0;
+    double v=m->start_v;
+    double a=m->start_a;
+    for (int i=0;i<7;i++)
+    {
+        double t = jerk_t[i];
+        double j = abs_jerk*jerk_multipliers[i];
+        x = calculate_x(x, v, a, j, t);
+        v = calculate_v(v, a, j, t);
+        a = calculate_a(a, j, t);
+    }
+    return x;
+}
+
 static void calculate_segment_end(struct virtual_move *vmove)
 {
 
@@ -244,8 +266,6 @@ static void eval_move_to(struct newton_raphson_result *result, void* user_data)
 
 static double move_to(struct virtual_move *vmove, double d)
 {
-    double tolerance = 1e-16;
-    
     struct eval_move_to_state state = {
         .x = vmove->segment_start_x - d,
         .v = vmove->segment_start_v,
@@ -256,7 +276,7 @@ static double move_to(struct virtual_move *vmove, double d)
     struct newton_raphson_result res;
 
     newton_raphson(eval_move_to, 0, vmove->move.jerk_t[vmove->current_segment],
-        tolerance, 16, &res, &state);
+        move_to_tolerance, 16, &res, &state);
 
     double t = res.x;
     vmove->x = res.y + d;
@@ -470,18 +490,15 @@ static void generate_output_move(
 
         calculate_next_segment(vmove);
     }
-    double actual_d;
 
     if (d < vmove->segment_end_x - tolerance)
     {
         move->jerk_t[vmove->current_segment] = move_to(vmove, d);
         move->end_v = vmove->v;
-        actual_d = vmove->x;
     }
     else
     {
         move->end_v = vmove->segment_end_v;
-        actual_d = vmove->segment_end_x;
     }
 
     move->cruise_v = fmax(cruise_v, vmove->v);
@@ -504,17 +521,6 @@ static void generate_output_move(
 
     move->start_v = fmax(0, move->start_v);
     move->end_v = fmax(0, move->end_v);
-
-    // Adjust the ratios slightly so that the distances moved becomes correct
-    // that way there will be a slight speed discontinuity rather than position
-    // continuity error because of floating point precision issues
-    double actual_move_d = actual_d - *distance;
-    double ratio = move->move_d / actual_move_d;
-    for (int i=0;i<4;i++)
-    {
-        move->axes_r[i] *= ratio;
-    }
-
     *distance = d;
 }
 
@@ -570,6 +576,22 @@ jerk_planner_flush(struct jerk_planner *planner, bool lazy)
     }
     if (flush_count > 0)
     {
+        // Adjust the ratios slightly so that the distances moved becomes correct
+        // that way there will be a slight speed discontinuity rather than position
+        // continuity error because of floating point precision issues
+        unsigned first = planner->queue->first;
+        unsigned last = first + flush_count;
+        for (int i=first;i<last;i++)
+        {
+            struct move *move = &moves[i & mask];
+            double actual_d = calculate_full_distance(move);
+            double ratio = move->move_d / actual_d;
+            for (int j=0;j<4;j++)
+            {
+                move->axes_r[j] *= ratio;
+            }
+        }
+
         struct move *last_flushed = 
             &moves[(planner->queue->first + flush_count - 1) & mask];
         planner->current_v = last_flushed->end_v;
