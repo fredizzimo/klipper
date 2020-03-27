@@ -40,13 +40,14 @@ def calculate_move(move):
     return distances, speeds, accs, jerks
 
 def check_jerk_move(move, distance, start_v, cruise_v, end_v, max_accel,
-                    max_decel, jerk):
+                    max_decel, jerk, high_precision_end_pos=False):
     distances, speeds, accs, _ = calculate_move(move)
 
     has_acc = (move.jerk_t[0] > 0 or move.jerk_t[1] > 0 or
         move.jerk_t[2] > 0)
     has_dec = (move.jerk_t[4] > 0 or move.jerk_t[5] > 0 or
         move.jerk_t[6] > 0)
+
     for t in move.jerk_t:
         with assume: assert t >= 0, str(move.jerk_t)
     with assume: assert move.jerk == jerk
@@ -57,3 +58,14 @@ def check_jerk_move(move, distance, start_v, cruise_v, end_v, max_accel,
     with assume: assert pytest.approx(accs[0] if has_acc else 0) == max_accel
     with assume: assert pytest.approx(accs[4] if has_dec else 0) == -max_decel
     with assume: assert pytest.approx(distances[-1]) == distance
+
+    if high_precision_end_pos:
+        end_pos_tol = 1e-12
+    else:
+        end_pos_tol = None
+
+    actual_end_pos = tuple(move.start_pos[i] + move.axes_r[i]*distances[-1]
+          for i in range(4))
+    with assume: 
+        assert pytest.approx(move.end_pos, abs=end_pos_tol) == actual_end_pos
+    

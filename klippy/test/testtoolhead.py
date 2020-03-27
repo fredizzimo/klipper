@@ -91,7 +91,7 @@ class TestToolHead(object):
                         axes_d, end_pos):
         move = self.moves[idx]
         check_jerk_move(move, distance, start_v, cruise_v, end_v, max_accel,
-                           max_decel, jerk)
+                           max_decel, jerk, high_precision_end_pos=True)
         with assume: assert move.is_kinematic_move == is_kinematic_move
         with assume: assert pytest.approx(move.axes_r) == axes_r
         with assume: assert pytest.approx(move.axes_d) == axes_d

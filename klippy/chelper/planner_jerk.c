@@ -259,7 +259,7 @@ static double move_to(struct virtual_move *vmove, double d)
         tolerance, 16, &res, &state);
 
     double t = res.x;
-    vmove->x = res.y;
+    vmove->x = res.y + d;
     vmove->v = res.dy;
     vmove->a = calculate_a(state.a, state.j, t);
     double ret = t - vmove->current_segment_offset;
@@ -470,15 +470,18 @@ static void generate_output_move(
 
         calculate_next_segment(vmove);
     }
+    double actual_d;
 
     if (d < vmove->segment_end_x - tolerance)
     {
         move->jerk_t[vmove->current_segment] = move_to(vmove, d);
         move->end_v = vmove->v;
+        actual_d = vmove->x;
     }
     else
     {
         move->end_v = vmove->segment_end_v;
+        actual_d = vmove->segment_end_x;
     }
 
     move->cruise_v = fmax(cruise_v, vmove->v);
@@ -501,6 +504,17 @@ static void generate_output_move(
 
     move->start_v = fmax(0, move->start_v);
     move->end_v = fmax(0, move->end_v);
+
+    // Adjust the ratios slightly so that the distances moved becomes correct
+    // that way there will be a slight speed discontinuity rather than position
+    // continuity error because of floating point precision issues
+    double actual_move_d = actual_d - *distance;
+    double ratio = move->move_d / actual_move_d;
+    for (int i=0;i<4;i++)
+    {
+        move->axes_r[i] *= ratio;
+    }
+
     *distance = d;
 }
 
