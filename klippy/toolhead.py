@@ -31,7 +31,6 @@ class ToolHead:
         self.can_pause = True
         if self.mcu.is_fileoutput():
             self.can_pause = False
-        # TODO: Make sure that the flushing follows this limit
         self.move_queue = MoveQueue(2048)
         self.feedrate_planner = TrapezoidalFeedratePlanner(self.move_queue,
             self._process_moves)
@@ -236,6 +235,11 @@ class ToolHead:
         self.commanded_pos[:] = newpos
         self.kin.set_position(newpos, homing_axes)
     def move(self, newpos, speed):
+        # This should not really happen if the move queue is big enough 
+        # but in case it really is full, then we need to flush the feedrate
+        # planner to make space
+        if self.move_queue.is_full():
+            self.feedrate_planner.flush()
         move = Move(self.commanded_pos, newpos, min(speed, self.max_velocity),
             self.max_accel, self.max_accel_to_decel, self.jerk, self.move_queue)
         if not move.move_d:

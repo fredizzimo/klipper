@@ -53,6 +53,11 @@ void move_queue_flush(struct move_queue *queue, unsigned int count)
     queue->size -= count;
 }
 
+bool __visible move_queue_is_full(struct move_queue *queue)
+{
+    return queue->size == queue->allocated_size;
+}
+
 void move_init(
     struct move *m,
     double *start_pos,
@@ -833,6 +838,11 @@ move_reserve(
     double jerk,
     struct move_queue* q)
 {
+    if (move_queue_is_full(q))
+    {
+        errorf("The move queue is full, flush it before reserving more moves");
+        return NULL;
+    }
     unsigned int index = (q->first + q->size) & (q->allocated_size - 1);
     struct move *m = &q->moves[index];
     move_init(m, start_pos, end_pos, speed, accel, accel_to_decel, jerk);

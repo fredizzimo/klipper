@@ -15,6 +15,7 @@ class MoveQueue(object):
         ffi_main, ffi_lib = chelper.get_ffi()
         self.move_reserve = ffi_lib.move_reserve
         self.move_commit = ffi_lib.move_commit
+        self.move_queue_is_full = ffi_lib.move_queue_is_full
         self.queue = ffi_main.gc(ffi_lib.move_queue_alloc(size),
             ffi_lib.move_queue_free)
         self.ffi_lib = ffi_lib
@@ -25,6 +26,8 @@ class MoveQueue(object):
             accel_to_decel, jerk, self.queue)
     def commit(self):
         self.move_commit(self.queue)
+    def is_full(self):
+        return self.move_queue_is_full(self.queue)
 
 
 # Class to track each move request

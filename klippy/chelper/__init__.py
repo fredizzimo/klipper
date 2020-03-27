@@ -113,7 +113,8 @@ defs_move = """
         double accel,
         double accel_to_decel,
         double jerk,
-        struct move_queue* q);
+        struct move_queue *q);
+    bool move_queue_is_full(struct move_queue *q);
     void move_commit(struct move_queue *queue);
     void move_limit_speed(struct move *m, double speed, double accel,
         double max_accel_to_decel);

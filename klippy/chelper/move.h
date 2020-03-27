@@ -45,6 +45,7 @@ struct move_queue* move_queue_alloc(unsigned int num_moves);
 void move_queue_free(struct move_queue *queue);
 void move_queue_flush(struct move_queue *queue, unsigned int count);
 void move_queue_reset(struct move_queue *queue);
+bool move_queue_is_full(struct move_queue *queue);
 struct move* move_reserve(
     double *start_pos,
     double *end_pos,
