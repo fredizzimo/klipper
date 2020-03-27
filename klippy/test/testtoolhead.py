@@ -65,8 +65,8 @@ class TestToolHead(object):
     def flush(self, lazy=False):
         self.feedrate_planner.flush(lazy)
 
-    def check_move(self, idx, pos, start_v, cruise_v, accel_t, cruise_t,
-        decel_t, distance, axes_r=None, axes_d=None, end_pos=None):
+    def check_trapezoidal_move(self, idx, pos, start_v, cruise_v, accel_t,
+        cruise_t, decel_t, distance, axes_r=None, axes_d=None, end_pos=None):
         move = self.moves[idx]
         if type(pos) == tuple:
             pos = tuple([p for p in pos] + [0] * (4-len(pos)))

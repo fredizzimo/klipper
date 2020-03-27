@@ -99,5 +99,4 @@ def check_trapezoidal_move(move, distance, start_v, cruise_v, end_v):
     assert pytest.approx(calculate_cruise_speed(move)) == cruise_v
     assert pytest.approx(calculate_end_speed(move)) == end_v
     assert pytest.approx(calculate_distance(move)) == distance
-
     

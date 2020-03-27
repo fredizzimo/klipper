@@ -18,7 +18,7 @@ def test_single_long_move(toolhead):
     toolhead.move(100, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=100,
@@ -37,7 +37,7 @@ def test_single_short_move(toolhead):
     toolhead.move(4, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=2000 * sqrt(2 / (0.5*2000)),
@@ -56,7 +56,7 @@ def test_single_no_cruise_move(toolhead):
     toolhead.move(5, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=100,
@@ -77,7 +77,7 @@ def test_move_with_accel_decel_limit(toolhead):
     cruise_v = 1000 * virt_accel_t
     accel_t = cruise_v / 2000
     assert len(toolhead.moves) == 1
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=cruise_v,
@@ -98,7 +98,7 @@ def test_move_with_accel_decel_limit_longer_distance(toolhead):
     cruise_v = 1000 * virt_accel_t
     accel_t = cruise_v / 2000
     assert len(toolhead.moves) == 1
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=cruise_v,
@@ -116,7 +116,7 @@ def test_move_with_long_enough_distance_fo_no_accel_decel_limit(toolhead):
     toolhead.move(10, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=100,
@@ -135,7 +135,7 @@ def test_two_long_moves(toolhead):
     toolhead.move(200, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 2
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=100,
@@ -143,7 +143,7 @@ def test_two_long_moves(toolhead):
         cruise_t=0.975,
         decel_t=0,
         distance=100)
-    toolhead.check_move(1,
+    toolhead.check_trapezoidal_move(1,
         pos=100,
         start_v=100,
         cruise_v=100,
@@ -164,7 +164,7 @@ def test_short_and_long_move(toolhead):
     assert len(toolhead.moves) == 2
     accel1_t=sqrt(2 / (0.5*2000))
     cruise1_v=2000 * accel1_t
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=cruise1_v,
@@ -173,7 +173,7 @@ def test_short_and_long_move(toolhead):
         decel_t=0,
         distance=2)
     accel2_t = (100 - cruise1_v) / 2000
-    toolhead.check_move(1,
+    toolhead.check_trapezoidal_move(1,
         pos=2,
         start_v=cruise1_v,
         cruise_v=100,
@@ -192,7 +192,7 @@ def test_long_and_short_move(toolhead):
     toolhead.move(22, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 2
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=100,
@@ -200,7 +200,7 @@ def test_long_and_short_move(toolhead):
         cruise_t=0.17,
         decel_t=0.00527864045,
         distance=20)
-    toolhead.check_move(1,
+    toolhead.check_trapezoidal_move(1,
         pos=20,
         start_v=89.4427191,
         cruise_v=89.4427191,
@@ -220,7 +220,7 @@ def test_required_decelerate_due_to_upcoming_slow_segment(toolhead):
     toolhead.move(20, max_speed=20)
     toolhead.flush()
     assert len(toolhead.moves) == 3
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=100,
@@ -228,7 +228,7 @@ def test_required_decelerate_due_to_upcoming_slow_segment(toolhead):
         cruise_t=0.071,
         decel_t=0.00417424305044,
         distance=10)
-    toolhead.check_move(1,
+    toolhead.check_trapezoidal_move(1,
         pos=10,
         start_v=91.6515138991,
         cruise_v=91.6515138991,
@@ -236,7 +236,7 @@ def test_required_decelerate_due_to_upcoming_slow_segment(toolhead):
         cruise_t=0,
         decel_t=0.0358257569496,
         distance=2)
-    toolhead.check_move(2,
+    toolhead.check_trapezoidal_move(2,
         pos=12,
         start_v=20,
         cruise_v=20,
@@ -255,7 +255,7 @@ def test_accelerate_to_a_faster_segment(toolhead):
     toolhead.move(20, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 2
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=50,
@@ -263,7 +263,7 @@ def test_accelerate_to_a_faster_segment(toolhead):
         cruise_t=0.1875,
         decel_t=0,
         distance=10)
-    toolhead.check_move(1,
+    toolhead.check_trapezoidal_move(1,
         pos=10,
         start_v=50,
         cruise_v=100,
@@ -282,7 +282,7 @@ def test_square_corner(toolhead):
     toolhead.move((10, 10), max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 2
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=100,
@@ -290,7 +290,7 @@ def test_square_corner(toolhead):
         cruise_t=0.0500625,
         decel_t=0.0475,
         distance=10)
-    toolhead.check_move(1,
+    toolhead.check_trapezoidal_move(1,
         pos=10,
         start_v=5,
         cruise_v=100,
@@ -311,7 +311,7 @@ def test_lookahead_slow_corner(toolhead):
     toolhead.move((10, 0.02), max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 4
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=(0, 0),
         start_v=0,
         cruise_v=100,
@@ -319,7 +319,7 @@ def test_lookahead_slow_corner(toolhead):
         cruise_t=0.0700011300623,
         decel_t=0.00527737701979,
         distance=10)
-    toolhead.check_move(1,
+    toolhead.check_trapezoidal_move(1,
         pos=(10, 0),
         start_v=89.4452459604,
         cruise_v=89.4452459604,
@@ -327,7 +327,7 @@ def test_lookahead_slow_corner(toolhead):
         cruise_t=0,
         decel_t=0.0130988501585,
         distance=sqrt(1.0**2 + 0.01**2))
-    toolhead.check_move(2,
+    toolhead.check_trapezoidal_move(2,
         pos=(11, 0.01),
         start_v=63.2475456434,
         cruise_v=63.2475456434,
@@ -335,7 +335,7 @@ def test_lookahead_slow_corner(toolhead):
         cruise_t=0,
         decel_t=0.0315097170036,
         distance=sqrt(1.0**2 + 0.01**2))
-    toolhead.check_move(3,
+    toolhead.check_trapezoidal_move(3,
         pos=(12, 0.02),
         start_v=0.228111636339,
         cruise_v=63.2457588891,
@@ -357,7 +357,7 @@ def test_accel_decel_limit_over_multiple_moves_at_end(toolhead):
     toolhead.move(5, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 5
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=63.2455532034,
@@ -365,7 +365,7 @@ def test_accel_decel_limit_over_multiple_moves_at_end(toolhead):
         cruise_t=0,
         decel_t=0,
         distance=1)
-    toolhead.check_move(1,
+    toolhead.check_trapezoidal_move(1,
         pos=1,
         start_v=63.2455532034,
         cruise_v=70.7106781187,
@@ -373,7 +373,7 @@ def test_accel_decel_limit_over_multiple_moves_at_end(toolhead):
         cruise_t=0.0106066017178,
         decel_t=0,
         distance=1)
-    toolhead.check_move(2,
+    toolhead.check_trapezoidal_move(2,
         pos=2,
         start_v=70.7106781187,
         cruise_v=70.7106781187,
@@ -381,7 +381,7 @@ def test_accel_decel_limit_over_multiple_moves_at_end(toolhead):
         cruise_t=0.0141421356237,
         decel_t=0,
         distance=1)
-    toolhead.check_move(3,
+    toolhead.check_trapezoidal_move(3,
         pos=3,
         start_v=70.7106781187,
         cruise_v=70.7106781187,
@@ -389,7 +389,7 @@ def test_accel_decel_limit_over_multiple_moves_at_end(toolhead):
         cruise_t=0.0106066017178,
         decel_t=0.00373256245764,
         distance=1)
-    toolhead.check_move(4,
+    toolhead.check_trapezoidal_move(4,
         pos=4,
         start_v=63.2455532034,
         cruise_v=63.2455532034,
@@ -412,7 +412,7 @@ def test_accel_decel_limit_over_multiple_moves_at_start(toolhead):
     toolhead.move(15, max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 6
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=63.2455532034,
@@ -420,7 +420,7 @@ def test_accel_decel_limit_over_multiple_moves_at_start(toolhead):
         cruise_t=0,
         decel_t=0,
         distance=1)
-    toolhead.check_move(1,
+    toolhead.check_trapezoidal_move(1,
         pos=1,
         start_v=63.2455532034,
         cruise_v=63.6396103068,
@@ -428,7 +428,7 @@ def test_accel_decel_limit_over_multiple_moves_at_start(toolhead):
         cruise_t=0.015517065476,
         decel_t=0,
         distance=1)
-    toolhead.check_move(2,
+    toolhead.check_trapezoidal_move(2,
         pos=2,
         start_v=63.6396103068,
         cruise_v=63.6396103068,
@@ -436,7 +436,7 @@ def test_accel_decel_limit_over_multiple_moves_at_start(toolhead):
         cruise_t=0.0157134840264,
         decel_t=0,
         distance=1)
-    toolhead.check_move(3,
+    toolhead.check_trapezoidal_move(3,
         pos=3,
         start_v=63.6396103068,
         cruise_v=63.6396103068,
@@ -444,7 +444,7 @@ def test_accel_decel_limit_over_multiple_moves_at_start(toolhead):
         cruise_t=0.00019641855033,
         decel_t=0.0268198051534,
         distance=1)
-    toolhead.check_move(4,
+    toolhead.check_trapezoidal_move(4,
         pos=4,
         start_v=10,
         cruise_v=10,
@@ -452,7 +452,7 @@ def test_accel_decel_limit_over_multiple_moves_at_start(toolhead):
         cruise_t=0.1,
         decel_t=0,
         distance=1)
-    toolhead.check_move(5,
+    toolhead.check_trapezoidal_move(5,
         pos=5,
         start_v=10,
         cruise_v=100,
@@ -471,7 +471,7 @@ def test_a_single_move_is_not_lazily_flushed(toolhead):
     toolhead.flush(True)
     assert len(toolhead.moves) == 0
     toolhead.flush()
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=100,
@@ -493,7 +493,7 @@ def test_flushing_with_top_speed_reached(
     toolhead.flush(True)
     # Note, the code is conservative, it could flush the two first moves
     assert len(toolhead.moves) == 1
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=100,
@@ -504,7 +504,7 @@ def test_flushing_with_top_speed_reached(
     toolhead.move(40, max_speed=100)
     toolhead.flush(True)
     assert len(toolhead.moves) == 2
-    toolhead.check_move(1,
+    toolhead.check_trapezoidal_move(1,
         pos=10,
         start_v=100,
         cruise_v=100,
@@ -514,7 +514,7 @@ def test_flushing_with_top_speed_reached(
         distance=10)
     toolhead.flush()
     assert len(toolhead.moves) == 4
-    toolhead.check_move(2,
+    toolhead.check_trapezoidal_move(2,
         pos=20,
         start_v=100,
         cruise_v=100,
@@ -522,7 +522,7 @@ def test_flushing_with_top_speed_reached(
         cruise_t=0.1,
         decel_t=0,
         distance=10)
-    toolhead.check_move(3,
+    toolhead.check_trapezoidal_move(3,
         pos=30,
         start_v=100,
         cruise_v=100,
@@ -544,7 +544,7 @@ def test_flushing_with_speed_peak_reached(
     toolhead.flush(True)
     # Note, the code is conservative, it could flush the two first moves
     assert len(toolhead.moves) == 1
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=100,
@@ -577,7 +577,7 @@ def test_flushing_with_speed_peak_reached2(
     toolhead.move(21, max_speed=100)
     toolhead.flush(True)
     assert len(toolhead.moves) == 1
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=100,

@@ -42,7 +42,7 @@ def test_single_long_non_extrusion_move(toolhead):
     toolhead.move((100, 0, 0, 0), max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=0,
         start_v=0,
         cruise_v=100,
@@ -79,7 +79,7 @@ def test_extrusion_move_followed_by_non_extrusion(toolhead):
         axes_d=(100, 0, 0, 100),
         end_pos=(100, 0, 0, 100)
     )
-    toolhead.check_move(1,
+    toolhead.check_trapezoidal_move(1,
         pos=(100, 0, 0, 100),
         start_v=0,
         cruise_v=100,
@@ -133,7 +133,7 @@ def test_a_few_moves_with_non_extrusion_between(toolhead):
         axes_d=(8, 0, 0, 8),
         end_pos=(10, 0, 0, 10)
     )
-    toolhead.check_move(2,
+    toolhead.check_trapezoidal_move(2,
         pos=(10, 0, 0, 10),
         start_v=0,
         cruise_v=89.4427191,
@@ -145,7 +145,7 @@ def test_a_few_moves_with_non_extrusion_between(toolhead):
         axes_d=(2, 0, 0, 0),
         end_pos=(12, 0, 0, 10)
     )
-    toolhead.check_move(3,
+    toolhead.check_trapezoidal_move(3,
         pos=(12, 0, 0, 10),
         start_v=89.4427191,
         cruise_v=100,
@@ -195,7 +195,7 @@ def test_extrude_only_move(toolhead):
     toolhead.move((0, 0, 0, 2), max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=(0, 0, 0, 0),
         start_v=0,
         cruise_v=10,
@@ -221,7 +221,7 @@ def test_extrude_only_move_uses_max_acc_to_dec(toolhead):
     toolhead.move((0, 0, 0, 2), max_speed=100)
     toolhead.flush()
     assert len(toolhead.moves) == 1
-    toolhead.check_move(0,
+    toolhead.check_trapezoidal_move(0,
         pos=(0, 0, 0, 0),
         start_v=0,
         cruise_v=63.2455532034,
@@ -262,7 +262,7 @@ def test_extrude_retract_move_unretract_move(toolhead):
         axes_d=(5, 0, 0, 5),
         end_pos=(5, 0, 0, 5)
     )
-    toolhead.check_move(1,
+    toolhead.check_trapezoidal_move(1,
         pos=(5, 0, 0, 5),
         start_v=0,
         cruise_v=77.4596669241,
@@ -274,7 +274,7 @@ def test_extrude_retract_move_unretract_move(toolhead):
         axes_d=(0, 0, 0, -3),
         end_pos=(5, 0, 0, 2)
     )
-    toolhead.check_move(2,
+    toolhead.check_trapezoidal_move(2,
         pos=(5, 0, 0, 2),
         start_v=0,
         cruise_v=100,
@@ -286,7 +286,7 @@ def test_extrude_retract_move_unretract_move(toolhead):
         axes_d=(10, 0, 0, 0),
         end_pos=(15, 0, 0, 2)
     )
-    toolhead.check_move(3,
+    toolhead.check_trapezoidal_move(3,
         pos=(15, 0, 0, 2),
         start_v=0,
         cruise_v=77.4596669241,
