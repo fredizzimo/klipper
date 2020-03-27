@@ -285,11 +285,11 @@ void eval_type_IIII_a(struct newton_raphson_result *result, void* user_data)
     double y3 = sqrt(y2);
     double y4 = x0*y1;
 
-    double y = -distance;
-    y += (y0 - start_v2) / (2.0*y3);
+    double y = (y0 - start_v2) / (2.0*y3);
     y += (y0 - end_v2) / x1;
     y += max_v*y3 / jerk;
     y += (decel*(max_v + end_v) - y3*y1) / x0;
+    y -= distance;
     result->y = y;
 
     double dy = decel_2*y1;
@@ -333,11 +333,11 @@ void eval_type_IIII_b(struct newton_raphson_result *result, void* user_data)
     double y3 = sqrt(y2);
     double y4 = x0*y1;
 
-    double y = -distance;
-    y += (y0 - end_v2) / (2.0*y3);
+    double y = (y0 - end_v2) / (2.0*y3);
     y += (y0 - start_v2) / x1;
     y += accel*max_v / jerk;
     y += (accel*(start_v - max_v) + y3*(max_v + end_v)) / x0;
+    y -= distance;
     result->y = y;
 
     double dy = accel*y1;
@@ -433,20 +433,27 @@ move_calculate_jerk(struct move* m, double start_v, double end_v)
 
     double decel = accel;
 
-    double accel_jerk_t = accel / jerk;
-    double decel_jerk_t = decel / jerk;
     double delta_accel_v = max_v - start_v;
     double delta_decel_v = max_v - end_v;
-    double accel_t = delta_accel_v / accel;
-    double decel_t = delta_decel_v / decel;
-    double accel_const_t = accel_t - accel_jerk_t;
-    double decel_const_t = decel_t - decel_jerk_t;
+    double delta_accel_v_jerk = delta_accel_v*jerk;
+    double delta_decel_v_jerk = delta_decel_v*jerk;
+    double accel_2 = accel * accel;
+    double decel_2 = accel_2;
 
     // type III adaptations
-    if (accel_const_t < 0.0)
-        accel = sqrt(jerk * delta_accel_v);
-    if (decel_const_t < 0)
-        decel = sqrt(jerk * delta_decel_v);
+    if (delta_accel_v_jerk < accel_2)
+    {
+        accel_2 = delta_accel_v_jerk;
+        accel = sqrt(delta_accel_v_jerk);
+    }
+    if (delta_decel_v_jerk < decel_2)
+    {
+        decel_2 = delta_decel_v_jerk;
+        decel = sqrt(delta_decel_v_jerk);
+    }
+
+    double accel_t = 0.0;
+    double decel_t = 0.0;
 
     double dist_cruise = 0.0;
     if (accel > 0.0 && decel > 0.0)
@@ -470,44 +477,39 @@ move_calculate_jerk(struct move* m, double start_v, double end_v)
 
         if (dist_cruise < 0)
         {
+            const double two_jerk = 2.0*jerk;
+
             // Type II
             dist_cruise = 0.0;
 
-            double m_accel_m_decel = -accel - decel;
-            double accel_2 = accel * accel;
-            double decel_2 = decel * decel;
+            double accel_plus_decel = accel + decel;
 
-            double a = m_accel_m_decel;
-            a /= two_accel_decel;
+            double minus_a = accel_plus_decel / two_accel_decel;
+            double minus_b = accel_plus_decel / two_jerk;
 
-            double b = m_accel_m_decel;
-            b /= 2.0 * jerk;
-
-            double c = -accel_2 * decel * start_v;
-            c -= decel_2 * accel * end_v;
-            c += two_accel_decel_distance_jerk;
+            double c = two_accel_decel_distance_jerk;
+            c -= accel_2 * decel * start_v;
             c += accel * jerk * end_v2;
+            c -= decel_2 * accel * end_v;
             c += decel * jerk * start_v2;
             c /= two_accel_decel_jerk;
 
             // b is always negative so use Citardauq formulation to solve the
             // quadratic equation. Which is more stable especially when
             // a*c is small compared to b^2
+            // Note b and a are already negated, which saves a few operations
+            // calculating them and the final results
             max_v = 2.0*c;
-            max_v /= -b + sqrt(b*b - 4.0*a*c);
+            max_v /= minus_b + sqrt(minus_b*minus_b + 4.0*minus_a*c);
 
-            accel_jerk_t = accel / jerk;
-            decel_jerk_t = decel / jerk;
-            double delta_accel_v = max_v - start_v;
-            double delta_decel_v = max_v - end_v;
-            accel_t = delta_accel_v / accel;
-            decel_t = delta_decel_v / decel;
-            accel_const_t = accel_t - accel_jerk_t;
-            decel_const_t = decel_t - decel_jerk_t;
-            if (accel_const_t < 0)
+            delta_accel_v = max_v - start_v;
+            delta_decel_v = max_v - end_v;
+            delta_accel_v_jerk = delta_accel_v*jerk;
+            delta_decel_v_jerk = delta_decel_v*jerk;
+            if (delta_accel_v_jerk < accel_2)
             {
                 // Type IIII-c
-                if (decel_const_t < 0)
+                if (delta_decel_v_jerk < decel_2)
                 {
                     max_v = fmax(start_v, end_v) + tolerance;
                     struct eval_type_IIII_c_state state = {
@@ -525,15 +527,22 @@ move_calculate_jerk(struct move* m, double start_v, double end_v)
                         tolerance, 16, &res, &state);
 
                     max_v = res.x;
-                    accel = sqrt(jerk*(max_v - start_v));
-                    decel = sqrt(jerk*(max_v - end_v));
+                    delta_accel_v = max_v - start_v;
+                    delta_decel_v = max_v - end_v;
+                    delta_accel_v_jerk = delta_accel_v*jerk;
+                    delta_decel_v_jerk = delta_decel_v*jerk;
+
+                    accel_2 = delta_accel_v_jerk;
+                    accel = sqrt(accel_2);
+                    decel_2 = delta_decel_v_jerk;
+                    decel = sqrt(decel_2);
                 }
                 // Type IIII-a
                 else
                 {
                     max_v = fmax(start_v, end_v) + tolerance;
                     struct eval_type_IIII_a_state state = {
-                        .x0 = 2.0*jerk,
+                        .x0 = two_jerk,
                         .x1 = 2.0*decel,
                         .start_v = start_v,
                         .start_v2 = start_v2,
@@ -548,15 +557,21 @@ move_calculate_jerk(struct move* m, double start_v, double end_v)
                     newton_raphson(eval_type_IIII_a, max_v, abs_max_v,
                         tolerance, 16, &res, &state);
                     max_v = res.x;
-                    accel = sqrt(jerk*(max_v - start_v));
+
+                    delta_accel_v = max_v - start_v;
+                    delta_decel_v = max_v - end_v;
+                    delta_accel_v_jerk = delta_accel_v*jerk;
+
+                    accel_2 = delta_accel_v_jerk;
+                    accel = sqrt(accel_2);
                 }
             }
             // Type IIII-b
-            else if (decel_const_t < 0)
+            else if (delta_decel_v_jerk < decel_2)
             {
                 max_v = fmax(start_v, end_v) + tolerance;
                 struct eval_type_IIII_b_state state = {
-                    .x0 = 2.0*jerk,
+                    .x0 = two_jerk,
                     .x1 = 2.0*accel,
                     .start_v = start_v,
                     .start_v2 = start_v2,
@@ -570,15 +585,23 @@ move_calculate_jerk(struct move* m, double start_v, double end_v)
                 newton_raphson(eval_type_IIII_b, max_v, abs_max_v,
                     tolerance, 16, &res, &state);
                 max_v = res.x;
-                decel = sqrt(jerk*(max_v - end_v));
+                delta_accel_v = max_v - start_v;
+                delta_decel_v = max_v - end_v;
+                delta_decel_v_jerk = delta_decel_v*jerk;
+
+                decel_2 = delta_decel_v_jerk;
+                decel = sqrt(decel_2);
             }
         }
+        accel_t = delta_accel_v / accel;
+        decel_t = delta_decel_v / decel;
     }
     else if (decel > 0)
     {
         dist_cruise = distance;
         dist_cruise -= (max_v*max_v - end_v*end_v) / (2.0*decel);
         dist_cruise -= (decel * (max_v + end_v)) / (2.0*jerk);
+        decel_t = delta_decel_v / decel;
     }
     else
     {
@@ -586,41 +609,31 @@ move_calculate_jerk(struct move* m, double start_v, double end_v)
         dist_cruise -= (max_v*max_v - start_v*start_v) / (2.0*accel);
         dist_cruise -= (accel * (start_v - max_v)) / (2.0*jerk);
         dist_cruise -= (accel * max_v) / jerk;
-    }
-
-    // TODO: This code is duplicated
-    accel_jerk_t = accel / jerk;
-    if (accel_jerk_t < time_tolerance)
-        accel_jerk_t = 0.0;
-    decel_jerk_t = decel / jerk;
-    if (decel_jerk_t < time_tolerance)
-        decel_jerk_t = 0.0;
-    delta_accel_v = max_v - start_v;
-    delta_decel_v = max_v - end_v;
-    if (accel > 0.0)
         accel_t = delta_accel_v / accel;
-    else
-        accel_t = 0.0;
-    if (decel > 0.0)
-        decel_t = delta_decel_v / decel;
-    else
-        decel_t = 0.0;
-    accel_const_t = accel_t - accel_jerk_t;
-    decel_const_t = decel_t - decel_jerk_t;
+    }
 
     m->jerk = jerk;
     m->start_v = start_v;
     m->cruise_v = max_v;
     m->end_v = end_v;
+
+    double accel_jerk_t = accel / jerk;
+    double decel_jerk_t = decel / jerk;
+    double accel_const_t = accel_t - accel_jerk_t;
+    double decel_const_t = decel_t - decel_jerk_t;
     double cruise_t = dist_cruise / max_v;
 
-    // Clamp to zero to remove empty segments
+    // Clamp to zero to remove empty and negative segments
+    if (accel_jerk_t < time_tolerance)
+        accel_jerk_t = 0.0;
+    if (decel_jerk_t < time_tolerance)
+        decel_jerk_t = 0.0;
     if (accel_const_t < time_tolerance)
         accel_const_t = 0.0;
-    if (cruise_t < time_tolerance)
-        cruise_t = 0.0;
     if (decel_const_t < time_tolerance)
         decel_const_t = 0.0;
+    if (cruise_t < time_tolerance)
+        cruise_t = 0.0;
 
     m->jerk_t[0] = accel_jerk_t;
     m->jerk_t[1] = accel_const_t;
