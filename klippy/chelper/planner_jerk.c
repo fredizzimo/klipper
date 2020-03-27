@@ -167,19 +167,12 @@ static void append_moves(struct virtual_move *to, struct virtual_move *from)
 }
 static double calculate_x(double x, double v, double a, double j, double t)
 {
-    const double t2 = t*t;
-    const double t3 = t2*t;
-    x += v*t;
-    x += 0.5 * a*t2;
-    x += j*t3/6.0;
-    return x;
+    return x + t*(v + t*(0.5*a + t*j/6.0));
 }
 
 static double calculate_v(double v, double a, double j, double t)
 {
-    v += a*t;
-    v += 0.5 * j*t*t;
-    return v;
+    return v + t*(a + t*0.5*j);
 }
 
 static double calculate_a(double a, double j, double t)
