@@ -9,7 +9,7 @@ from feedrateplanner import (TrapezoidalFeedratePlanner, JerkFeedratePlanner,
 from kinematics.extruder import DummyExtruder, PrinterExtruder
 from math import sqrt
 import numpy as np
-from move_test_helpers import check_jerk_move
+from move_test_helpers import check_jerk_move, check_trapezoidal_move
 from pytest import assume
 
 
@@ -65,26 +65,35 @@ class TestToolHead(object):
     def flush(self, lazy=False):
         self.feedrate_planner.flush(lazy)
 
-    def check_trapezoidal_move(self, idx, pos, start_v, cruise_v, accel_t,
-        cruise_t, decel_t, distance, axes_r=None, axes_d=None, end_pos=None):
-        move = self.moves[idx]
-        if type(pos) == tuple:
-            pos = tuple([p for p in pos] + [0] * (4-len(pos)))
-        else:
-            pos = (pos, 0, 0, 0)
-        with assume: assert move.start_pos == pos
-        with assume: assert pytest.approx(move.start_v) == start_v
-        with assume: assert pytest.approx(move.cruise_v) == cruise_v
-        with assume: assert pytest.approx(move.accel_t) == accel_t
-        with assume: assert pytest.approx(move.cruise_t) == cruise_t
-        with assume: assert pytest.approx(move.decel_t) == decel_t
-        with assume: assert pytest.approx(get_distance(move)) == distance
-        if axes_r is not None:
+    def check_trapezoidal_move(self, idx, distance, start_v, cruise_v, end_v,
+        accel, is_kinematic_move, axes_r, axes_d, end_pos):
+        if True: 
+            move = self.moves[idx]
+            check_trapezoidal_move(move, distance, start_v, cruise_v, end_v)
+            with assume: assert pytest.approx(move.accel) == accel
+            with assume: assert move.is_kinematic_move == is_kinematic_move
             with assume: assert pytest.approx(move.axes_r) == axes_r
-        if axes_d is not None:
             with assume: assert pytest.approx(move.axes_d) == axes_d
-        if end_pos is not None:
             with assume: assert pytest.approx(move.end_pos) == end_pos
+        else:
+            move = self.moves[idx]
+            if type(pos) == tuple:
+                pos = tuple([p for p in pos] + [0] * (4-len(pos)))
+            else:
+                pos = (pos, 0, 0, 0)
+            with assume: assert move.start_pos == pos
+            with assume: assert pytest.approx(move.start_v) == start_v
+            with assume: assert pytest.approx(move.cruise_v) == cruise_v
+            with assume: assert pytest.approx(move.accel_t) == accel_t
+            with assume: assert pytest.approx(move.cruise_t) == cruise_t
+            with assume: assert pytest.approx(move.decel_t) == decel_t
+            with assume: assert pytest.approx(get_distance(move)) == distance
+            if axes_r is not None:
+                with assume: assert pytest.approx(move.axes_r) == axes_r
+            if axes_d is not None:
+                with assume: assert pytest.approx(move.axes_d) == axes_d
+            if end_pos is not None:
+                with assume: assert pytest.approx(move.end_pos) == end_pos
 
     def check_jerk_move(self, idx, distance, start_v, cruise_v, end_v,
                         max_accel, max_decel, jerk, is_kinematic_move, axes_r,

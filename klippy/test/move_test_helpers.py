@@ -87,16 +87,16 @@ def calculate_distance(move):
         0.5 * move.accel * move.decel_t**2)
 
 def check_trapezoidal_move(move, distance, start_v, cruise_v, end_v):
-    assert move.start_v >= 0
-    assert move.cruise_v >= 0
-    assert move.end_v >= 0
-    assert move.accel_t >= 0
-    assert move.cruise_t >= 0
-    assert move.decel_t >= 0
-    assert pytest.approx(move.start_v) == start_v
-    assert pytest.approx(move.cruise_v) == cruise_v
-    assert pytest.approx(move.end_v) == end_v
-    assert pytest.approx(calculate_cruise_speed(move)) == cruise_v
-    assert pytest.approx(calculate_end_speed(move)) == end_v
-    assert pytest.approx(calculate_distance(move)) == distance
+    with assume: assert move.start_v >= 0
+    with assume: assert move.cruise_v >= 0
+    with assume: assert move.end_v >= 0
+    with assume: assert move.accel_t >= 0
+    with assume: assert move.cruise_t >= 0
+    with assume: assert move.decel_t >= 0
+    with assume: assert pytest.approx(move.start_v) == start_v
+    with assume: assert pytest.approx(move.cruise_v) == cruise_v
+    with assume: assert pytest.approx(move.end_v) == end_v
+    with assume: assert pytest.approx(calculate_cruise_speed(move)) == cruise_v
+    with assume: assert pytest.approx(calculate_end_speed(move)) == end_v
+    with assume: assert pytest.approx(calculate_distance(move)) == distance
     
