@@ -43,6 +43,10 @@ struct virtual_move
     double segment_start_x;
     double segment_start_v;
     double segment_start_a;
+    double segment_start_half_a;
+    double segment_j;
+    double segment_half_j;
+    double segment_sixth_j;
     double segment_end_x;
     double segment_end_v;
     double segment_end_a;
@@ -71,6 +75,10 @@ static void init_virtual_move(struct virtual_move * vmove, double start_v,
     vmove->segment_start_x = 0.0;
     vmove->segment_start_v = 0.0;
     vmove->segment_start_a = 0.0;
+    vmove->segment_start_half_a = 0.0;
+    vmove ->segment_j = 0.0;
+    vmove->segment_half_j = 0.0;
+    vmove->segment_sixth_j = 0.0;
     vmove->segment_end_x = 0.0;
     vmove->segment_end_v = 0.0;
     vmove->segment_end_a = 0.0;
@@ -164,14 +172,15 @@ static void append_moves(struct virtual_move *to, struct virtual_move *from)
     // This assumes that we are moving backwards, and the moves are continuous
     to->move_count += from->move_count;
 }
-static double calculate_x(double x, double v, double a, double j, double t)
+static double calculate_x(double x, double v, double half_a, double sixth_j,
+    double t)
 {
-    return x + t*(v + t*(0.5*a + t*j/6.0));
+    return x + t*(v + t*(half_a + t*sixth_j));
 }
 
-static double calculate_v(double v, double a, double j, double t)
+static double calculate_v(double v, double a, double half_j, double t)
 {
-    return v + t*(a + t*0.5*j);
+    return v + t*(a + t*half_j);
 }
 
 static double calculate_a(double a, double j, double t)
@@ -190,8 +199,8 @@ static double calculate_full_distance(struct move* m)
     {
         double t = jerk_t[i];
         double j = abs_jerk*jerk_multipliers[i];
-        x = calculate_x(x, v, a, j, t);
-        v = calculate_v(v, a, j, t);
+        x = calculate_x(x, v, a*0.5, j / 6.0, t);
+        v = calculate_v(v, a, j*0.5, t);
         a = calculate_a(a, j, t);
     }
     return x;
@@ -200,15 +209,19 @@ static double calculate_full_distance(struct move* m)
 static void calculate_segment_end(struct virtual_move *vmove)
 {
 
-    double j = jerk_multipliers[vmove->current_segment] * vmove->jerk;
+    //double j = jerk_multipliers[vmove->current_segment] * vmove->jerk;
     double t = vmove->move.jerk_t[vmove->current_segment];
 
     double x = vmove->segment_start_x;
     double v = vmove->segment_start_v;
     double a = vmove->segment_start_a;
+    double j = vmove->segment_j;
+    double half_a = vmove->segment_start_half_a;
+    double half_j = vmove->segment_half_j;
+    double sixth_j = vmove->segment_sixth_j;
 
-    vmove->segment_end_x = calculate_x(x, v, a, j, t);
-    vmove->segment_end_v = calculate_v(v, a, j, t);
+    vmove->segment_end_x = calculate_x(x, v, half_a, sixth_j, t);
+    vmove->segment_end_v = calculate_v(v, a, half_j, t);
     vmove->segment_end_a = calculate_a(a, j, t);
 
     vmove->current_segment_offset = 0.0;
@@ -222,19 +235,27 @@ static void calculate_first_segment(struct virtual_move *vmove)
     vmove->segment_start_x = vmove->x;
     vmove->segment_start_v = vmove->v;
     vmove->segment_start_a = vmove->a;
+    vmove->segment_start_half_a = vmove->segment_start_a * 0.5;
+    vmove->segment_j = vmove->jerk * jerk_multipliers[0];
+    vmove->segment_half_j = vmove->segment_j * 0.5;
+    vmove->segment_sixth_j = vmove->segment_j / 6.0;
     vmove->current_segment = 0;
     calculate_segment_end(vmove);
 }
 
 static void calculate_next_segment(struct virtual_move *vmove)
 {
+    vmove->current_segment += 1;
     vmove->x = vmove->segment_end_x;
     vmove->v = vmove->segment_end_v;
     vmove->a = vmove->segment_end_a;
     vmove->segment_start_x = vmove->x;
     vmove->segment_start_v = vmove->v;
     vmove->segment_start_a = vmove->a;
-    vmove->current_segment += 1;
+    vmove->segment_start_half_a = vmove->segment_start_a * 0.5;
+    vmove->segment_j = vmove->jerk * jerk_multipliers[vmove->current_segment];
+    vmove->segment_half_j = vmove->segment_j * 0.5;
+    vmove->segment_sixth_j = vmove->segment_j / 6.0;
     calculate_segment_end(vmove);
 }
 
@@ -243,6 +264,9 @@ struct eval_move_to_state
     double x;
     double v;
     double a;
+    double half_a;
+    double half_j;
+    double sixth_j;
     double j;
 };
 
@@ -250,8 +274,9 @@ static void eval_move_to(struct newton_raphson_result *result, void* user_data)
 {
     struct eval_move_to_state *state = user_data;
     double t = result->x;
-    double x = calculate_x(state->x, state->v, state->a, state->j, t);
-    double v = calculate_v(state->v, state->a, state->j, t);
+    double x = calculate_x(
+        state->x, state->v, state->half_a, state->sixth_j, t);
+    double v = calculate_v(state->v, state->a, state->half_j, t);
     result->y = x;
     result->dy = v;
 }
@@ -262,7 +287,10 @@ static double move_to(struct virtual_move *vmove, double d)
         .x = vmove->segment_start_x - d,
         .v = vmove->segment_start_v,
         .a = vmove->segment_start_a,
-        .j = jerk_multipliers[vmove->current_segment] * vmove->jerk,
+        .half_a = vmove->segment_start_half_a,
+        .half_j = vmove->segment_half_j,
+        .sixth_j = vmove->segment_sixth_j,
+        .j = vmove->segment_j
     };
 
     struct newton_raphson_result res;
