@@ -8,6 +8,7 @@ import os, logging
 class VirtualSD:
     def __init__(self, config):
         printer = config.get_printer()
+        printer.register_event_handler("klippy:shutdown", self.handle_shutdown)
         # sdcard state
         sd = config.get('path')
         self.sdcard_dirname = os.path.normpath(os.path.expanduser(sd))
@@ -15,7 +16,7 @@ class VirtualSD:
         self.file_position = self.file_size = 0
         # Work timer
         self.reactor = printer.get_reactor()
-        self.must_pause_work = False
+        self.must_pause_work = self.cmd_from_sd = False
         self.work_timer = None
         # Register commands
         self.gcode = printer.lookup_object('gcode')
@@ -24,8 +25,8 @@ class VirtualSD:
             self.gcode.register_command(cmd, getattr(self, 'cmd_' + cmd))
         for cmd in ['M28', 'M29', 'M30']:
             self.gcode.register_command(cmd, self.cmd_error)
-    def printer_state(self, state):
-        if state == 'shutdown' and self.work_timer is not None:
+    def handle_shutdown(self):
+        if self.work_timer is not None:
             self.must_pause_work = True
             try:
                 readpos = max(self.file_position - 1024, 0)
@@ -47,7 +48,9 @@ class VirtualSD:
         try:
             filenames = os.listdir(self.sdcard_dirname)
             return [(fname, os.path.getsize(os.path.join(dname, fname)))
-                    for fname in filenames]
+                    for fname in sorted(filenames, key=str.lower)
+                    if not fname.startswith('.')
+                    and os.path.isfile((os.path.join(dname, fname)))]
         except:
             logging.exception("virtual_sdcard get_file_list")
             raise self.gcode.error("Unable to get file list")
@@ -56,6 +59,13 @@ class VirtualSD:
         if self.work_timer is not None and self.file_size:
             progress = float(self.file_position) / self.file_size
         return {'progress': progress}
+    def is_active(self):
+        return self.work_timer is not None
+    def do_pause(self):
+        if self.work_timer is not None:
+            self.must_pause_work = True
+            while self.work_timer is not None and not self.cmd_from_sd:
+                self.reactor.pause(self.reactor.monotonic() + .001)
     # G-Code commands
     def cmd_error(self, params):
         raise self.gcode.error("SD write not supported")
@@ -112,8 +122,7 @@ class VirtualSD:
             self.work_handler, self.reactor.NOW)
     def cmd_M25(self, params):
         # Pause SD print
-        if self.work_timer is not None:
-            self.must_pause_work = True
+        self.do_pause()
     def cmd_M26(self, params):
         # Set SD position
         if self.work_timer is not None:
@@ -122,7 +131,7 @@ class VirtualSD:
         self.file_position = pos
     def cmd_M27(self, params):
         # Report SD print status
-        if self.current_file is None or self.work_timer is None:
+        if self.current_file is None:
             self.gcode.respond("Not SD printing.")
             return
         self.gcode.respond("SD printing byte %d/%d" % (
@@ -138,6 +147,7 @@ class VirtualSD:
             self.gcode.respond_error("Unable to seek file")
             self.work_timer = None
             return self.reactor.NEVER
+        gcode_mutex = self.gcode.get_mutex()
         partial_input = ""
         lines = []
         while not self.must_pause_work:
@@ -162,20 +172,24 @@ class VirtualSD:
                 lines.reverse()
                 self.reactor.pause(self.reactor.NOW)
                 continue
+            # Pause if any other request is pending in the gcode class
+            if gcode_mutex.test():
+                self.reactor.pause(self.reactor.monotonic() + 0.100)
+                continue
             # Dispatch command
+            self.cmd_from_sd = True
             try:
-                res = self.gcode.process_batch([lines[-1]])
-                if not res:
-                    self.reactor.pause(self.reactor.monotonic() + 0.100)
-                    continue
+                self.gcode.run_script(lines[-1])
             except self.gcode.error as e:
                 break
             except:
                 logging.exception("virtual_sdcard dispatch")
                 break
+            self.cmd_from_sd = False
             self.file_position += len(lines.pop()) + 1
         logging.info("Exiting SD card print (position %d)", self.file_position)
         self.work_timer = None
+        self.cmd_from_sd = False
         return self.reactor.NEVER
 
 def load_config(config):
