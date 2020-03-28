@@ -68,23 +68,7 @@ static void init_virtual_move(struct virtual_move * vmove, double start_v,
     vmove->cruise_v = 0;
     vmove->move_count = 0;
     vmove->start_move_index = 0;
-
-    vmove->x = 0.0;
-    vmove->v = 0.0;
-    vmove->a = 0.0;
-    vmove->segment_start_x = 0.0;
-    vmove->segment_start_v = 0.0;
-    vmove->segment_start_a = 0.0;
-    vmove->segment_start_half_a = 0.0;
-    vmove ->segment_j = 0.0;
-    vmove->segment_half_j = 0.0;
-    vmove->segment_sixth_j = 0.0;
-    vmove->segment_end_x = 0.0;
-    vmove->segment_end_v = 0.0;
-    vmove->segment_end_a = 0.0;
-
-    vmove->current_segment = 0.0;
-    vmove->current_segment_offset = 0.0;
+    // The rest of the members don't need to be initialized here
 }
 
 
