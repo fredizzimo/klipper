@@ -4,7 +4,7 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import math, logging
-import homing, probe, mcu
+import homing, probe
 
 SIGNAL_PERIOD = 0.025600
 MIN_CMD_TIME = 4 * SIGNAL_PERIOD
@@ -55,54 +55,47 @@ class BLTouchEndstopWrapper:
         kin = self.printer.lookup_object('toolhead').get_kinematics()
         for stepper in kin.get_steppers('Z'):
             stepper.add_to_endstop(self)
-    def printer_state(self, state):
-        if state == 'connect':
-            self._reset()
-    def _reset(self):
-        try:
-            self.send_cmd_and_verify("reset")
-            self.send_cmd_and_verify("pin_up")
-        except homing.EndstopError:
-            # This is a fatal BLTouch error and should halt the machine
-            raise mcu.error("The BLTouch probe is malfunctioning")
-        return
     def send_cmd(self, print_time, cmd):
-        logging.info("Sending BLTouch command %s" % (cmd, ))
         self.mcu_pwm.set_pwm(print_time, Commands[cmd] / SIGNAL_PERIOD)
-    def send_cmd_and_verify(self, cmd):
-        toolhead = self.printer.lookup_object('toolhead')
-        print_time = toolhead.get_last_move_time()
-        self.send_cmd(print_time, cmd)
-        toolhead.dwell(self.pin_move_time)
-        toolhead.wait_moves()
-        self.mcu_endstop.query_endstop(toolhead.get_last_move_time())
-        if self.mcu_endstop.query_endstop_wait():
-            logging.info("BLTouch command %s failed" % (cmd,))
-            raise homing.EndstopError("BLTouch error when running %s" % (cmd))
     def test_sensor(self):
         toolhead = self.printer.lookup_object('toolhead')
-        toolhead.wait_moves()
-        self.mcu_endstop.query_endstop(toolhead.get_last_move_time())
-        if self.mcu_endstop.query_endstop_wait():
-            logging.warning("BLTouch error, trying to reset")
-            self._reset()
-    def home_prepare(self):
-        logging.info("BLTouch prepare")
-        self.test_sensor()
+        print_time = toolhead.get_last_move_time()
+        if print_time < self.next_test_time:
+            self.next_test_time = print_time + TEST_TIME
+            return
+        # Raise the bltouch probe and test if probe is raised
+        self.send_cmd(print_time, 'reset')
+        home_time = print_time + self.pin_move_time
+        self.send_cmd(home_time, 'touch_mode')
+        self.send_cmd(home_time + MIN_CMD_TIME, None)
+        # Perform endstop check to verify bltouch reports probe raised
+        prev_positions = [s.get_commanded_position()
+                          for s in self.mcu_endstop.get_steppers()]
+        self.mcu_endstop.home_start(
+            home_time, ENDSTOP_SAMPLE_TIME, ENDSTOP_SAMPLE_COUNT, .001)
         try:
-            self.send_cmd_and_verify("pin_down")
-        except homing.EndstopError:
-            # Try to reset in order to move the pin up
-            self._reset()
-            raise homing.EndstopError("Failed to prepare the BLTouch probe, it's probably too close to the bed")
+            self.mcu_endstop.home_wait(home_time + MIN_CMD_TIME)
+        except self.mcu_endstop.TimeoutError as e:
+            raise homing.EndstopError("BLTouch sensor test failed")
+        for s, pos in zip(self.mcu_endstop.get_steppers(), prev_positions):
+            s.set_commanded_position(pos)
+        # Test was successful
+        self.next_test_time = home_time + TEST_TIME
+        toolhead.reset_print_time(home_time + 2. * MIN_CMD_TIME)
+    def home_prepare(self):
+        self.test_sensor()
+        toolhead = self.printer.lookup_object('toolhead')
+        print_time = toolhead.get_last_move_time()
+        self.send_cmd(print_time, 'pin_down')
+        self.send_cmd(print_time + self.pin_move_time, 'touch_mode')
+        toolhead.dwell(self.pin_move_time + MIN_CMD_TIME)
         self.mcu_endstop.home_prepare()
     def home_finalize(self):
-        logging.info("BLTouch finalize")
-        try:
-            self.send_cmd_and_verify("pin_up")
-        except homing.EndstopError:
-            self._reset()
-            raise homing.EndstopError("An error was detected during the BLTouch probing")
+        toolhead = self.printer.lookup_object('toolhead')
+        print_time = toolhead.get_last_move_time()
+        self.send_cmd(print_time, 'reset')
+        self.send_cmd(print_time + self.pin_move_time, None)
+        toolhead.dwell(self.pin_move_time + MIN_CMD_TIME)
         self.mcu_endstop.home_finalize()
     def get_position_endstop(self):
         return self.position_endstop
