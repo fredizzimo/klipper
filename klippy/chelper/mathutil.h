@@ -20,7 +20,7 @@ struct newton_raphson_result
 };
 
 typedef void (*nr_callable)
-    (struct newton_raphson_result *result, void *user_data); 
+    (struct newton_raphson_result *result, void *user_data);
 
 void newton_raphson(nr_callable f, double low, double high, double tolerance,
     double maxiter, struct newton_raphson_result *result, void *user_data);

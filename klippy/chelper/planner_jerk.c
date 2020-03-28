@@ -12,8 +12,8 @@
 #include <math.h>
 
 // The tolerance is a time tolerance
-// so to get the distance tolerance you have to divide by the expected 
-// maximum speed 
+// so to get the distance tolerance you have to divide by the expected
+// maximum speed
 const double tolerance = 1e-9;
 double jerk_multipliers[] = {
     1.0,
@@ -101,11 +101,11 @@ jerk_planner_alloc(struct move_queue *queue)
     planner->queue = queue;
     planner->virtual_moves =
         malloc(sizeof(struct virtual_move)*planner->queue->allocated_size);
-    planner->output_vmoves = 
+    planner->output_vmoves =
         malloc(sizeof(struct virtual_move*)*planner->queue->allocated_size);
-    
+
     jerk_planner_reset(planner);
-    
+
     return planner;
 }
 
@@ -126,7 +126,7 @@ jerk_planner_free(struct jerk_planner *planner)
     free(planner);
 }
 
-static struct virtual_move *create_virtual_move(struct jerk_planner *planner, 
+static struct virtual_move *create_virtual_move(struct jerk_planner *planner,
     double start_v, double accel, double jerk)
 {
     if (planner->start_vmove == NULL)
@@ -540,7 +540,7 @@ static void generate_output_moves(struct jerk_planner *planner,
     struct move *moves, const unsigned queue_size, const unsigned mask,
     unsigned *move_count, unsigned *flush_count)
 {
-    struct virtual_move **end = 
+    struct virtual_move **end =
         planner->output_vmoves + planner->num_output_vmoves - 1;
     struct virtual_move **start = planner->output_vmoves - 1;
     for(struct virtual_move **itr=end; itr != start; --itr)
@@ -590,7 +590,7 @@ jerk_planner_flush(struct jerk_planner *planner, bool lazy)
     {
         fixup_ratios(planner, moves, mask, flush_count);
 
-        struct move *last_flushed = 
+        struct move *last_flushed =
             &moves[(planner->queue->first + flush_count - 1) & mask];
         planner->current_v = last_flushed->end_v;
         move_queue_flush(planner->queue, flush_count);

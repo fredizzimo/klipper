@@ -83,7 +83,7 @@ trapezoidal_planner_flush(struct trapezoidal_planner *planner, bool lazy)
                     update_flush_count = false;
                 }
                 peak_cruise_v2 = fmin(
-                    move->max_cruise_v2, 
+                    move->max_cruise_v2,
                     (smoothed_v2 + reachable_smoothed_v2) * .5);
                 if (delayed_count)
                 {
@@ -97,7 +97,7 @@ trapezoidal_planner_flush(struct trapezoidal_planner *planner, bool lazy)
                             struct move *m = dm->m;
                             const double ms_v2 = dm->start_v2;
                             const double me_v2 = dm->end_v2;
-                            
+
                             mc_v2 = fmin(mc_v2, ms_v2);
                             move_set_trapezoidal_times(m, m->move_d,
                                 ms_v2, mc_v2, me_v2, m->accel);

@@ -203,8 +203,8 @@ move_calc_junction(struct move *m, struct move *prev_move,
         , prev_move->max_smoothed_v2 + prev_move->smooth_delta_v2);
 }
 
-void move_set_trapezoidal_times(struct move *m, double distance, double start_v2,
-    double cruise_v2, double end_v2, double accel)
+void move_set_trapezoidal_times(struct move *m, double distance,
+    double start_v2, double cruise_v2, double end_v2, double accel)
 {
     start_v2 = fmin(start_v2, cruise_v2);
     end_v2 = fmin(end_v2, cruise_v2);
@@ -226,9 +226,9 @@ void move_set_trapezoidal_times(struct move *m, double distance, double start_v2
 
     // Determine move velocities
     double start_v = sqrt(start_v2);
-    m->start_v = start_v; 
+    m->start_v = start_v;
     double cruise_v = sqrt(cruise_v2);
-    m->cruise_v = cruise_v; 
+    m->cruise_v = cruise_v;
     double end_v = sqrt(end_v2);
     m->end_v = end_v;
     // Determine time spent in each portion of move (time is the
@@ -527,9 +527,9 @@ void eval_type_IIII_c(struct newton_raphson_result *result, void* user_data)
 }
 
 static void adapt_type_IIII_c(double start_v, double start_v2, double end_v,
-    double end_v2, double distance, double jerk, double abs_max_v, double *max_v,
-    double *accel, double *accel_2, double *decel, double *decel_2,
-    double *delta_accel_v, double *delta_decel_v)
+    double end_v2, double distance, double jerk, double abs_max_v,
+    double *max_v, double *accel, double *accel_2, double *decel,
+    double *decel_2, double *delta_accel_v, double *delta_decel_v)
 {
 
     *max_v = fmax(start_v, end_v) + tolerance;
@@ -724,7 +724,7 @@ move_calculate_jerk(struct move* m, double start_v, double end_v)
     }
     else
     {
-        adapt_no_decel(distance, start_v, max_v, end_v, accel, jerk, 
+        adapt_no_decel(distance, start_v, max_v, end_v, accel, jerk,
             delta_accel_v, &dist_cruise, &accel_t);
     }
 
@@ -760,8 +760,8 @@ void eval_get_max_allowed_jerk_end_speed(
 }
 
 double __visible
-move_get_max_allowed_jerk_end_speed(double distance, double start_v, double end_v,
-    double max_a, double jerk)
+move_get_max_allowed_jerk_end_speed(double distance, double start_v,
+    double end_v, double max_a, double jerk)
 {
     // TODO Should we use the same tolerances as the global one
     double tolerance = 1e-6;
@@ -790,7 +790,7 @@ move_get_max_allowed_jerk_end_speed(double distance, double start_v, double end_
         end_v -= 4.0 * max_a_2 * start_v;
         end_v *= jerk;
         end_v += max_a_4;
-        
+
         end_v = sqrt(end_v);
         end_v -= max_a_2;
         end_v /= 2.0 * jerk;

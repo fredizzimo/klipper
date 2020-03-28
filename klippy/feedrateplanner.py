@@ -41,10 +41,10 @@ class Move(object):
     @property
     def end_pos(self):
         return tuple(self.c_move.end_pos)
-    @property    
+    @property
     def axes_d(self):
         return tuple(self.c_move.axes_d)
-    @property    
+    @property
     def axes_r(self):
         return tuple(self.c_move.axes_r)
     @property
@@ -71,34 +71,34 @@ class Move(object):
     @property
     def decel_t(self):
         return self.c_move.decel_t
-    @property    
+    @property
     def jerk_t(self):
         return self.c_move.jerk_t
-    @property    
+    @property
     def max_junction_v2(self):
         return self.c_move.max_junction_v2
-    @property    
+    @property
     def max_start_v2(self):
         return self.c_move.max_start_v2
-    @property    
+    @property
     def max_smoothed_v2(self):
         return self.c_move.max_smoothed_v2
-    @property    
+    @property
     def accel(self):
         return self.c_move.accel
-    @property    
+    @property
     def jerk(self):
         return self.c_move.jerk
-    @property    
+    @property
     def max_cruise_v2(self):
         return self.c_move.max_cruise_v2
-    @property    
+    @property
     def delta_v2(self):
         return self.c_move.delta_v2
-    @property    
+    @property
     def smooth_delta_v2(self):
         return self.c_move.smooth_delta_v2
-    @property    
+    @property
     def min_move_t(self):
         return self.c_move.min_move_t
 
@@ -109,7 +109,7 @@ class Move(object):
         self.c_calculate_trapezoidal = queue.ffi_lib.move_calculate_trapezoidal
         self.c_calculate_jerk = queue.ffi_lib.move_calculate_jerk
         self.c_move = queue.reserve(start_pos, end_pos, speed, accel,
-            accel_to_decel, jerk) 
+            accel_to_decel, jerk)
         self.queue = queue
         self.timing_callbacks = []
 
@@ -182,7 +182,7 @@ class FeedratePlanner(object):
             self.flush_callback(self.queue[:flush_count])
             # Remove processed moves from the queue
             del self.queue[:flush_count]
-    
+
 class TrapezoidalFeedratePlanner(FeedratePlanner):
     planner_type = "trapezoidal"
 

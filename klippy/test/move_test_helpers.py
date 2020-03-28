@@ -66,7 +66,7 @@ def check_jerk_move(move, distance, start_v, cruise_v, end_v, max_accel,
 
     actual_end_pos = tuple(move.start_pos[i] + move.axes_r[i]*distances[-1]
           for i in range(4))
-    with assume: 
+    with assume:
         assert pytest.approx(move.end_pos, abs=end_pos_tol) == actual_end_pos
 
 def calculate_speed(v, a, t):
@@ -99,4 +99,3 @@ def check_trapezoidal_move(move, distance, start_v, cruise_v, end_v):
     with assume: assert pytest.approx(calculate_cruise_speed(move)) == cruise_v
     with assume: assert pytest.approx(calculate_end_speed(move)) == end_v
     with assume: assert pytest.approx(calculate_distance(move)) == distance
-    

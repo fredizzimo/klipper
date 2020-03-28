@@ -410,7 +410,7 @@ def test_lookahead_slow_corner(toolhead):
         axes_d=(-2, 0, 0, 0),
         end_pos=(10, 0.02, 0, 0)
     )
- 
+
 
 def test_accel_decel_limit_over_multiple_moves_at_end(toolhead):
     toolhead.set_limits(

@@ -238,7 +238,7 @@ class ToolHead:
         self.commanded_pos[:] = newpos
         self.kin.set_position(newpos, homing_axes)
     def move(self, newpos, speed):
-        # This should not really happen if the move queue is big enough 
+        # This should not really happen if the move queue is big enough
         # but in case it really is full, then we need to flush the feedrate
         # planner to make space
         if self.move_queue.is_full():

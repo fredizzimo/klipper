@@ -67,7 +67,7 @@ class TestToolHead(object):
 
     def check_trapezoidal_move(self, idx, distance, start_v, cruise_v, end_v,
         accel, is_kinematic_move, axes_r, axes_d, end_pos):
-        if True: 
+        if True:
             move = self.moves[idx]
             check_trapezoidal_move(move, distance, start_v, cruise_v, end_v)
             with assume: assert pytest.approx(move.accel) == accel
