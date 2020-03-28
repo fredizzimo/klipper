@@ -295,9 +295,9 @@ static void fixup_ratios(struct jerk_planner *planner, struct move *moves,
     // Adjust the ratios slightly so that the distances moved becomes correct
     // that way there will be a slight speed discontinuity rather than position
     // continuity error because of floating point precision issues
-    unsigned first = planner->queue->first;
-    unsigned last = first + flush_count;
-    for (int i=first;i<last;i++)
+    unsigned begin = planner->queue->first;
+    unsigned end = begin + flush_count;
+    for (unsigned i=begin; i!=end; i++)
     {
         struct move *move = &moves[i & mask];
         double actual_d = calculate_full_distance(move);
@@ -383,18 +383,19 @@ static void forward_pass(struct jerk_planner *planner)
 {
     struct virtual_move *v_move = NULL;
     double current_v = planner->current_v;
-    const unsigned queue_start = planner->queue->first;
     const unsigned mask = planner->queue->allocated_size - 1;
     struct move* moves = planner->queue->moves;
     const unsigned queue_size = planner->queue->size;
-    for (unsigned i=0; i<queue_size; i++)
+    const unsigned queue_begin = planner->queue->first;
+    const unsigned queue_end = queue_begin + queue_size;
+    for (unsigned i=queue_begin; i!=queue_end; i++)
     {
-        struct move *move= &moves[(queue_start + i) & mask];
+        struct move *move= &moves[i & mask];
         struct move *next_move;
         double end_v2;
-        if (i != queue_size - 1)
+        if (i != queue_end - 1)
         {
-            next_move = &moves[(queue_start + i + 1) & mask];
+            next_move = &moves[(i + 1) & mask];
             end_v2 = next_move->max_junction_v2;
         }
         else
@@ -409,7 +410,7 @@ static void forward_pass(struct jerk_planner *planner)
         }
         double end_v = sqrt(end_v2);
 
-        append_move(v_move, queue_start + i);
+        append_move(v_move, i);
 
         v_move->distance += move->move_d;
 
@@ -432,9 +433,9 @@ static void forward_pass(struct jerk_planner *planner)
 static void backward_pass(struct jerk_planner *planner)
 {
     double current_v = 0;
-    for(struct virtual_move *move = planner->end_vmove-1;
-        move != planner->start_vmove-1;
-        --move)
+    struct virtual_move *itr_begin = planner->end_vmove - 1;
+    struct virtual_move *itr_end = planner->start_vmove - 1;
+    for(struct virtual_move *move = itr_begin; move != itr_end; --move)
     {
         struct virtual_move *prev_move = NULL;
         if (move != planner->start_vmove)
@@ -540,10 +541,10 @@ static void generate_output_moves(struct jerk_planner *planner,
     struct move *moves, const unsigned queue_size, const unsigned mask,
     unsigned *move_count, unsigned *flush_count)
 {
-    struct virtual_move **end =
+    struct virtual_move **itr_begin =
         planner->output_vmoves + planner->num_output_vmoves - 1;
-    struct virtual_move **start = planner->output_vmoves - 1;
-    for(struct virtual_move **itr=end; itr != start; --itr)
+    struct virtual_move **itr_end = planner->output_vmoves - 1;
+    for(struct virtual_move **itr=itr_begin; itr != itr_end; --itr)
     {
         struct virtual_move* vmove = *itr;
 
@@ -552,9 +553,11 @@ static void generate_output_moves(struct jerk_planner *planner,
 
         double d = 0.0;
 
-        for (int i=0; i<vmove->move_count;i++)
+        const unsigned move_begin = vmove->start_move_index;
+        const unsigned move_end = move_begin + vmove->move_count;
+        for (unsigned i=move_begin; i!=move_end; i++)
         {
-            struct move *move = &moves[(vmove->start_move_index + i) & mask];
+            struct move *move = &moves[i & mask];
             generate_output_move(planner, move, vmove, queue_size, mask,
                 move_count, flush_count, &d);
         }
