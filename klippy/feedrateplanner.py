@@ -75,6 +75,9 @@ class Move(object):
     def jerk_t(self):
         return self.c_move.jerk_t
     @property
+    def total_t(self):
+        return self.c_move.total_t
+    @property
     def max_junction_v2(self):
         return self.c_move.max_junction_v2
     @property

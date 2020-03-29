@@ -87,6 +87,7 @@ defs_move = """
         double cruise_t;
         double decel_t;
         double jerk_t[7];
+        double total_t;
         double max_junction_v2;
         double max_start_v2;
         double max_smoothed_v2;

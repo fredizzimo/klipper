@@ -157,8 +157,7 @@ class ToolHead:
                     move.cruise_v, move.accel)
             if move.axes_d[3]:
                 self.extruder.move(next_move_time, move)
-            next_move_time = (next_move_time + move.accel_t
-                              + move.cruise_t + move.decel_t)
+            next_move_time = next_move_time + move.total_t
             for cb in move.timing_callbacks:
                 cb(next_move_time)
         # Generate steps for moves

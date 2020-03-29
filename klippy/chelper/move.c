@@ -236,6 +236,7 @@ void move_set_trapezoidal_times(struct move *m, double distance,
     m->accel_t = accel_d / ((start_v + cruise_v) * 0.5);
     m->cruise_t = cruise_d / cruise_v;
     m->decel_t = decel_d / ((end_v + cruise_v) * 0.5);
+    m->total_t = m->accel_t + m->cruise_t + m->decel_t;
 }
 
 void __visible
@@ -593,6 +594,7 @@ static void set_constant_jerk_profile(struct move *m, double distance,
     m->jerk_t[4] = 0.0;
     m->jerk_t[5] = 0.0;
     m->jerk_t[6] = 0.0;
+    m->total_t = cruise_t;
 }
 
 static void set_jerk_profile(struct move *m, double start_v, double max_v,
@@ -618,6 +620,14 @@ static void set_jerk_profile(struct move *m, double start_v, double max_v,
     m->jerk_t[4] = decel_jerk_t;
     m->jerk_t[5] = decel_const_t;
     m->jerk_t[6] = decel_jerk_t;
+
+    m->total_t = accel_jerk_t;
+    m->total_t += accel_const_t;
+    m->total_t += accel_jerk_t;
+    m->total_t += cruise_t;
+    m->total_t += decel_jerk_t;
+    m->total_t += decel_const_t;
+    m->total_t += decel_jerk_t;
 }
 
 void __visible
