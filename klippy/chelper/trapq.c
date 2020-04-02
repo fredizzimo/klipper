@@ -10,6 +10,7 @@
 #include <string.h> // memset
 #include "compiler.h" // unlikely
 #include "trapq.h" // move_get_coord
+#include "move.h"
 
 // Allocate a new 'move' object
 struct trapq_move *
@@ -66,6 +67,15 @@ trapq_append(struct trapq *tq, double print_time
         m->axes_r = axes_r;
         trapq_add_move(tq, m);
     }
+}
+
+void __visible
+trapq_append_move(struct trapq *tq, double print_time, struct move *m)
+{
+    trapq_append(tq, print_time, m->accel_t, m->cruise_t, m->decel_t,
+        m->start_pos[0], m->start_pos[1], m->start_pos[2],
+        m->axes_r[0], m->axes_r[1], m->axes_r[2], m->start_v, m->cruise_v,
+        m->accel);
 }
 
 // Return the distance moved given a time in a move

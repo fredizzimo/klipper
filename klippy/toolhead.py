@@ -79,7 +79,7 @@ class ToolHead:
         # Setup iterative solver
         ffi_main, ffi_lib = chelper.get_ffi()
         self.trapq = ffi_main.gc(ffi_lib.trapq_alloc(), ffi_lib.trapq_free)
-        self.trapq_append = ffi_lib.trapq_append
+        self.trapq_append_move = ffi_lib.trapq_append_move
         self.trapq_free_moves = ffi_lib.trapq_free_moves
         self.step_generators = []
         # Create kinematics class
@@ -148,13 +148,7 @@ class ToolHead:
         next_move_time = self.print_time
         for move in moves:
             if move.is_kinematic_move:
-                self.trapq_append(
-                    self.trapq, next_move_time,
-                    move.accel_t, move.cruise_t,
-                    move.decel_t, move.start_pos[0], move.start_pos[1],
-                    move.start_pos[2], move.axes_r[0], move.axes_r[1],
-                    move.axes_r[2], move.start_v,
-                    move.cruise_v, move.accel)
+                self.trapq_append_move(self.trapq, next_move_time, move.c_move)
             if move.axes_d[3]:
                 self.extruder.move(next_move_time, move)
             next_move_time = next_move_time + move.total_t

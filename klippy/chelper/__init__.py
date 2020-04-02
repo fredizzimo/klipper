@@ -66,6 +66,7 @@ defs_trapq = """
         , double start_pos_x, double start_pos_y, double start_pos_z
         , double axes_r_x, double axes_r_y, double axes_r_z
         , double start_v, double cruise_v, double accel);
+    void trapq_append_move(struct trapq *tq, double print_time, struct move *m);
     struct trapq *trapq_alloc(void);
     void trapq_free(struct trapq *tq);
     void trapq_free_moves(struct trapq *tq, double print_time);
