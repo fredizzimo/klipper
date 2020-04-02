@@ -33,6 +33,8 @@ void trapq_append(struct trapq *tq, double print_time
                   , double axes_r_x, double axes_r_y, double axes_r_z
                   , double start_v, double cruise_v, double accel);
 void trapq_append_move(struct trapq *tq, double print_time, struct move *m);
+void trapq_append_extrude_move(struct trapq *tq, double print_time,
+    struct move *m);
 double move_get_distance(struct trapq_move *m, double move_time);
 struct coord move_get_coord(struct trapq_move *m, double move_time);
 struct trapq *trapq_alloc(void);

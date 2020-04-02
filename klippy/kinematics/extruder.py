@@ -48,7 +48,7 @@ class PrinterExtruder:
         # Setup iterative solver
         ffi_main, ffi_lib = chelper.get_ffi()
         self.trapq = ffi_main.gc(ffi_lib.trapq_alloc(), ffi_lib.trapq_free)
-        self.trapq_append = ffi_lib.trapq_append
+        self.trapq_append = ffi_lib.trapq_append_extrude_move
         self.trapq_free_moves = ffi_lib.trapq_free_moves
         self.sk_extruder = ffi_main.gc(ffi_lib.extruder_stepper_alloc(),
                                        ffi_lib.free)
@@ -127,20 +127,7 @@ class PrinterExtruder:
                 "See the 'max_extrude_cross_section' config option for details"
                 % (area, self.max_extrude_ratio * self.filament_area))
     def move(self, print_time, move):
-        axis_r = move.axes_r[3]
-        accel = move.accel * axis_r
-        start_v = move.start_v * axis_r
-        cruise_v = move.cruise_v * axis_r
-        pressure_advance = 0.
-        if axis_r > 0. and (move.axes_d[0] or move.axes_d[1]):
-            pressure_advance = self.pressure_advance
-        # Queue movement (x is extruder movement, y is pressure advance)
-        self.trapq_append(self.trapq, print_time,
-                          move.accel_t, move.cruise_t,
-                          move.decel_t,
-                          move.start_pos[3], 0., 0.,
-                          1., pressure_advance, 0.,
-                          start_v, cruise_v, accel)
+        self.trapq_append(self.trapq, print_time, move.c_move)
     def cmd_M104(self, params, wait=False):
         # Set Extruder Temperature
         gcode = self.printer.lookup_object('gcode')

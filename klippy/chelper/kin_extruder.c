@@ -11,6 +11,26 @@
 #include "itersolve.h" // struct stepper_kinematics
 #include "pyhelper.h" // errorf
 #include "trapq.h" // move_get_distance
+#include "move.h"
+
+void __visible
+trapq_append_extrude_move(struct trapq *tq, double print_time, struct move *m)
+{
+    double axis_r = m->axes_r[3];
+    double accel = m->accel * axis_r;
+    double start_v = m->start_v * axis_r;
+    double cruise_v = m->cruise_v * axis_r;
+    double pressure_advance = 0.0;
+    if (axis_r > 0.0 && (m->axes_d[0] || m->axes_d[1]))
+    {
+        pressure_advance = m->pressure_advance;
+    }
+    // Queue movement (x is extruder movement, y is pressure advance)
+    trapq_append(tq, print_time, m->accel_t, m->cruise_t, m->decel_t,
+        m->start_pos[3], 0.0, 0.0, 1.0, pressure_advance, 0.,
+        start_v, cruise_v, accel);
+}
+
 
 // Without pressure advance, the extruder stepper position is:
 //     extruder_position(t) = nominal_position(t)
