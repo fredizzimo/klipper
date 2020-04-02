@@ -36,7 +36,8 @@ move_queue = MoveQueue(16)
 def calculate_jerk(distance, start_v, max_v, end_v, accel, jerk):
     start_pos = (0, 0, 0, 0)
     end_pos = (distance, 0, 0, 0)
-    move = Move(start_pos, end_pos, max_v, accel, accel, jerk, move_queue)
+    pa = 0.0
+    move = Move(start_pos, end_pos, max_v, accel, accel, jerk, pa, move_queue)
     move.calculate_jerk(start_v, end_v)
     return move
 

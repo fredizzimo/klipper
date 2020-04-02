@@ -14,7 +14,9 @@ move_queue = MoveQueue(16)
 def calculate_trapezoidal(distance, start_v, max_v, end_v, accel):
     start_pos = (0, 0, 0, 0)
     end_pos = (distance, 0, 0, 0)
-    move = Move(start_pos, end_pos, max_v, accel, accel, 0, move_queue)
+    jerk = 0.0
+    pa = 0.0
+    move = Move(start_pos, end_pos, max_v, accel, accel, jerk, pa, move_queue)
     move.calculate_trapezoidal(start_v, end_v)
     return move
 

@@ -196,6 +196,7 @@ class PrinterExtruder:
 # Dummy extruder class used when a printer has no extruder at all
 class DummyExtruder:
     instant_corner_v = 99999999.0
+    pressure_advance = 0.0
     def update_move_time(self, flush_time):
         pass
     def check_move(self, move):

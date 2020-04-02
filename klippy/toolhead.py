@@ -244,7 +244,8 @@ class ToolHead:
             logging.warning("The move queue is too small and had to be flushed")
             self.feedrate_planner.flush()
         move = Move(self.commanded_pos, newpos, min(speed, self.max_velocity),
-            self.max_accel, self.max_accel_to_decel, self.jerk, self.move_queue)
+            self.max_accel, self.max_accel_to_decel, self.jerk,
+            self.extruder.pressure_advance, self.move_queue)
         if not move.move_d:
             return
         if move.is_kinematic_move:

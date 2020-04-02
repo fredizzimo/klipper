@@ -297,7 +297,7 @@ static void calculate_profile(struct virtual_move *vmove)
     double start_pos[] = {0.0, 0.0, 0.0, 0.0};
     double end_pos[] = {vmove->distance, 0.0, 0.0, 0.0};
     move_init(&vmove->move, start_pos, end_pos, vmove->cruise_v, vmove->accel,
-        vmove->accel, vmove->jerk);
+        vmove->accel, vmove->jerk, 0.0);
     move_calculate_jerk(&vmove->move, vmove->start_v, vmove->end_v);
 }
 

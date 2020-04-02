@@ -33,6 +33,7 @@ struct move {
     double delta_v2;
     double smooth_delta_v2;
     double min_move_t;
+    double pressure_advance;
 };
 
 struct move_queue {
@@ -54,6 +55,7 @@ struct move* move_reserve(
     double accel,
     double accel_to_decel,
     double jerk,
+    double pressure_advance,
     struct move_queue* q);
 void move_init(
     struct move *m,
@@ -62,7 +64,8 @@ void move_init(
     double speed,
     double accel,
     double accel_to_decel,
-    double jerk);
+    double jerk,
+    double pressure_advance);
 void move_commit(struct move_queue *queue);
 void move_limit_speed(struct move *m, double speed, double accel,
     double max_accel_to_decel);

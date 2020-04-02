@@ -52,7 +52,8 @@ class TestToolHead(object):
             end = [end_pos, 0, 0, 0]
         max_speed = min(max_speed, self.max_velocity)
         move = Move(self.pos, end, max_speed, self.max_accel,
-            self.max_accel_to_decel, self.jerk, self.move_queue)
+            self.max_accel_to_decel, self.jerk, self.extruder.pressure_advance,
+            self.move_queue)
         # Extrude only move, set extrude acceleration
         if not move.is_kinematic_move:
             move.limit_speed(max_speed, self.max_extrude_acc)

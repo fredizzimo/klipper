@@ -97,6 +97,7 @@ defs_move = """
         double delta_v2;
         double smooth_delta_v2;
         double min_move_t;
+        double pressure_advance;
     };
 
     struct move_queue {
@@ -114,6 +115,7 @@ defs_move = """
         double accel,
         double accel_to_decel,
         double jerk,
+        double pressure_advance,
         struct move_queue *q);
     bool move_queue_is_full(struct move_queue *q);
     void move_commit(struct move_queue *queue);

@@ -65,7 +65,8 @@ void move_init(
     double speed,
     double accel,
     double accel_to_decel,
-    double jerk)
+    double jerk,
+    double pressure_advance)
 {
     for(int i=0;i<4;i++)
     {
@@ -114,6 +115,7 @@ void move_init(
     {
         m->jerk_t[i] = 0.0;
     }
+    m->total_t = 0.0;
     // Junction speeds are tracked in velocity squared.  The
     // delta_v2 is the maximum amount of this squared-velocity that
     // can change in this move.
@@ -126,6 +128,7 @@ void move_init(
     m->max_cruise_v2 = DBL_MAX;
     m->smooth_delta_v2 = DBL_MAX;
     m->min_move_t = 0.0;
+    m->pressure_advance = pressure_advance;
 
     // NOTE: max accel_to_decel is used for extrude only moves as well
     move_limit_speed(m, speed, accel, accel_to_decel);
@@ -846,6 +849,7 @@ move_reserve(
     double accel,
     double accel_to_decel,
     double jerk,
+    double pressure_advance,
     struct move_queue* q)
 {
     if (move_queue_is_full(q))
@@ -855,7 +859,8 @@ move_reserve(
     }
     unsigned int index = (q->first + q->size) & (q->allocated_size - 1);
     struct move *m = &q->moves[index];
-    move_init(m, start_pos, end_pos, speed, accel, accel_to_decel, jerk);
+    move_init(m, start_pos, end_pos, speed, accel, accel_to_decel, jerk,
+        pressure_advance);
     return m;
 }
 
