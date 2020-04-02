@@ -3,7 +3,7 @@
 # Copyright (C) 2018  Kevin O'Connor <kevin@koconnor.net>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
-import sys, os, optparse, logging, subprocess
+import sys, os, optparse, logging, subprocess, glob
 
 TEMP_GCODE_FILE = "_test_.gcode"
 TEMP_LOG_FILE = "_test_.log"
@@ -152,6 +152,9 @@ def main():
     if len(args) < 1:
         opts.error("Incorrect number of arguments")
     logging.basicConfig(level=logging.DEBUG)
+
+    if len(args) == 1:
+        args = glob.glob(args[0])
 
     # Run each test
     for fname in args:
