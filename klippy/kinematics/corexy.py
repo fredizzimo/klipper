@@ -20,7 +20,7 @@ class CoreXYKinematics:
         self.rails[1].setup_itersolve('corexy_stepper_alloc', '-')
         self.rails[2].setup_itersolve('cartesian_stepper_alloc', 'z')
         for s in self.get_steppers():
-            s.set_trapq(toolhead.get_trapq())
+            s.set_segq(toolhead.get_segq())
             toolhead.register_step_generator(s.generate_steps)
         config.get_printer().register_event_handler("stepper_enable:motor_off",
                                                     self._motor_off)

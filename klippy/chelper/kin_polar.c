@@ -9,11 +9,11 @@
 #include <string.h> // memset
 #include "compiler.h" // __visible
 #include "itersolve.h" // struct stepper_kinematics
-#include "trapq.h" // move_get_coord
+#include "segq.h" // move_get_coord
 
 static double
 polar_stepper_radius_calc_position(struct stepper_kinematics *sk,
-                                   struct trapq_move *m, double move_time)
+                                   struct segq_move *m, double move_time)
 {
     struct coord c = move_get_coord(m, move_time);
     return sqrt(c.x*c.x + c.y*c.y);
@@ -21,7 +21,7 @@ polar_stepper_radius_calc_position(struct stepper_kinematics *sk,
 
 static double
 polar_stepper_angle_calc_position(struct stepper_kinematics *sk,
-                                  struct trapq_move *m, double move_time)
+                                  struct segq_move *m, double move_time)
 {
     struct coord c = move_get_coord(m, move_time);
     // XXX - handle x==y==0

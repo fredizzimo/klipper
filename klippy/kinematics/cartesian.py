@@ -17,7 +17,7 @@ class CartKinematics:
         for rail, axis in zip(self.rails, 'xyz'):
             rail.setup_itersolve('cartesian_stepper_alloc', axis)
         for s in self.get_steppers():
-            s.set_trapq(toolhead.get_trapq())
+            s.set_segq(toolhead.get_segq())
             toolhead.register_step_generator(s.generate_steps)
         self.printer.register_event_handler("stepper_enable:motor_off",
                                             self._motor_off)
@@ -126,8 +126,8 @@ class CartKinematics:
         toolhead.flush_step_generation()
         dc_rail = self.dual_carriage_rails[carriage]
         dc_axis = self.dual_carriage_axis
-        self.rails[dc_axis].set_trapq(None)
-        dc_rail.set_trapq(toolhead.get_trapq())
+        self.rails[dc_axis].set_segq(None)
+        dc_rail.set_segq(toolhead.get_segq())
         self.rails[dc_axis] = dc_rail
         pos = toolhead.get_position()
         pos[dc_axis] = dc_rail.get_commanded_position()

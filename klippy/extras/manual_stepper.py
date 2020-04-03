@@ -25,11 +25,11 @@ class ManualStepper:
         self.next_cmd_time = 0.
         # Setup iterative solver
         ffi_main, ffi_lib = chelper.get_ffi()
-        self.trapq = ffi_main.gc(ffi_lib.trapq_alloc(), ffi_lib.trapq_free)
-        self.trapq_append = ffi_lib.trapq_append
-        self.trapq_free_moves = ffi_lib.trapq_free_moves
+        self.segq = ffi_main.gc(ffi_lib.segq_alloc(), ffi_lib.segq_free)
+        self.segq_append = ffi_lib.segq_append
+        self.segq_free_moves = ffi_lib.segq_free_moves
         self.rail.setup_itersolve('cartesian_stepper_alloc', 'x')
-        self.rail.set_trapq(self.trapq)
+        self.rail.set_segq(self.segq)
         self.rail.set_max_jerk(9999999.9, 9999999.9)
         # Register commands
         stepper_name = config.get_name().split()[1]
@@ -64,13 +64,13 @@ class ManualStepper:
         dist = movepos - cp
         axis_r, accel_t, cruise_t, cruise_v = force_move.calc_move_time(
             dist, speed, accel)
-        self.trapq_append(self.trapq, self.next_cmd_time,
+        self.segq_append(self.segq, self.next_cmd_time,
                           accel_t, cruise_t, accel_t,
                           cp, 0., 0., axis_r, 0., 0.,
                           0., cruise_v, accel)
         self.next_cmd_time = self.next_cmd_time + accel_t + cruise_t + accel_t
         self.rail.generate_steps(self.next_cmd_time)
-        self.trapq_free_moves(self.trapq, self.next_cmd_time + 99999.9)
+        self.segq_free_moves(self.segq, self.next_cmd_time + 99999.9)
         toolhead = self.printer.lookup_object('toolhead')
         toolhead.note_kinematic_activity(self.next_cmd_time)
         self.sync_print_time()

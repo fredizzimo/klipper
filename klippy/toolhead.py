@@ -78,9 +78,9 @@ class ToolHead:
         self.last_kin_flush_time = self.last_kin_move_time = 0.
         # Setup iterative solver
         ffi_main, ffi_lib = chelper.get_ffi()
-        self.trapq = ffi_main.gc(ffi_lib.trapq_alloc(), ffi_lib.trapq_free)
-        self.trapq_append_move = ffi_lib.trapq_append_move
-        self.trapq_free_moves = ffi_lib.trapq_free_moves
+        self.segq = ffi_main.gc(ffi_lib.segq_alloc(), ffi_lib.segq_free)
+        self.segq_append_move = ffi_lib.segq_append_move
+        self.segq_free_moves = ffi_lib.segq_free_moves
         self.step_generators = []
         # Create kinematics class
         self.extruder = kinematics.extruder.DummyExtruder()
@@ -118,7 +118,7 @@ class ToolHead:
             for sg in self.step_generators:
                 sg(sg_flush_time)
             free_time = max(lkft, sg_flush_time - kin_flush_delay)
-            self.trapq_free_moves(self.trapq, free_time)
+            self.segq_free_moves(self.segq, free_time)
             self.extruder.update_move_time(free_time)
             mcu_flush_time = max(lkft, sg_flush_time - self.move_flush_time)
             for m in self.all_mcus:
@@ -144,11 +144,11 @@ class ToolHead:
                 self.need_check_stall = -1.
                 self.reactor.update_timer(self.flush_timer, self.reactor.NOW)
             self._calc_print_time()
-        # Queue moves into trapezoid motion queue (trapq)
+        # Queue moves into trapezoid motion queue (segq)
         next_move_time = self.print_time
         for move in moves:
             if move.is_kinematic_move:
-                self.trapq_append_move(self.trapq, next_move_time, move.c_move)
+                self.segq_append_move(self.segq, next_move_time, move.c_move)
             if move.axes_d[3]:
                 self.extruder.move(next_move_time, move)
             next_move_time = next_move_time + move.total_t
@@ -227,7 +227,7 @@ class ToolHead:
         return list(self.commanded_pos)
     def set_position(self, newpos, homing_axes=()):
         self.flush_step_generation()
-        self.trapq_free_moves(self.trapq, self.reactor.NEVER)
+        self.segq_free_moves(self.segq, self.reactor.NEVER)
         self.commanded_pos[:] = newpos
         self.kin.set_position(newpos, homing_axes)
     def move(self, newpos, speed):
@@ -303,7 +303,7 @@ class ToolHead:
             self.feedrate_planner.flush()
         except DripModeEndSignal as e:
             self.feedrate_planner.reset()
-            self.trapq_free_moves(self.trapq, self.reactor.NEVER)
+            self.segq_free_moves(self.segq, self.reactor.NEVER)
         # Exit "Drip" state
         self.flush_step_generation()
     # Misc commands
@@ -341,8 +341,8 @@ class ToolHead:
         self.feedrate_planner.reset()
     def get_kinematics(self):
         return self.kin
-    def get_trapq(self):
-        return self.trapq
+    def get_segq(self):
+        return self.segq
     def register_step_generator(self, handler):
         self.step_generators.append(handler)
     def note_step_generation_scan_time(self, delay, old_delay=0.):

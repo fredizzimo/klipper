@@ -10,7 +10,7 @@
 #include <string.h> // memset
 #include "compiler.h" // __visible
 #include "itersolve.h" // struct stepper_kinematics
-#include "trapq.h" // move_get_coord
+#include "segq.h" // move_get_coord
 
 struct winch_stepper {
     struct stepper_kinematics sk;
@@ -19,7 +19,7 @@ struct winch_stepper {
 
 static double
 winch_stepper_calc_position(struct stepper_kinematics *sk,
-                            struct trapq_move *m, double move_time)
+                            struct segq_move *m, double move_time)
 {
     struct winch_stepper *hs = container_of(sk, struct winch_stepper, sk);
     struct coord c = move_get_coord(m, move_time);

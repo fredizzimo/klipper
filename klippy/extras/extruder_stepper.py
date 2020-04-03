@@ -17,7 +17,7 @@ class ExtruderStepper:
                                             self.handle_connect)
     def handle_connect(self):
         extruder = self.printer.lookup_object(self.extruder_name)
-        self.stepper.set_trapq(extruder.get_trapq())
+        self.stepper.set_segq(extruder.get_segq())
         toolhead = self.printer.lookup_object('toolhead')
         toolhead.register_step_generator(self.stepper.generate_steps)
 

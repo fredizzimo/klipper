@@ -56,7 +56,7 @@ class RotaryDeltaKinematics:
                               shoulder_radius, shoulder_height,
                               math.radians(a), ua, la)
         for s in self.get_steppers():
-            s.set_trapq(toolhead.get_trapq())
+            s.set_segq(toolhead.get_segq())
             toolhead.register_step_generator(s.generate_steps)
         # Setup boundary checks
         self.need_home = True

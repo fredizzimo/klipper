@@ -55,7 +55,7 @@ class DeltaKinematics:
         for r, a, t in zip(self.rails, self.arm2, self.towers):
             r.setup_itersolve('delta_stepper_alloc', a, t[0], t[1])
         for s in self.get_steppers():
-            s.set_trapq(toolhead.get_trapq())
+            s.set_segq(toolhead.get_segq())
             toolhead.register_step_generator(s.generate_steps)
         # Setup boundary checks
         self.need_home = True

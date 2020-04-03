@@ -34,12 +34,12 @@ class ForceMove:
         self.steppers = {}
         # Setup iterative solver
         ffi_main, ffi_lib = chelper.get_ffi()
-        self.trapq = ffi_main.gc(ffi_lib.trapq_alloc(), ffi_lib.trapq_free)
-        self.trapq_append = ffi_lib.trapq_append
-        self.trapq_free_moves = ffi_lib.trapq_free_moves
+        self.segq = ffi_main.gc(ffi_lib.segq_alloc(), ffi_lib.segq_free)
+        self.segq_append = ffi_lib.segq_append
+        self.segq_free_moves = ffi_lib.segq_free_moves
         self.stepper_kinematics = ffi_main.gc(
             ffi_lib.cartesian_stepper_alloc('x'), ffi_lib.free)
-        ffi_lib.itersolve_set_trapq(self.stepper_kinematics, self.trapq)
+        ffi_lib.itersolve_set_segq(self.stepper_kinematics, self.segq)
         # Register commands
         self.gcode = self.printer.lookup_object('gcode')
         self.gcode.register_command('STEPPER_BUZZ', self.cmd_STEPPER_BUZZ,
@@ -83,11 +83,11 @@ class ForceMove:
         stepper.set_position((0., 0., 0.))
         axis_r, accel_t, cruise_t, cruise_v = calc_move_time(dist, speed, accel)
         print_time = toolhead.get_last_move_time()
-        self.trapq_append(self.trapq, print_time, accel_t, cruise_t, accel_t,
+        self.segq_append(self.segq, print_time, accel_t, cruise_t, accel_t,
                           0., 0., 0., axis_r, 0., 0., 0., cruise_v, accel)
         print_time = print_time + accel_t + cruise_t + accel_t
         stepper.generate_steps(print_time)
-        self.trapq_free_moves(self.trapq, print_time + 99999.9)
+        self.segq_free_moves(self.segq, print_time + 99999.9)
         stepper.set_stepper_kinematics(prev_sk)
         toolhead.note_kinematic_activity(print_time)
         toolhead.dwell(accel_t + cruise_t + accel_t)

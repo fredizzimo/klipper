@@ -15,7 +15,7 @@ COMPILE_CMD = ("gcc -Wall -g -O2 -shared -fPIC"
                " -flto -fwhole-program -fno-use-linker-plugin"
                " -o %s %s")
 SOURCE_FILES = [
-    'pyhelper.c', 'serialqueue.c', 'stepcompress.c', 'itersolve.c', 'trapq.c',
+    'pyhelper.c', 'serialqueue.c', 'stepcompress.c', 'itersolve.c', 'segq.c',
     'move.c', 'mathutil.c', 'kin_cartesian.c', 'kin_corexy.c', 'kin_delta.c',
     'kin_polar.c', 'kin_rotary_delta.c', 'kin_winch.c', 'kin_extruder.c',
     'planner_trapezoidal.c', 'planner_jerk.c'
@@ -23,7 +23,7 @@ SOURCE_FILES = [
 DEST_LIB = "c_helper.so"
 OTHER_FILES = [
     'list.h', 'serialqueue.h', 'stepcompress.h', 'itersolve.h', 'pyhelper.h',
-    'trapq.h', 'mathutil.h'
+    'segq.h', 'mathutil.h'
 ]
 
 defs_stepcompress = """
@@ -50,7 +50,7 @@ defs_itersolve = """
     double itersolve_check_active(struct stepper_kinematics *sk
         , double flush_time);
     int32_t itersolve_is_active_axis(struct stepper_kinematics *sk, char axis);
-    void itersolve_set_trapq(struct stepper_kinematics *sk, struct trapq *tq);
+    void itersolve_set_segq(struct stepper_kinematics *sk, struct segq *tq);
     void itersolve_set_stepcompress(struct stepper_kinematics *sk
         , struct stepcompress *sc, double step_dist);
     double itersolve_calc_position_from_coord(struct stepper_kinematics *sk
@@ -60,18 +60,18 @@ defs_itersolve = """
     double itersolve_get_commanded_pos(struct stepper_kinematics *sk);
 """
 
-defs_trapq = """
-    void trapq_append(struct trapq *tq, double print_time
+defs_segq = """
+    void segq_append(struct segq *tq, double print_time
         , double accel_t, double cruise_t, double decel_t
         , double start_pos_x, double start_pos_y, double start_pos_z
         , double axes_r_x, double axes_r_y, double axes_r_z
         , double start_v, double cruise_v, double accel);
-    void trapq_append_move(struct trapq *tq, double print_time, struct move *m);
-    void trapq_append_extrude_move(struct trapq *tq, double print_time,
+    void segq_append_move(struct segq *tq, double print_time, struct move *m);
+    void segq_append_extrude_move(struct segq *tq, double print_time,
         struct move *m);
-    struct trapq *trapq_alloc(void);
-    void trapq_free(struct trapq *tq);
-    void trapq_free_moves(struct trapq *tq, double print_time);
+    struct segq *segq_alloc(void);
+    void segq_free(struct segq *tq);
+    void segq_free_moves(struct segq *tq, double print_time);
 """
 
 defs_move = """
@@ -226,7 +226,7 @@ defs_planner_jerk = """
 
 defs_all = [
     defs_pyhelper, defs_serialqueue, defs_std,
-    defs_stepcompress, defs_itersolve, defs_trapq, defs_move,
+    defs_stepcompress, defs_itersolve, defs_segq, defs_move,
     defs_kin_cartesian, defs_kin_corexy, defs_kin_delta, defs_kin_polar,
     defs_kin_rotary_delta, defs_kin_winch, defs_kin_extruder,
     defs_planner_trapezoidal, defs_planner_jerk

@@ -10,7 +10,7 @@
 #include <string.h> // memset
 #include "compiler.h" // __visible
 #include "itersolve.h" // struct stepper_kinematics
-#include "trapq.h" // move_get_coord
+#include "segq.h" // move_get_coord
 
 // The arm angle calculation is based on the following two formulas:
 //   elbow_x**2 + elbow_y**2 = upper_arm**2
@@ -41,7 +41,7 @@ struct rotary_stepper {
 
 static double
 rotary_stepper_calc_position(struct stepper_kinematics *sk,
-                             struct trapq_move *m, double move_time)
+                             struct segq_move *m, double move_time)
 {
     struct rotary_stepper *rs = container_of(sk, struct rotary_stepper, sk);
     struct coord c = move_get_coord(m, move_time);

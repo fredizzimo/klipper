@@ -47,13 +47,13 @@ class PrinterExtruder:
                                       0.040, above=0., maxval=.200)
         # Setup iterative solver
         ffi_main, ffi_lib = chelper.get_ffi()
-        self.trapq = ffi_main.gc(ffi_lib.trapq_alloc(), ffi_lib.trapq_free)
-        self.trapq_append = ffi_lib.trapq_append_extrude_move
-        self.trapq_free_moves = ffi_lib.trapq_free_moves
+        self.segq = ffi_main.gc(ffi_lib.segq_alloc(), ffi_lib.segq_free)
+        self.segq_append = ffi_lib.segq_append_extrude_move
+        self.segq_free_moves = ffi_lib.segq_free_moves
         self.sk_extruder = ffi_main.gc(ffi_lib.extruder_stepper_alloc(),
                                        ffi_lib.free)
         self.stepper.set_stepper_kinematics(self.sk_extruder)
-        self.stepper.set_trapq(self.trapq)
+        self.stepper.set_segq(self.segq)
         toolhead.register_step_generator(self.stepper.generate_steps)
         self.extruder_set_smooth_time = ffi_lib.extruder_set_smooth_time
         self._set_pressure_advance(pressure_advance, smooth_time)
@@ -73,7 +73,7 @@ class PrinterExtruder:
                                    self.name, self.cmd_ACTIVATE_EXTRUDER,
                                    desc=self.cmd_ACTIVATE_EXTRUDER_help)
     def update_move_time(self, flush_time):
-        self.trapq_free_moves(self.trapq, flush_time)
+        self.segq_free_moves(self.segq, flush_time)
     def _set_pressure_advance(self, pressure_advance, smooth_time):
         old_smooth_time = self.pressure_advance_smooth_time
         if not self.pressure_advance:
@@ -95,8 +95,8 @@ class PrinterExtruder:
         return self.name
     def get_heater(self):
         return self.heater
-    def get_trapq(self):
-        return self.trapq
+    def get_segq(self):
+        return self.segq
     def stats(self, eventtime):
         return self.heater.stats(eventtime)
     def check_move(self, move):
@@ -127,7 +127,7 @@ class PrinterExtruder:
                 "See the 'max_extrude_cross_section' config option for details"
                 % (area, self.max_extrude_ratio * self.filament_area))
     def move(self, print_time, move):
-        self.trapq_append(self.trapq, print_time, move.c_move)
+        self.segq_append(self.segq, print_time, move.c_move)
     def cmd_M104(self, params, wait=False):
         # Set Extruder Temperature
         gcode = self.printer.lookup_object('gcode')

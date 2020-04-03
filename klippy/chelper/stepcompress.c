@@ -585,7 +585,7 @@ steppersync_set_time(struct steppersync *ss, double time_offset
 }
 
 // Implement a binary heap algorithm to track when the next available
-// 'struct trapq_move' in the mcu will be available
+// 'struct segq_move' in the mcu will be available
 static void
 heap_replace(struct steppersync *ss, uint64_t req_clock)
 {

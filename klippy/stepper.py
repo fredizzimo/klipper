@@ -42,7 +42,7 @@ class MCU_stepper:
         self._stepper_kinematics = None
         self._itersolve_generate_steps = self._ffi_lib.itersolve_generate_steps
         self._itersolve_check_active = self._ffi_lib.itersolve_check_active
-        self._trapq = ffi_main.NULL
+        self._segq = ffi_main.NULL
     def get_mcu(self):
         return self._mcu
     def get_name(self, short=False):
@@ -140,13 +140,13 @@ class MCU_stepper:
         if self._invert_dir:
             mcu_pos_dist = -mcu_pos_dist
         self._mcu_position_offset = mcu_pos_dist - self.get_commanded_position()
-    def set_trapq(self, tq):
+    def set_segq(self, tq):
         if tq is None:
             ffi_main, self._ffi_lib = chelper.get_ffi()
             tq = ffi_main.NULL
-        self._ffi_lib.itersolve_set_trapq(self._stepper_kinematics, tq)
-        old_tq = self._trapq
-        self._trapq = tq
+        self._ffi_lib.itersolve_set_segq(self._stepper_kinematics, tq)
+        old_tq = self._segq
+        self._segq = tq
         return old_tq
     def add_active_callback(self, cb):
         self._active_callbacks.append(cb)
@@ -287,9 +287,9 @@ class PrinterRail:
     def generate_steps(self, flush_time):
         for stepper in self.steppers:
             stepper.generate_steps(flush_time)
-    def set_trapq(self, trapq):
+    def set_segq(self, segq):
         for stepper in self.steppers:
-            stepper.set_trapq(trapq)
+            stepper.set_segq(segq)
     def set_max_jerk(self, max_halt_velocity, max_accel):
         for stepper in self.steppers:
             stepper.set_max_jerk(max_halt_velocity, max_accel)

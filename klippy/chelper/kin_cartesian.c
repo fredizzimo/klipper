@@ -9,24 +9,24 @@
 #include "compiler.h" // __visible
 #include "itersolve.h" // struct stepper_kinematics
 #include "pyhelper.h" // errorf
-#include "trapq.h" // move_get_coord
+#include "segq.h" // move_get_coord
 
 static double
-cart_stepper_x_calc_position(struct stepper_kinematics *sk, struct trapq_move *m
+cart_stepper_x_calc_position(struct stepper_kinematics *sk, struct segq_move *m
                              , double move_time)
 {
     return move_get_coord(m, move_time).x;
 }
 
 static double
-cart_stepper_y_calc_position(struct stepper_kinematics *sk, struct trapq_move *m
+cart_stepper_y_calc_position(struct stepper_kinematics *sk, struct segq_move *m
                              , double move_time)
 {
     return move_get_coord(m, move_time).y;
 }
 
 static double
-cart_stepper_z_calc_position(struct stepper_kinematics *sk, struct trapq_move *m
+cart_stepper_z_calc_position(struct stepper_kinematics *sk, struct segq_move *m
                              , double move_time)
 {
     return move_get_coord(m, move_time).z;

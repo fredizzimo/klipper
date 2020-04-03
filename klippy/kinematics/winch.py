@@ -20,7 +20,7 @@ class WinchKinematics:
             a = tuple([stepper_config.getfloat('anchor_' + n) for n in 'xyz'])
             self.anchors.append(a)
             s.setup_itersolve('winch_stepper_alloc', *a)
-            s.set_trapq(toolhead.get_trapq())
+            s.set_segq(toolhead.get_segq())
             toolhead.register_step_generator(s.generate_steps)
         # Setup stepper max halt velocity
         max_velocity, max_accel = toolhead.get_max_velocity()

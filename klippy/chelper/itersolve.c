@@ -11,7 +11,7 @@
 #include "itersolve.h" // itersolve_generate_steps
 #include "pyhelper.h" // errorf
 #include "stepcompress.h" // queue_append_start
-#include "trapq.h" // struct trapq_move
+#include "segq.h" // struct segq_move
 
 
 /****************************************************************
@@ -24,7 +24,7 @@ struct timepos {
 
 // Find step using "false position" method
 static struct timepos
-itersolve_find_step(struct stepper_kinematics *sk, struct trapq_move *m
+itersolve_find_step(struct stepper_kinematics *sk, struct segq_move *m
                     , struct timepos low, struct timepos high
                     , double target)
 {
@@ -63,7 +63,7 @@ itersolve_find_step(struct stepper_kinematics *sk, struct trapq_move *m
 
 // Generate step times for a portion of a move
 static int32_t
-itersolve_gen_steps_range(struct stepper_kinematics *sk, struct trapq_move *m
+itersolve_gen_steps_range(struct stepper_kinematics *sk, struct segq_move *m
                           , double move_start, double move_end)
 {
     sk_calc_callback calc_position_cb = sk->calc_position_cb;
@@ -142,7 +142,7 @@ itersolve_gen_steps_range(struct stepper_kinematics *sk, struct trapq_move *m
 
 // Check if a move is likely to cause movement on a stepper
 static inline int
-check_active(struct stepper_kinematics *sk, struct trapq_move *m)
+check_active(struct stepper_kinematics *sk, struct segq_move *m)
 {
     int af = sk->active_flags;
     return ((af & AF_X && m->axes_r.x != 0.)
@@ -150,7 +150,7 @@ check_active(struct stepper_kinematics *sk, struct trapq_move *m)
             || (af & AF_Z && m->axes_r.z != 0.));
 }
 
-// Generate step times for a range of moves on the trapq
+// Generate step times for a range of moves on the segq
 int32_t __visible
 itersolve_generate_steps(struct stepper_kinematics *sk, double flush_time)
 {
@@ -158,9 +158,9 @@ itersolve_generate_steps(struct stepper_kinematics *sk, double flush_time)
     sk->last_flush_time = flush_time;
     if (!sk->tq)
         return 0;
-    trapq_check_sentinels(sk->tq);
-    struct trapq_move *m = list_first_entry(&sk->tq->moves,
-        struct trapq_move, node);
+    segq_check_sentinels(sk->tq);
+    struct segq_move *m = list_first_entry(&sk->tq->moves,
+        struct segq_move, node);
     while (last_flush_time >= m->print_time + m->move_t)
         m = list_next_entry(m, node);
     double force_steps_time = sk->last_move_time + sk->gen_steps_post_active;
@@ -210,9 +210,9 @@ itersolve_check_active(struct stepper_kinematics *sk, double flush_time)
 {
     if (!sk->tq)
         return 0.;
-    trapq_check_sentinels(sk->tq);
-    struct trapq_move *m = list_first_entry(&sk->tq->moves,
-        struct trapq_move, node);
+    segq_check_sentinels(sk->tq);
+    struct segq_move *m = list_first_entry(&sk->tq->moves,
+        struct segq_move, node);
     while (sk->last_flush_time >= m->print_time + m->move_t)
         m = list_next_entry(m, node);
     for (;;) {
@@ -234,7 +234,7 @@ itersolve_is_active_axis(struct stepper_kinematics *sk, char axis)
 }
 
 void __visible
-itersolve_set_trapq(struct stepper_kinematics *sk, struct trapq *tq)
+itersolve_set_segq(struct stepper_kinematics *sk, struct segq *tq)
 {
     sk->tq = tq;
 }
@@ -251,7 +251,7 @@ double __visible
 itersolve_calc_position_from_coord(struct stepper_kinematics *sk
                                    , double x, double y, double z)
 {
-    struct trapq_move m;
+    struct segq_move m;
     memset(&m, 0, sizeof(m));
     m.start_pos.x = x;
     m.start_pos.y = y;

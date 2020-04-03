@@ -10,11 +10,11 @@
 #include "compiler.h" // __visible
 #include "itersolve.h" // struct stepper_kinematics
 #include "pyhelper.h" // errorf
-#include "trapq.h" // move_get_distance
+#include "segq.h" // move_get_distance
 #include "move.h"
 
 void __visible
-trapq_append_extrude_move(struct trapq *tq, double print_time, struct move *m)
+segq_append_extrude_move(struct segq *tq, double print_time, struct move *m)
 {
     double axis_r = m->axes_r[3];
     double accel = m->accel * axis_r;
@@ -26,7 +26,7 @@ trapq_append_extrude_move(struct trapq *tq, double print_time, struct move *m)
         pressure_advance = m->pressure_advance;
     }
     // Queue movement (x is extruder movement, y is pressure advance)
-    trapq_append(tq, print_time, m->accel_t, m->cruise_t, m->decel_t,
+    segq_append(tq, print_time, m->accel_t, m->cruise_t, m->decel_t,
         m->start_pos[3], 0.0, 0.0, 1.0, pressure_advance, 0.,
         start_v, cruise_v, accel);
 }
@@ -72,7 +72,7 @@ extruder_integrate_time(double base, double start_v, double half_accel
 
 // Calculate the definitive integral of extruder for a given move
 static double
-pa_move_integrate(struct trapq_move *m, double start, double end,
+pa_move_integrate(struct segq_move *m, double start, double end,
                   double time_offset)
 {
     if (start < 0.)
@@ -92,14 +92,14 @@ pa_move_integrate(struct trapq_move *m, double start, double end,
 
 // Calculate the definitive integral of the extruder over a range of moves
 static double
-pa_range_integrate(struct trapq_move *m, double move_time, double hst)
+pa_range_integrate(struct segq_move *m, double move_time, double hst)
 {
     // Calculate integral for the current move
     double res = 0., start = move_time - hst, end = move_time + hst;
     res += pa_move_integrate(m, start, move_time, start);
     res -= pa_move_integrate(m, move_time, end, end);
     // Integrate over previous moves
-    struct trapq_move *prev = m;
+    struct segq_move *prev = m;
     while (unlikely(start < 0.)) {
         prev = list_prev_entry(prev, node);
         start += prev->move_t;
@@ -120,7 +120,7 @@ struct extruder_stepper {
 };
 
 static double
-extruder_calc_position(struct stepper_kinematics *sk, struct trapq_move *m
+extruder_calc_position(struct stepper_kinematics *sk, struct segq_move *m
                        , double move_time)
 {
     struct extruder_stepper *es = container_of(sk, struct extruder_stepper, sk);
