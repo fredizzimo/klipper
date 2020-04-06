@@ -87,15 +87,18 @@ class TestCase:
             raise error("config file not specified")
         if dict_fnames is None:
             raise error("data dictionary file not specified")
+
+        temp_output_file = self.relpath(TEMP_OUTPUT_FILE, 'temp')
+        temp_log_file = self.relpath(TEMP_LOG_FILE, 'temp')
         # Call klippy
         sys.stderr.write("    Starting %s (%s)\n" % (
             self.fname, os.path.basename(config_fname)))
         args = [ sys.executable, './klippy/klippy.py', config_fname,
-                 '-i', gcode_fname, '-o', TEMP_OUTPUT_FILE, '-v' ]
+                 '-i', gcode_fname, '-o', temp_output_file, '-v' ]
         for df in dict_fnames:
             args += ['-d', df]
         if not self.verbose:
-            args += ['-l', TEMP_LOG_FILE]
+            args += ['-l', temp_log_file]
         res = subprocess.call(args)
         is_fail = (should_fail and not res) or (not should_fail and res)
         if is_fail:
@@ -111,7 +114,7 @@ class TestCase:
             if fname.startswith(TEMP_OUTPUT_FILE):
                 os.unlink(fname)
         if not self.verbose:
-            os.unlink(TEMP_LOG_FILE)
+            os.unlink(temp_log_file)
         else:
             sys.stderr.write('\n')
         if gcode_is_temp:
@@ -126,7 +129,7 @@ class TestCase:
             return "internal error"
         return "success"
     def show_log(self):
-        f = open(TEMP_LOG_FILE, 'rb')
+        f = open(self.relpath(TEMP_LOG_FILE, 'temp'), 'rb')
         data = f.read()
         f.close()
         sys.stdout.write(data)
