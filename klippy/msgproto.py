@@ -275,6 +275,40 @@ class MessageParser:
             raise error("Extra data at end of message")
         params['#name'] = mid.name
         return params
+    def parse_packet(self, s):
+        msgseq = s[MESSAGE_POS_SEQ]
+        out = []
+        seq = "%02x" % msgseq
+        pos = MESSAGE_HEADER_SIZE
+        while 1:
+            msgid = s[pos]
+            mid = self.messages_by_id.get(msgid, self.unknown)
+            params, pos = mid.parse(s, pos)
+            params["seq"] = seq
+            out.append(params)
+            if pos >= len(s)-MESSAGE_TRAILER_SIZE:
+                break
+        return out
+    def parse_file(self, file):
+        data = ""
+        out = []
+        while True:
+            newdata = file.read(4096)
+            if not newdata:
+                break
+            data += newdata
+            while True:
+                l = self.check_packet(data)
+                if l == 0:
+                    break
+                if l < 0:
+                    logging.error("Invalid data")
+                    data = data[-l:]
+                    continue
+                msgs = self.parse_packet(bytearray(data[:l]))
+                out.extend(msgs)
+                data = data[l:]
+        return out
     def encode(self, seq, cmd):
         msglen = MESSAGE_MIN + len(cmd)
         seq = (seq & MESSAGE_SEQ_MASK) | MESSAGE_DEST
