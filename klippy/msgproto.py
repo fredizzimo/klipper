@@ -284,6 +284,7 @@ class MessageParser:
             msgid = s[pos]
             mid = self.messages_by_id.get(msgid, self.unknown)
             params, pos = mid.parse(s, pos)
+            params["name"] = mid.name
             params["seq"] = seq
             out.append(params)
             if pos >= len(s)-MESSAGE_TRAILER_SIZE:
