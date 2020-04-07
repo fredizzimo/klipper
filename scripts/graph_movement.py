@@ -6,6 +6,12 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import argparse
 import sys
+import os
+import errno
+import numpy as np
+import plotly.graph_objects as go
+import plotly.io as pio
+
 from os import path
 sys.path.append(path.normpath(
     path.join(path.split(__file__)[0] + "/..")))
@@ -29,7 +35,7 @@ class Stepper(object):
         add = message["add"]
         t = self.step_clock
         pos = self.pos
-        step = 1 if self.dir else -1
+        step = -1 if self.dir else 1
         for _ in range(count):
             t += interval
             pos += step
@@ -37,12 +43,37 @@ class Stepper(object):
             interval += add
         self.pos = pos
         self.step_clock = t
+    def calculate_moves(self):
+        self.steps = np.array(self.steps)
+
+def graph_moves(steppers, output_path):
+    steppers = sorted(list(steppers.values()), key=lambda x: x.oid) 
+    fig = go.Figure()
+    for stepper in steppers:
+        fig.add_trace(go.Scatter(
+            x=stepper.steps[:,0], y=stepper.steps[:,1], name="%i" % stepper.oid,
+            line=go.scatter.Line()))
+    
+    filename = path.join(output_path, "steppers.html")
+    pio.write_html(fig, filename, include_plotlyjs=True, full_html=True)
+
+def create_output_directory(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc:
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
 
 def main():
     parser = argparse.ArgumentParser(description=
         "Utility to graph the movement parsed from a serial dump file")
     parser.add_argument("--dict", type=argparse.FileType(mode="rb"),
         help="Path to the dictionary file")
+    parser.add_argument("--output", default="",
+        help="Path to the output directory, the default is the current "
+        "directory")
     parser.add_argument("input", type=argparse.FileType(mode="rb"),
         help="Path to the input serial port dump file")
     args = parser.parse_args()
@@ -66,6 +97,12 @@ def main():
             steppers[m["oid"]].reset_step_clock(m)
         elif name == "set_next_step_dir":
             steppers[m["oid"]].set_next_step_dir(m)
+    
+    for s in steppers.itervalues():
+        s.calculate_moves()
+
+    create_output_directory(args.output)
+    graph_moves(steppers, args.output)
 
 
 if __name__ == "__main__":
