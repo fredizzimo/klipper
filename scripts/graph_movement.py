@@ -66,7 +66,6 @@ class Stepper(object):
 
 
 def graph_moves(steppers, output_path):
-    steppers = sorted(list(steppers.values()), key=lambda x: x.oid) 
     fig = go.Figure()
     layout = {}
     spacing = 0.01
@@ -90,21 +89,10 @@ def graph_moves(steppers, output_path):
             visible=True,
             yaxis = go.layout.xaxis.rangeslider.YAxis(
                 rangemode="fixed"
-            ),
-            yaxis2 = go.layout.xaxis.rangeslider.YAxis(
-                rangemode="fixed"
             )
     ))
     
     fig.update_layout(layout)
-
-    #fig.update_layout(
-    #    xaxis= go.layout.XAxis(
-    #        rangeslider=go.layout.xaxis.Rangeslider(
-    #            visible=True
-    #        )
-    #    )
-    #)
     
     filename = path.join(output_path, "steppers.html")
     pio.write_html(fig, filename, include_plotlyjs=True, full_html=True)
@@ -118,6 +106,35 @@ def create_output_directory(path):
         else:
             raise
 
+def parse_serial(input, dictionary_file):
+    dictionary = dictionary_file.read()
+    dictionary_file.close()
+    message_parser = MessageParser()
+    message_parser.process_identify(dictionary, decompress=False)
+    messages = message_parser.parse_file(input)
+    clock_freq = message_parser.get_constant_float('CLOCK_FREQ')
+    steppers = {}
+    for m in messages:
+        name = m["name"]
+        if name == "queue_step":
+            steppers[m["oid"]].queue_step(m)
+        elif name == "config_stepper":
+            stepper = Stepper(m, clock_freq)
+            steppers[stepper.oid] = stepper
+        elif name == "reset_step_clock":
+            steppers[m["oid"]].reset_step_clock(m)
+        elif name == "set_next_step_dir":
+            steppers[m["oid"]].set_next_step_dir(m)
+    
+    start_time = messages[0]["timestamp"]
+    
+    for s in steppers.itervalues():
+        s.calculate_moves(start_time)
+
+    steppers = sorted(list(steppers.values()), key=lambda x: x.oid) 
+
+    return steppers
+
 def main():
     parser = argparse.ArgumentParser(description=
         "Utility to graph the movement parsed from a serial dump file")
@@ -130,31 +147,7 @@ def main():
         help="Path to the input serial port dump file")
     args = parser.parse_args()
 
-    dictionary = args.dict.read()
-    args.dict.close()
-    message_parser = MessageParser()
-    message_parser.process_identify(dictionary, decompress=False)
-    messages = message_parser.parse_file(args.input)
-    clock_freq = message_parser.get_constant_float('CLOCK_FREQ')
-    steppers = {}
-    for m in messages:
-        name = m["name"]
-        if name == "queue_step":
-            steppers[m["oid"]].queue_step(m)
-        elif name == "config_stepper":
-            stepper = Stepper(m, clock_freq)
-            steppers[stepper.oid] = stepper
-        elif name == "finalize_config":
-            print("Num steppers %i" % len(steppers))
-        elif name == "reset_step_clock":
-            steppers[m["oid"]].reset_step_clock(m)
-        elif name == "set_next_step_dir":
-            steppers[m["oid"]].set_next_step_dir(m)
-    
-    start_time = messages[0]["timestamp"]
-    
-    for s in steppers.itervalues():
-        s.calculate_moves(start_time)
+    steppers = parse_serial(args.input, args.dict)
 
     create_output_directory(args.output)
     graph_moves(steppers, args.output)
