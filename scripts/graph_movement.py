@@ -68,15 +68,43 @@ class Stepper(object):
 def graph_moves(steppers, output_path):
     steppers = sorted(list(steppers.values()), key=lambda x: x.oid) 
     fig = go.Figure()
-    fig = make_subplots(rows=len(steppers), cols=1, 
-                    shared_xaxes=True, 
-                    vertical_spacing=0.02)
+    layout = {}
+    spacing = 0.01
+    domains = np.linspace(0, 1+spacing, len(steppers)+1)
     for i, stepper in enumerate(steppers):
+        yaxis = "y%i" % (i+1)
         fig.add_trace(go.Scatter(
             x=stepper.steps[:,0], y=stepper.steps[:,1], name="%i" % stepper.oid,
-            line=go.scatter.Line()),
-            row=i+1, col=1,
+            line=go.scatter.Line(),
+            yaxis=yaxis
+        ))
+        layout["yaxis%i" % (i+1)] = go.layout.YAxis(
+            anchor="x",
+            domain=(domains[i], domains[i+1]-spacing),
+            showline=True,
+            fixedrange=False,
+        )
+
+    layout["xaxis"] = go.layout.XAxis(
+        rangeslider=go.layout.xaxis.Rangeslider(
+            visible=True,
+            yaxis = go.layout.xaxis.rangeslider.YAxis(
+                rangemode="fixed"
+            ),
+            yaxis2 = go.layout.xaxis.rangeslider.YAxis(
+                rangemode="fixed"
             )
+    ))
+    
+    fig.update_layout(layout)
+
+    #fig.update_layout(
+    #    xaxis= go.layout.XAxis(
+    #        rangeslider=go.layout.xaxis.Rangeslider(
+    #            visible=True
+    #        )
+    #    )
+    #)
     
     filename = path.join(output_path, "steppers.html")
     pio.write_html(fig, filename, include_plotlyjs=True, full_html=True)
