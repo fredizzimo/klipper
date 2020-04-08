@@ -7,3 +7,5 @@ numpy==1.16.4
 scipy==1.2.3
 pytest==4.6.5
 pytest-assume==2.2.0
+plotly==4.1.0
+dash==1.1.0

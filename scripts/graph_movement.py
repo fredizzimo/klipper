@@ -10,8 +10,10 @@ import os
 import errno
 import numpy as np
 import plotly.graph_objects as go
-import plotly.io as pio
 from plotly.subplots import make_subplots
+import dash
+import dash_core_components as dcc
+import dash_html_components as html
 
 from os import path
 sys.path.append(path.normpath(
@@ -65,7 +67,7 @@ class Stepper(object):
         return int(message["timestamp"]*self.freq)
 
 
-def graph_moves(steppers, output_path):
+def graph_moves(steppers):
     fig = go.Figure()
     layout = {}
     spacing = 0.01
@@ -93,18 +95,24 @@ def graph_moves(steppers, output_path):
     ))
     
     fig.update_layout(layout)
+    return fig
     
-    filename = path.join(output_path, "steppers.html")
-    pio.write_html(fig, filename, include_plotlyjs=True, full_html=True)
 
-def create_output_directory(path):
-    try:
-        os.makedirs(path)
-    except OSError as exc:
-        if exc.errno == errno.EEXIST and os.path.isdir(path):
-            pass
-        else:
-            raise
+def run_app(steppers):
+    app = dash.Dash()
+    app.layout = html.Div(children=[
+        dcc.Graph(
+            id='example-graph',
+            figure=graph_moves(steppers),
+            style = {
+                "height": "100%"
+            }
+        )],
+        style = {
+            "height": "100vh"
+        }
+    )
+    app.run_server(debug=True)
 
 def parse_serial(input, dictionary_file):
     dictionary = dictionary_file.read()
@@ -140,17 +148,13 @@ def main():
         "Utility to graph the movement parsed from a serial dump file")
     parser.add_argument("--dict", type=argparse.FileType(mode="rb"),
         help="Path to the dictionary file")
-    parser.add_argument("--output", default="",
-        help="Path to the output directory, the default is the current "
-        "directory")
     parser.add_argument("input", type=argparse.FileType(mode="rb"),
         help="Path to the input serial port dump file")
     args = parser.parse_args()
 
     steppers = parse_serial(args.input, args.dict)
 
-    create_output_directory(args.output)
-    graph_moves(steppers, args.output)
+    run_app(steppers)
 
 
 if __name__ == "__main__":
