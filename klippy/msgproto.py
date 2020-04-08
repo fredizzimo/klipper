@@ -3,7 +3,7 @@
 # Copyright (C) 2016-2019  Kevin O'Connor <kevin@koconnor.net>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
-import json, zlib, logging
+import json, zlib, logging, struct
 
 DefaultMessages = {
     "identify_response offset=%u data=%.*s": 0,
@@ -299,16 +299,22 @@ class MessageParser:
                 break
             data += newdata
             while True:
-                l = self.check_packet(data)
+                # Every packet starts with a timestamp
+                if len(data) <= 8:
+                    break
+                l = self.check_packet(data[8:])
                 if l == 0:
                     break
                 if l < 0:
                     logging.error("Invalid data")
                     data = data[-l:]
                     continue
-                msgs = self.parse_packet(bytearray(data[:l]))
+                timestamp = struct.unpack("d", data[:8])[0]
+                msgs = self.parse_packet(bytearray(data[8:8+l]))
+                for msg in msgs:
+                    msg["timestamp"] = timestamp
                 out.extend(msgs)
-                data = data[l:]
+                data = data[8+l:]
         return out
     def encode(self, seq, cmd):
         msglen = MESSAGE_MIN + len(cmd)

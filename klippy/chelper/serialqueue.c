@@ -18,6 +18,7 @@
 #include <pthread.h> // pthread_mutex_lock
 #include <stddef.h> // offsetof
 #include <stdint.h> // uint64_t
+#include <stdbool.h>
 #include <stdio.h> // snprintf
 #include <stdlib.h> // malloc
 #include <string.h> // memset
@@ -383,6 +384,7 @@ struct serialqueue {
     struct list_head receive_queue;
     // Debugging
     struct list_head old_sent, old_receive;
+    bool file_output;
     // Stats
     uint32_t bytes_write, bytes_read, bytes_retransmit, bytes_invalid;
 };
@@ -707,6 +709,14 @@ build_and_send_command(struct serialqueue *sq, double eventtime)
     out->msg[out->len - MESSAGE_TRAILER_CRC+1] = crc & 0xff;
     out->msg[out->len - MESSAGE_TRAILER_SYNC] = MESSAGE_SYNC;
 
+    // Include the event time in the file output
+    if (sq->file_output)
+    {
+        int ret = write(sq->serial_fd, &eventtime, sizeof(eventtime));
+        if (ret < 0)
+            report_errno("write", ret);
+    }
+
     // Send message
     int ret = write(sq->serial_fd, out->msg, out->len);
     if (ret < 0)
@@ -844,6 +854,7 @@ serialqueue_alloc(int serial_fd, int write_only)
     if (ret)
         goto fail;
     pollreactor_setup(&sq->pr, SQPF_NUM, SQPT_NUM, sq);
+    sq->file_output = write_only;
     if (!write_only)
         pollreactor_add_fd(&sq->pr, SQPF_SERIAL, serial_fd, input_event);
     pollreactor_add_fd(&sq->pr, SQPF_PIPE, sq->pipe_fds[0], kick_event);
