@@ -1,0 +1,6 @@
+# Basic sanity checks on the example printer config files
+GCODE move.gcode
+
+# Example kinematic files
+DICTIONARY atmega2560.dict
+CONFIG jerk_movement.cfg
