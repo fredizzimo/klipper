@@ -14,6 +14,7 @@ from plotly.subplots import make_subplots
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
+from dash.dependencies import Input, Output, State
 
 from os import path
 sys.path.append(path.normpath(
@@ -83,27 +84,24 @@ def graph_moves(steppers):
             anchor="x",
             domain=(domains[i], domains[i+1]-spacing),
             showline=True,
-            fixedrange=False,
+            fixedrange=True,
         )
 
     layout["xaxis"] = go.layout.XAxis(
-        rangeslider=go.layout.xaxis.Rangeslider(
-            visible=True,
-            yaxis = go.layout.xaxis.rangeslider.YAxis(
-                rangemode="fixed"
-            )
-    ))
-    
+        fixedrange=False,
+    )
+
     fig.update_layout(layout)
     return fig
     
 
 def run_app(steppers):
     app = dash.Dash()
+    figure = graph_moves(steppers)
     app.layout = html.Div(children=[
         dcc.Graph(
             id='example-graph',
-            figure=graph_moves(steppers),
+            figure=figure,
             style = {
                 "height": "100%"
             }
@@ -112,7 +110,63 @@ def run_app(steppers):
             "height": "100vh"
         }
     )
+    axis_names = ["yaxis%i" % (i+1) if i >0 else "yaxis"
+        for i in range(len(steppers))]
+
+    @app.callback(Output("example-graph", "figure"),
+    [Input("example-graph", "relayoutData")],
+    [State("example-graph", "figure")])
+    def display_relayout_data(relayoutData, fig):
+        if relayoutData is None:
+            return fig
+        
+        fig_layout = fig["layout"]
+        range = relayoutData.get("xaxis.range", None)
+        default = fig_layout["xaxis"]["range"]
+        if range is None:
+            range = [
+                relayoutData.get("xaxis.range[0]", None),
+                relayoutData.get("xaxis.range[1]", None)
+            ]
+        if range[0] is None:
+            if range[1] is None:
+                return fig
+            else:
+                range[0] = default[0]
+        elif range[1] is None:
+            range[1] = default[1]
+        
+        for i,stepper in enumerate(steppers):
+            stepper = steppers[i]
+            step_times = stepper.steps[:,0]
+            num_steps = stepper.steps.shape[0]
+            if num_steps == 0:
+                range_low = 100
+                range_high = -100
+            else:
+                i_low = np.searchsorted(step_times, range[0], side="left")
+                i_high = np.searchsorted(step_times, range[1], side="right")
+                if i_low >= num_steps:
+                    range_low = stepper.steps[-1,1]
+                    range_high = range_low
+                elif i_low == i_high:
+                    range_low = stepper.steps[i_low,1]
+                    range_high = range_low
+                else:
+                    range_low = np.min(stepper.steps[i_low:i_high,1])
+                    range_high = np.max(stepper.steps[i_low:i_high,1])
+                diff = range_high - range_low
+                margin = diff*0.1
+                range_high += margin
+                range_low -= margin
+
+            axis = fig_layout[axis_names[i]]
+            axis["range"]=[range_low, range_high]
+            axis["autorange"]=False
+        return fig
+
     app.run_server(debug=True)
+
 
 def parse_serial(input, dictionary_file):
     dictionary = dictionary_file.read()
