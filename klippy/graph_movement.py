@@ -34,8 +34,17 @@ class Stepper(object):
         self.freq = clock_freq
         self.mcu = None
         self.extruder = None
+        self.rail = None
+        self.is_homing = False
     def reset_step_clock(self, message):
         self.step_clock = message["clock"]
+        # Fixup the step position to the homing pos
+        # This does not work properly for all kinematic types
+        # it also assumes that there's a reset step clock after homing
+        if self.is_homing:
+            self.pos = int(self.rail.position_endstop / self.mcu._step_dist)
+            self.is_homing = False
+
     def set_next_step_dir(self, message):
         self.dir = message["dir"] ^ self.invert_step
     def queue_step(self, message):
@@ -52,7 +61,7 @@ class Stepper(object):
             base_high += 0x100000000
         t = base_high + wrapped_first - interval
         pos = self.pos
-        step = -1 if self.dir else 1
+        step = 1 if self.dir else -1
         for _ in range(count):
             t += interval
             self.steps.append((t / self.freq, pos))
@@ -64,34 +73,33 @@ class Stepper(object):
         self.steps = np.array(self.steps)
         self.steps[0][0] = start_time
         self.steps[:,0] -= start_time
-        pass
+        step_dist = self.mcu._step_dist
+        self.steps[:,1] *= step_dist
+
     def get_message_clock(self, message):
         return int(message["timestamp"]*self.freq)
     def set_mcu(self, mcu):
         self.mcu = mcu
+    def set_rail(self, rail):
+        self.rail = rail
     def set_extruder(self, extruder):
         self.extruder = extruder
         self.set_mcu(extruder.stepper)
+    def home(self):
+        self.is_homing = True
 
-# Dummy printer class, which is needed because PrinterConfig depends on it
-class Printer(object):
-    def __init__(self, configfile):
-        self.configfile = configfile.name
-        configfile.close()
-        self.config = PrinterConfig(self)
-        self.config.read_main_config()
-
-    def lookup_object(self, obj):
-        class GCode(object):
-            def register_command(self, cmd, func, when_not_ready=False,
-                    desc=None):
-                pass
-        return GCode()
-
-    def get_start_args(self):
-        return {
-            "config_file": self.configfile
-        }
+class Endstop(object):
+    def __init__(self, message):
+        self.stepper = None
+        self.steppers = [None]*message["stepper_count"]
+    def set_stepper(self, message, steppers):
+        stepper = steppers[message["stepper_oid"]]
+        pos = message["pos"]
+        self.steppers[pos] = stepper
+    def home(self):
+        for s in self.steppers:
+            if s is not None:
+                s.home()
 
 def graph_moves(steppers):
     fig = go.Figure()
@@ -158,6 +166,7 @@ def parse(input, dictionary_file, config_file):
     messages = message_parser.parse_file(input)
     clock_freq = message_parser.get_constant_float('CLOCK_FREQ')
     steppers = {}
+    endstops = {}
     for m in messages:
         name = m["name"]
         if name == "queue_step":
@@ -165,14 +174,20 @@ def parse(input, dictionary_file, config_file):
         elif name == "config_stepper":
             stepper = Stepper(m, clock_freq)
             steppers[stepper.oid] = stepper
+        elif name == "config_endstop":
+            endstops[m["oid"]] = Endstop(m)
+        elif name == "endstop_set_stepper":
+            endstops[m["oid"]].set_stepper(m, steppers)
         elif name == "reset_step_clock":
             steppers[m["oid"]].reset_step_clock(m)
         elif name == "set_next_step_dir":
             steppers[m["oid"]].set_next_step_dir(m)
+        elif name == "endstop_home":
+            endstops[m["oid"]].home()
+        elif name == "finalize_config":
+            apply_config(steppers, config_file)
     
     start_time = messages[0]["timestamp"]
-
-    apply_config(steppers, config_file)
 
     for s in steppers.itervalues():
         s.calculate_moves(start_time)
@@ -193,6 +208,7 @@ def apply_config(steppers, config_file):
     for rail in toolhead.kin.rails:
         for stepper in rail.steppers:
             oid = stepper._oid
+            steppers[oid].set_rail(rail)
             steppers[oid].set_mcu(stepper)
 
     extruders = printer.lookup_objects("extruder")
