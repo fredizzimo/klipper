@@ -16,10 +16,9 @@ import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
 
-from os import path
-sys.path.append(path.normpath(
-    path.join(path.split(__file__)[0] + "/..")))
-from klippy.msgproto import MessageParser
+from msgproto import MessageParser
+from configfile import PrinterConfig
+from klippy import Printer as KlippyPrinter
 
 MASK_32_BIT = 0xFFFFFFFF
 MASK_32_BIT_HIGH = MASK_32_BIT << 32
@@ -33,6 +32,8 @@ class Stepper(object):
         self.steps = [(0, 0)]
         self.pos = 0
         self.freq = clock_freq
+        self.mcu = None
+        self.extruder = None
     def reset_step_clock(self, message):
         self.step_clock = message["clock"]
     def set_next_step_dir(self, message):
@@ -66,23 +67,47 @@ class Stepper(object):
         pass
     def get_message_clock(self, message):
         return int(message["timestamp"]*self.freq)
+    def set_mcu(self, mcu):
+        self.mcu = mcu
+    def set_extruder(self, extruder):
+        self.extruder = extruder
+        self.set_mcu(extruder.stepper)
 
+# Dummy printer class, which is needed because PrinterConfig depends on it
+class Printer(object):
+    def __init__(self, configfile):
+        self.configfile = configfile.name
+        configfile.close()
+        self.config = PrinterConfig(self)
+        self.config.read_main_config()
+
+    def lookup_object(self, obj):
+        class GCode(object):
+            def register_command(self, cmd, func, when_not_ready=False,
+                    desc=None):
+                pass
+        return GCode()
+
+    def get_start_args(self):
+        return {
+            "config_file": self.configfile
+        }
 
 def graph_moves(steppers):
     fig = go.Figure()
     layout = {}
     spacing = 0.01
-    domains = np.linspace(0, 1+spacing, len(steppers)+1)
+    domains = list(reversed(np.linspace(0, 1+spacing, len(steppers)+1)))
     for i, stepper in enumerate(steppers):
         yaxis = "y%i" % (i+1)
         fig.add_trace(go.Scatter(
-            x=stepper.steps[:,0], y=stepper.steps[:,1], name="%i" % stepper.oid,
+            x=stepper.steps[:,0], y=stepper.steps[:,1], name=stepper.mcu._name,
             line=go.scatter.Line(),
             yaxis=yaxis
         ))
         layout["yaxis%i" % (i+1)] = go.layout.YAxis(
             anchor="x",
-            domain=(domains[i], domains[i+1]-spacing),
+            domain=(domains[i+1], domains[i]-spacing),
             showline=True,
             fixedrange=True,
         )
@@ -110,8 +135,6 @@ def run_app(steppers):
             "height": "100vh"
         }
     )
-    axis_names = ["yaxis%i" % (i+1) if i >0 else "yaxis"
-        for i in range(len(steppers))]
 
     app.clientside_callback(
         """
@@ -127,7 +150,7 @@ def run_app(steppers):
     app.run_server(debug=True)
 
 
-def parse_serial(input, dictionary_file):
+def parse(input, dictionary_file, config_file):
     dictionary = dictionary_file.read()
     dictionary_file.close()
     message_parser = MessageParser()
@@ -148,7 +171,9 @@ def parse_serial(input, dictionary_file):
             steppers[m["oid"]].set_next_step_dir(m)
     
     start_time = messages[0]["timestamp"]
-    
+
+    apply_config(steppers, config_file)
+
     for s in steppers.itervalues():
         s.calculate_moves(start_time)
 
@@ -156,16 +181,40 @@ def parse_serial(input, dictionary_file):
 
     return steppers
 
+def apply_config(steppers, config_file):
+    start_args = {
+        "debuginput": True,
+        "config_file": config_file.name
+    }
+
+    printer = KlippyPrinter(None, None, start_args)
+    printer._read_config()
+    toolhead = printer.lookup_object("toolhead")
+    for rail in toolhead.kin.rails:
+        for stepper in rail.steppers:
+            oid = stepper._oid
+            steppers[oid].set_mcu(stepper)
+
+    extruders = printer.lookup_objects("extruder")
+    for _, extruder in extruders:
+        if hasattr(extruder, "stepper"):
+            oid = extruder.stepper._oid
+            steppers[oid].set_extruder(extruder)
+
 def main():
     parser = argparse.ArgumentParser(description=
         "Utility to graph the movement parsed from a serial dump file")
     parser.add_argument("--dict", type=argparse.FileType(mode="rb"),
+        required=True,
         help="Path to the dictionary file")
+    parser.add_argument("--config", type=argparse.FileType(mode="r"),
+        required=True,
+        help="Path to the printer config file")
     parser.add_argument("input", type=argparse.FileType(mode="rb"),
         help="Path to the input serial port dump file")
     args = parser.parse_args()
 
-    steppers = parse_serial(args.input, args.dict)
+    steppers = parse(args.input, args.dict, args.config)
 
     run_app(steppers)
 
