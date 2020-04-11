@@ -11,6 +11,7 @@ import errno
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from plotly.colors import DEFAULT_PLOTLY_COLORS
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -151,23 +152,56 @@ def graph_moves(steppers):
     layout = {}
     spacing = 0.01
     domains = list(reversed(np.linspace(0, 1+spacing, len(steppers)+1)))
+    y_axis_spacing = 0.03
+
     for i, stepper in enumerate(steppers):
-        yaxis = "y%i" % (i+1)
+        yaxis1 = "yaxis%i" % (3*i+1)
+        yaxis2 = "yaxis%i" % (3*i+2)
+        yaxis3 = "yaxis%i" % (3*i+3)
+        y1 = "y%i" % (3*i+1)
+        y2 = "y%i" % (3*i+2)
+        y3 = "y%i" % (3*i+3)
+        color = DEFAULT_PLOTLY_COLORS[i]
         fig.add_trace(go.Scatter(
-            #x=stepper.steps[:,0], y=stepper.steps[:,1], name=stepper.mcu._name,
-            x=stepper.steps[:,0], y=stepper.acceleration, name=stepper.mcu._name,
-            line=go.scatter.Line(),
-            yaxis=yaxis
+            x=stepper.steps[:,0], y=stepper.steps[:,1], name=stepper.mcu._name,
+            line=go.scatter.Line(color=color),
+            yaxis=y1
         ))
-        layout["yaxis%i" % (i+1)] = go.layout.YAxis(
+        fig.add_trace(go.Scatter(
+            x=stepper.steps[:,0], y=stepper.velocity, name=stepper.mcu._name,
+            line=go.scatter.Line(dash="dash", color=color),
+            yaxis=y2
+        ))
+        fig.add_trace(go.Scatter(
+            x=stepper.steps[:,0], y=stepper.acceleration, name=stepper.mcu._name,
+            line=go.scatter.Line(dash="dot", color=color),
+            yaxis=y3
+        ))
+        layout[yaxis1] = go.layout.YAxis(
             anchor="x",
             domain=(domains[i+1], domains[i]-spacing),
             showline=True,
             fixedrange=True,
+            position=y_axis_spacing*0.0
+        )
+        layout[yaxis2] = go.layout.YAxis(
+            anchor="free",
+            overlaying=y1,
+            side="left",
+            position=y_axis_spacing*1.0,
+            fixedrange=True
+        )
+        layout[yaxis3] = go.layout.YAxis(
+            anchor="free",
+            overlaying=y1,
+            side="left",
+            position=y_axis_spacing*2.0,
+            fixedrange=True
         )
 
     layout["xaxis"] = go.layout.XAxis(
         fixedrange=False,
+        domain=[y_axis_spacing*3.0,1]
     )
 
     fig.update_layout(layout)
