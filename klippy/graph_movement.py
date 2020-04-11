@@ -77,9 +77,24 @@ class Stepper(object):
         self.steps[:,0] -= start_time
         step_dist = self.mcu._step_dist
         self.steps[:,1] *= step_dist
-        self.velocity = np.gradient(self.steps[:,1], self.steps[:,0])
-        self.acceleration = np.gradient(self.velocity, self.steps[:,0])
+        self.calculate_velocities_and_accelerations()
 
+    def calculate_velocities_and_accelerations(self):
+        length = self.steps.shape[0]
+        if length < 3:
+            self.velocity = np.zeros(length)
+            self.acceleration = np.zeros(length)
+            return
+        
+        self.velocity = np.empty(length)
+        self.acceleration = np.empty(length)
+        # Assume that the first and last velocities and accelerations are zero
+        self.velocity[0] = 0.0
+        self.velocity[-1] = 0.0
+        self.acceleration[0] = 0.0
+        self.acceleration[-1] = 0.0
+
+        # Calcuate the rest using 3 point central differences
         diffs = np.empty((self.steps.shape[0],3))
         diffs[1:,0] = self.steps[:-1,0] - self.steps[1:,0]
         diffs[:,1] = np.zeros(self.steps.shape[0])
@@ -93,32 +108,28 @@ class Stepper(object):
         diffs[-1,1] = self.steps[-2,0] - self.steps[-1,0]
         diffs[-1,2] = 0
 
-        A = np.empty((self.steps.shape[0], 3, 3))
-        A[:,0,:] = np.ones((self.steps.shape[0],3))
-        A[:,1,:] = diffs
-        A[:,2,:] = diffs**2
+        diffs_p0 = diffs[1:-1,0]
+        diffs_p2 = diffs[1:-1,2]
 
-        B=np.array((0,1,0))
-        coeffs = np.empty((self.steps.shape[0], 3))
-        for i in range(self.steps.shape[0]):
-            coeffs[i,:] = np.linalg.solve(A[i,:,:], B)
+        diffs_2 = diffs**2
+        diffs_2_p0 = diffs_2[1:-1,0]
+        diffs_2_p2 = diffs_2[1:-1,2]
 
-        values = coeffs[:,1] * self.steps[:,1]
-        values[1:] += coeffs[1:,0] * self.steps[:-1,1]
-        values[:-1] += coeffs[:-1,2] * self.steps[1:,1]
-        self.velocity = values
+        f_0 = self.steps[0:-2,1]
+        f_1 = self.steps[1:-1,1]
+        f_2 = self.steps[2:,1]
 
-        B=np.array((0,0,2))
-        coeffs = np.empty((self.steps.shape[0], 3))
-        for i in range(self.steps.shape[0]):
-            coeffs[i,:] = np.linalg.solve(A[i,:,:], B)
+        self.velocity[1:-1] = f_1*(diffs_2_p2 - diffs_2_p0)
+        self.velocity[1:-1] += f_2*diffs_2_p0
+        self.velocity[1:-1] -= f_0*diffs_2_p2
+        denominator = diffs_p0*diffs_p2 * (diffs_p0 - diffs_p2)
+        self.velocity[1:-1] /= denominator 
 
-        values = coeffs[:,1] * self.steps[:,1]
-        values[1:] += coeffs[1:,0] * self.steps[:-1,1]
-        values[:-1] += coeffs[:-1,2] * self.steps[1:,1]
-        self.acceleration = values
-        pass
-
+        self.acceleration[1:-1] = f_0*diffs_p2
+        self.acceleration[1:-1] += f_1*(diffs_p0 - diffs_p2)
+        self.acceleration[1:-1] -= f_2*diffs_p0
+        self.acceleration[1:-1] *= 2.0
+        self.acceleration[1:-1] /= denominator
 
     def get_message_clock(self, message):
         return int(message["timestamp"]*self.freq)
