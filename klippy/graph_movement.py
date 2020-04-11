@@ -120,7 +120,6 @@ class Stepper(object):
         self.acceleration[1:-1] = (f_0 / a) * 2.0
         self.acceleration[1:-1] -= (f_1 / b) * 2.0
         self.acceleration[1:-1] += (f_2 / c) * 2.0
-            
 
     def get_message_clock(self, message):
         return int(message["timestamp"]*self.freq)
@@ -163,17 +162,20 @@ def graph_moves(steppers):
         y3 = "y%i" % (3*i+3)
         color = DEFAULT_PLOTLY_COLORS[i]
         fig.add_trace(go.Scatter(
-            x=stepper.steps[:,0], y=stepper.steps[:,1], name=stepper.mcu._name,
+            x=stepper.steps[:,0], y=stepper.steps[:,1],
+            name="%s pos" % stepper.mcu._name,
             line=go.scatter.Line(color=color),
             yaxis=y1
         ))
         fig.add_trace(go.Scatter(
-            x=stepper.steps[:,0], y=stepper.velocity, name=stepper.mcu._name,
+            x=stepper.steps[:,0], y=stepper.velocity,
+            name="%s vel" % stepper.mcu._name,
             line=go.scatter.Line(dash="dash", color=color),
             yaxis=y2
         ))
         fig.add_trace(go.Scatter(
-            x=stepper.steps[:,0], y=stepper.acceleration, name=stepper.mcu._name,
+            x=stepper.steps[:,0], y=stepper.acceleration,
+            name="%s acc" % stepper.mcu._name,
             line=go.scatter.Line(dash="dot", color=color),
             yaxis=y3
         ))
