@@ -112,19 +112,13 @@ class Stepper(object):
         a = diffs_2_p0 + b
         c = diffs_2_p2 + b
 
-        temp = (diffs_p2 - diffs_p0) / b
-        self.velocity[1:-1] = f_1 * temp
-        temp = diffs_p2 / a
-        self.velocity[1:-1] -= f_0 * temp
-        temp = diffs_p0 / c
-        self.velocity[1:-1] += f_2 * temp
+        self.velocity[1:-1] = f_1 * (diffs_p2 - diffs_p0) / b
+        self.velocity[1:-1] -= f_0 * diffs_p2 / a
+        self.velocity[1:-1] += f_2 * diffs_p0 / c
 
-        temp = 2.0 / a
-        self.acceleration[1:-1] = f_0 * temp
-        temp = 2.0 / b
-        self.acceleration[1:-1] -= f_1 * temp
-        temp = 2.0 / c
-        self.acceleration[1:-1] += f_2 * temp
+        self.acceleration[1:-1] = f_0 * 0.5 * a
+        self.acceleration[1:-1] -= f_1 * 0.5 * b
+        self.acceleration[1:-1] += f_2 * 0.5 * c
             
 
     def get_message_clock(self, message):
