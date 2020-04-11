@@ -15,6 +15,10 @@ function range_start(array, value)
             count = step;
         }
     }
+    if (first > 0)
+    {
+        first = first-1;
+    }
     return first < array.length ? first : array.length-1;
 }
 
@@ -53,7 +57,7 @@ function zoom_trace_y(xvals, yvals, start, end)
         var range_low = yvals[i_low];
         var range_high = range_low;
     } else {
-        var array_range = yvals.slice(i_low, i_high-1);
+        var array_range = yvals.slice(i_low, i_high+1);
         var range_low = Math.min(...array_range);
         var range_high = Math.max(...array_range);
     }
