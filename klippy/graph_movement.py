@@ -95,45 +95,34 @@ class Stepper(object):
         self.acceleration[-1] = 0.0
 
         # Calcuate the rest using 3 point central differences
-        diffs = np.empty((self.steps.shape[0],3))
-        diffs[1:,0] = self.steps[:-1,0] - self.steps[1:,0]
-        diffs[:,1] = np.zeros(self.steps.shape[0])
-        diffs[:-1,2] = self.steps[1:,0] - self.steps[:-1,0]
-
-        diffs[0,0] = 0
-        diffs[0,1] = self.steps[1,0] - self.steps[0,0]
-        diffs[0,2] = self.steps[2,0] - self.steps[0,0]
-
-        diffs[-1,0] = self.steps[-3,0] - self.steps[-1,0]
-        diffs[-1,1] = self.steps[-2,0] - self.steps[-1,0]
-        diffs[-1,2] = 0
-
-        diffs_p0 = diffs[1:-1,0]
-        diffs_p2 = diffs[1:-1,2]
-
+        diffs = self.steps[1:,0] - self.steps[:-1,0]
         diffs_2 = diffs**2
-        diffs_2_p0 = diffs_2[1:-1,0]
-        diffs_2_p2 = diffs_2[1:-1,2]
+
+        diffs_p0 = diffs[:-1]
+        diffs_p2 = diffs[1:]
+
+        diffs_2_p0 = diffs_2[:-1]
+        diffs_2_p2 = diffs_2[1:]
 
         f_0 = self.steps[0:-2,1]
         f_1 = self.steps[1:-1,1]
         f_2 = self.steps[2:,1]
 
         b = diffs_p0*diffs_p2
-        a = diffs_2_p0 - b
-        c = diffs_2_p2 - b
+        a = diffs_2_p0 + b
+        c = diffs_2_p2 + b
 
+        temp = (diffs_p2 - diffs_p0) / b
+        self.velocity[1:-1] = f_1 * temp
         temp = diffs_p2 / a
-        self.velocity[1:-1] = -f_0 * temp
-        temp = (diffs_p0 + diffs_p2) / b
-        self.velocity[1:-1] -= f_1 * temp
+        self.velocity[1:-1] -= f_0 * temp
         temp = diffs_p0 / c
-        self.velocity[1:-1] -= f_2 * temp
+        self.velocity[1:-1] += f_2 * temp
 
         temp = 2.0 / a
         self.acceleration[1:-1] = f_0 * temp
         temp = 2.0 / b
-        self.acceleration[1:-1] += f_1 * temp
+        self.acceleration[1:-1] -= f_1 * temp
         temp = 2.0 / c
         self.acceleration[1:-1] += f_2 * temp
             
@@ -172,7 +161,7 @@ def graph_moves(steppers):
         yaxis = "y%i" % (i+1)
         fig.add_trace(go.Scatter(
             #x=stepper.steps[:,0], y=stepper.steps[:,1], name=stepper.mcu._name,
-            x=stepper.steps[:,0], y=stepper.acceleration, name=stepper.mcu._name,
+            x=stepper.steps[:,0], y=stepper.velocity, name=stepper.mcu._name,
             line=go.scatter.Line(),
             yaxis=yaxis
         ))
