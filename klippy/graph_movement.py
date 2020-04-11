@@ -116,9 +116,9 @@ class Stepper(object):
         self.velocity[1:-1] -= f_0 * diffs_p2 / a
         self.velocity[1:-1] += f_2 * diffs_p0 / c
 
-        self.acceleration[1:-1] = f_0 * 0.5 * a
-        self.acceleration[1:-1] -= f_1 * 0.5 * b
-        self.acceleration[1:-1] += f_2 * 0.5 * c
+        self.acceleration[1:-1] = (f_0 / a) * 2.0
+        self.acceleration[1:-1] -= (f_1 / b) * 2.0
+        self.acceleration[1:-1] += (f_2 / c) * 2.0
             
 
     def get_message_clock(self, message):
@@ -155,7 +155,7 @@ def graph_moves(steppers):
         yaxis = "y%i" % (i+1)
         fig.add_trace(go.Scatter(
             #x=stepper.steps[:,0], y=stepper.steps[:,1], name=stepper.mcu._name,
-            x=stepper.steps[:,0], y=stepper.velocity, name=stepper.mcu._name,
+            x=stepper.steps[:,0], y=stepper.acceleration, name=stepper.mcu._name,
             line=go.scatter.Line(),
             yaxis=yaxis
         ))
