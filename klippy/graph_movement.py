@@ -119,17 +119,24 @@ class Stepper(object):
         f_1 = self.steps[1:-1,1]
         f_2 = self.steps[2:,1]
 
-        self.velocity[1:-1] = f_1*(diffs_2_p2 - diffs_2_p0)
-        self.velocity[1:-1] += f_2*diffs_2_p0
-        self.velocity[1:-1] -= f_0*diffs_2_p2
-        denominator = diffs_p0*diffs_p2 * (diffs_p0 - diffs_p2)
-        self.velocity[1:-1] /= denominator 
+        b = diffs_p0*diffs_p2
+        a = diffs_2_p0 - b
+        c = diffs_2_p2 - b
 
-        self.acceleration[1:-1] = f_0*diffs_p2
-        self.acceleration[1:-1] += f_1*(diffs_p0 - diffs_p2)
-        self.acceleration[1:-1] -= f_2*diffs_p0
-        self.acceleration[1:-1] *= 2.0
-        self.acceleration[1:-1] /= denominator
+        temp = diffs_p2 / a
+        self.velocity[1:-1] = -f_0 * temp
+        temp = (diffs_p0 + diffs_p2) / b
+        self.velocity[1:-1] -= f_1 * temp
+        temp = diffs_p0 / c
+        self.velocity[1:-1] -= f_2 * temp
+
+        temp = 2.0 / a
+        self.acceleration[1:-1] = f_0 * temp
+        temp = 2.0 / b
+        self.acceleration[1:-1] += f_1 * temp
+        temp = 2.0 / c
+        self.acceleration[1:-1] += f_2 * temp
+            
 
     def get_message_clock(self, message):
         return int(message["timestamp"]*self.freq)
