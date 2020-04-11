@@ -36,6 +36,8 @@ class Stepper(object):
         self.extruder = None
         self.rail = None
         self.is_homing = False
+        self.velocity = None
+        self.acceleration = None
     def reset_step_clock(self, message):
         self.step_clock = message["clock"]
         # Fixup the step position to the homing pos
@@ -75,6 +77,48 @@ class Stepper(object):
         self.steps[:,0] -= start_time
         step_dist = self.mcu._step_dist
         self.steps[:,1] *= step_dist
+        self.velocity = np.gradient(self.steps[:,1], self.steps[:,0])
+        self.acceleration = np.gradient(self.velocity, self.steps[:,0])
+
+        diffs = np.empty((self.steps.shape[0],3))
+        diffs[1:,0] = self.steps[:-1,0] - self.steps[1:,0]
+        diffs[:,1] = np.zeros(self.steps.shape[0])
+        diffs[:-1,2] = self.steps[1:,0] - self.steps[:-1,0]
+
+        diffs[0,0] = 0
+        diffs[0,1] = self.steps[1,0] - self.steps[0,0]
+        diffs[0,2] = self.steps[2,0] - self.steps[0,0]
+
+        diffs[-1,0] = self.steps[-3,0] - self.steps[-1,0]
+        diffs[-1,1] = self.steps[-2,0] - self.steps[-1,0]
+        diffs[-1,2] = 0
+
+        A = np.empty((self.steps.shape[0], 3, 3))
+        A[:,0,:] = np.ones((self.steps.shape[0],3))
+        A[:,1,:] = diffs
+        A[:,2,:] = diffs**2
+
+        B=np.array((0,1,0))
+        coeffs = np.empty((self.steps.shape[0], 3))
+        for i in range(self.steps.shape[0]):
+            coeffs[i,:] = np.linalg.solve(A[i,:,:], B)
+
+        values = coeffs[:,1] * self.steps[:,1]
+        values[1:] += coeffs[1:,0] * self.steps[:-1,1]
+        values[:-1] += coeffs[:-1,2] * self.steps[1:,1]
+        self.velocity = values
+
+        B=np.array((0,0,2))
+        coeffs = np.empty((self.steps.shape[0], 3))
+        for i in range(self.steps.shape[0]):
+            coeffs[i,:] = np.linalg.solve(A[i,:,:], B)
+
+        values = coeffs[:,1] * self.steps[:,1]
+        values[1:] += coeffs[1:,0] * self.steps[:-1,1]
+        values[:-1] += coeffs[:-1,2] * self.steps[1:,1]
+        self.acceleration = values
+        pass
+
 
     def get_message_clock(self, message):
         return int(message["timestamp"]*self.freq)
@@ -109,7 +153,8 @@ def graph_moves(steppers):
     for i, stepper in enumerate(steppers):
         yaxis = "y%i" % (i+1)
         fig.add_trace(go.Scatter(
-            x=stepper.steps[:,0], y=stepper.steps[:,1], name=stepper.mcu._name,
+            #x=stepper.steps[:,0], y=stepper.steps[:,1], name=stepper.mcu._name,
+            x=stepper.steps[:,0], y=stepper.acceleration, name=stepper.mcu._name,
             line=go.scatter.Line(),
             yaxis=yaxis
         ))
