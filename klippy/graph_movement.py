@@ -242,7 +242,38 @@ def graph_spatial(steppers):
 
 
 def run_app(steppers):
-    app = dash.Dash(assets_folder="graph_movement_assets")
+    index = """<!DOCTYPE html>
+    <html>
+        <head>
+            {%metas%}
+            <title>{%title%}</title>
+            {%favicon%}
+            {%css%}
+        </head>
+        <body>
+            {%app_entry%}
+            <footer>
+                {%config%}
+                {%scripts%}
+                {%renderer%}
+                <div id="canvas" style="height: 100vh"/>
+            </footer>
+        </body>
+    </html>"""
+    app = dash.Dash(
+        assets_folder="graph_movement_assets",
+        include_assets_files=False,
+        external_scripts=[
+            "/assets/graph_movement.js",
+            "assets/node_modules/three/build/three.js",
+            "/assets/node_modules/@babel/standalone/babel.min.js",
+            {
+                "src": "/assets/graph_3d.react.js",
+                "type": "text/babel"
+            }
+        ],
+        index_string=index
+    )
     app.layout = html.Div(children=[
         dcc.Graph(
             id="steppers",
@@ -251,13 +282,6 @@ def run_app(steppers):
                 "height": "100vh"
             }
         ),
-        dcc.Graph(
-            id="spatial",
-            figure=graph_spatial(steppers),
-            style = {
-                "height": "100vh"
-            }
-        )
         ],
     )
 
@@ -334,22 +358,25 @@ def apply_config(steppers, config_file):
             oid = extruder.stepper._oid
             steppers[oid].set_extruder(extruder)
 
-def install_three_js():
-    package_name = "three@0.115.0"
+npm_packages = ["three@0.115.0", "@babel/standalone@7.9.5"]
+def check_npm_packages(asset_folder):
     npm = which("npm")
     if npm is None:
+        print("npm does not seem to be installed on your system, please "
+            "install it first")
         return False
-    current_dir = os.path.split(__file__)[0]
-    asset_folder = os.path.join(current_dir, "graph_movement_assets")
     output = subprocess.check_output(["npm", "ls", "--prefix", asset_folder])
-    if output.find(package_name) != -1:
-        return True
-    print("Installing three.js, please wait")
-    output = subprocess.check_output(
-        ["npm", "install", package_name, "--prefix", asset_folder])
+    all_found = True
+    for package in npm_packages:
+        if output.find(package) == -1:
+            print("npm package %s not found. Run graph_movement with --install "
+                "to install it" % package)
+            all_found = False
+    return all_found
 
-    return True
-    
+def install_npm_packages(asset_folder):
+    args = ["npm", "install"] + npm_packages + ["--prefix", asset_folder]
+    output = subprocess.check_output(args)
 
 def main():
     parser = argparse.ArgumentParser(description=
@@ -360,14 +387,21 @@ def main():
     parser.add_argument("--config", type=argparse.FileType(mode="r"),
         required=True,
         help="Path to the printer config file")
+    parser.add_argument("--install", required=False, action="store_true",
+        help="Install required javascript npm packages")
     parser.add_argument("input", type=argparse.FileType(mode="rb"),
         help="Path to the input serial port dump file")
     args = parser.parse_args()
 
-    if not install_three_js():
-        print("npm does not seem to be installed on your system, please "
-            "install it first")
+    current_dir = os.path.split(__file__)[0]
+    asset_folder = os.path.join(current_dir, "graph_movement_assets")
+
+    if args.install:
+        install_npm_packages(asset_folder)
         return
+    elif not check_npm_packages(asset_folder):
+        return
+
 
     steppers = parse(args.input, args.dict, args.config)
 
