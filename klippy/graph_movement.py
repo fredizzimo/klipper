@@ -24,6 +24,8 @@ from msgproto import MessageParser
 from configfile import PrinterConfig
 from klippy import Printer as KlippyPrinter
 
+from klipper_dash_renderer import KlipperDashRenderer
+
 MASK_32_BIT = 0xFFFFFFFF
 MASK_32_BIT_HIGH = MASK_32_BIT << 32
 
@@ -242,37 +244,12 @@ def graph_spatial(steppers):
 
 
 def run_app(steppers):
-    index = """<!DOCTYPE html>
-    <html>
-        <head>
-            {%metas%}
-            <title>{%title%}</title>
-            {%favicon%}
-            {%css%}
-        </head>
-        <body>
-            {%app_entry%}
-            <footer>
-                {%config%}
-                {%scripts%}
-                {%renderer%}
-                <div id="canvas" style="height: 100vh"/>
-            </footer>
-        </body>
-    </html>"""
     app = dash.Dash(
         assets_folder="graph_movement_assets",
         include_assets_files=False,
         external_scripts=[
             "/assets/graph_movement.js",
-            "assets/node_modules/three/build/three.js",
-            "/assets/node_modules/@babel/standalone/babel.min.js",
-            {
-                "src": "/assets/graph_3d.react.js",
-                "type": "text/babel"
-            }
         ],
-        index_string=index
     )
     app.layout = html.Div(children=[
         dcc.Graph(
@@ -282,8 +259,12 @@ def run_app(steppers):
                 "height": "100vh"
             }
         ),
-        ],
-    )
+        KlipperDashRenderer(
+            id="renderer",
+            label="Hello World",
+            value="Fred"
+        )
+    ])
 
     app.clientside_callback(
         """
