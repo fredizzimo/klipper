@@ -214,8 +214,7 @@ def graph_steppers(steppers):
     fig.update_layout(layout)
     return fig
 
-def graph_spatial(steppers):
-    fig = go.Figure()
+def get_spatial_coordinates(steppers):
     def find_stepper(name):
         for s in steppers:
             if s.mcu._name == name:
@@ -233,14 +232,14 @@ def graph_spatial(steppers):
         merged = merged.merge(pd.DataFrame(stepper_z.steps, columns=["time", "z"]), how="outer", on="time")
         merged.sort_values(by="time", inplace=True)
         merged.fillna(method="ffill", inplace=True)
-        print(merged.x.to_numpy())
-        fig.add_trace(go.Scatter3d(
-            x=merged.x.to_numpy(), y=merged.y.to_numpy(), z=merged.z.to_numpy(),
-            mode="lines",
-            line=go.scatter3d.Line(width=1)
-        ))
-
-    return fig
+        a = np.empty((merged.shape[0], 3))
+        a[:,0] = merged.x
+        a[:,1] = merged.y
+        a[:,2] = merged.z
+        a = a.flatten()
+        return a
+    else:
+        return []
 
 
 def run_app(steppers):
@@ -261,8 +260,7 @@ def run_app(steppers):
         ),
         KlipperDashRenderer(
             id="renderer",
-            label="Hello World",
-            value="Fred"
+            vertices=get_spatial_coordinates(steppers),
         )
     ])
 
