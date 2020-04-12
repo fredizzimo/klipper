@@ -8,6 +8,8 @@ import argparse
 import sys
 import os
 import errno
+import subprocess
+from whichcraft import which
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -332,6 +334,23 @@ def apply_config(steppers, config_file):
             oid = extruder.stepper._oid
             steppers[oid].set_extruder(extruder)
 
+def install_three_js():
+    package_name = "three@0.115.0"
+    npm = which("npm")
+    if npm is None:
+        return False
+    current_dir = os.path.split(__file__)[0]
+    asset_folder = os.path.join(current_dir, "graph_movement_assets")
+    output = subprocess.check_output(["npm", "ls", "--prefix", asset_folder])
+    if output.find(package_name) != -1:
+        return True
+    print("Installing three.js, please wait")
+    output = subprocess.check_output(
+        ["npm", "install", package_name, "--prefix", asset_folder])
+
+    return True
+    
+
 def main():
     parser = argparse.ArgumentParser(description=
         "Utility to graph the movement parsed from a serial dump file")
@@ -344,6 +363,11 @@ def main():
     parser.add_argument("input", type=argparse.FileType(mode="rb"),
         help="Path to the input serial port dump file")
     args = parser.parse_args()
+
+    if not install_three_js():
+        print("npm does not seem to be installed on your system, please "
+            "install it first")
+        return
 
     steppers = parse(args.input, args.dict, args.config)
 

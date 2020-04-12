@@ -12,3 +12,4 @@ travis_build/
 travis_cache/
 _test_.*
 _test_output
+klippy/graph_movement_assets/node_modules/
