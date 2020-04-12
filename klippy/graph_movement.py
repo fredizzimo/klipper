@@ -9,6 +9,7 @@ import sys
 import os
 import errno
 import numpy as np
+import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from plotly.colors import DEFAULT_PLOTLY_COLORS
@@ -73,7 +74,7 @@ class Stepper(object):
         self.pos = pos
         self.step_clock = t & MASK_32_BIT
     def calculate_moves(self, start_time):
-        self.steps = np.array(self.steps)
+        self.steps = np.array(self.steps, dtype=np.float)
         self.steps[0][0] = start_time
         self.steps[:,0] -= start_time
         step_dist = self.mcu._step_dist
@@ -146,7 +147,7 @@ class Endstop(object):
             if s is not None:
                 s.home()
 
-def graph_moves(steppers):
+def graph_steppers(steppers):
     fig = go.Figure()
     layout = {}
     spacing = 0.01
@@ -208,22 +209,54 @@ def graph_moves(steppers):
 
     fig.update_layout(layout)
     return fig
+
+def graph_spatial(steppers):
+    fig = go.Figure()
+    def find_stepper(name):
+        for s in steppers:
+            if s.mcu._name == name:
+                return s
+        return None
     
+    stepper_x = find_stepper("stepper_x")
+    stepper_y = find_stepper("stepper_y")
+    stepper_z = find_stepper("stepper_z")
+    # Only support 3d graphs if there are x, y and z steppers
+    if (stepper_x is not None and stepper_y is not None and
+            stepper_z is not None):
+        merged = pd.DataFrame(stepper_x.steps, columns=["time", "x"])
+        merged = merged.merge(pd.DataFrame(stepper_y.steps, columns=["time", "y"]), how="outer", on="time")
+        merged = merged.merge(pd.DataFrame(stepper_z.steps, columns=["time", "z"]), how="outer", on="time")
+        merged.sort_values(by="time", inplace=True)
+        merged.fillna(method="ffill", inplace=True)
+        print(merged.x.to_numpy())
+        fig.add_trace(go.Scatter3d(
+            x=merged.x.to_numpy(), y=merged.y.to_numpy(), z=merged.z.to_numpy(),
+            mode="lines",
+            line=go.scatter3d.Line(width=1)
+        ))
+
+    return fig
+
 
 def run_app(steppers):
     app = dash.Dash(assets_folder="graph_movement_assets")
-    figure = graph_moves(steppers)
     app.layout = html.Div(children=[
         dcc.Graph(
-            id='example-graph',
-            figure=figure,
+            id="steppers",
+            figure=graph_steppers(steppers),
             style = {
-                "height": "100%"
+                "height": "100vh"
             }
-        )],
-        style = {
-            "height": "100vh"
-        }
+        ),
+        dcc.Graph(
+            id="spatial",
+            figure=graph_spatial(steppers),
+            style = {
+                "height": "100vh"
+            }
+        )
+        ],
     )
 
     app.clientside_callback(
@@ -232,9 +265,9 @@ def run_app(steppers):
             return zoom_figure_y(fig);
         }
         """,
-        Output("example-graph", "figure"),
-        [Input("example-graph", "relayoutData")],
-        [State("example-graph", "figure")]
+        Output("steppers", "figure"),
+        [Input("steppers", "relayoutData")],
+        [State("steppers", "figure")]
     )
 
     app.run_server(debug=True)
