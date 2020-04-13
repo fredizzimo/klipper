@@ -32,9 +32,9 @@ MASK_32_BIT_HIGH = MASK_32_BIT << 32
 class Stepper(object):
     def __init__(self, message, clock_freq):
         self.oid = message["oid"]
-        self.invert_step = message["invert_step"]
+        self.invert_dir = False
         self.step_clock = 0
-        self.dir = not self.invert_step
+        self.dir = True
         self.steps = [(0, 0)]
         self.pos = 0
         self.freq = clock_freq
@@ -54,7 +54,7 @@ class Stepper(object):
             self.is_homing = False
 
     def set_next_step_dir(self, message):
-        self.dir = message["dir"] ^ self.invert_step
+        self.dir = message["dir"]
     def queue_step(self, message):
         interval = message["interval"]
         count = message["count"]
@@ -82,6 +82,8 @@ class Stepper(object):
         self.steps[0][0] = start_time
         self.steps[:,0] -= start_time
         step_dist = self.mcu._step_dist
+        if self.invert_dir:
+            step_dist *= -1.0
         self.steps[:,1] *= step_dist
         self.calculate_velocities_and_accelerations()
 
@@ -130,6 +132,7 @@ class Stepper(object):
         return int(message["timestamp"]*self.freq)
     def set_mcu(self, mcu):
         self.mcu = mcu
+        self.invert_dir = self.mcu.is_dir_inverted()
     def set_rail(self, rail):
         self.rail = rail
     def set_extruder(self, extruder):
