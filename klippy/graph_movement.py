@@ -249,20 +249,34 @@ def run_app(steppers):
         external_scripts=[
             "/assets/graph_movement.js",
         ],
+        external_stylesheets= [
+            "/assets/graph_movements.css"
+        ]
     )
-    app.layout = html.Div(children=[
-        dcc.Graph(
-            id="steppers",
-            figure=graph_steppers(steppers),
-            style = {
-                "height": "100vh"
-            }
-        ),
-        KlipperDashRenderer(
-            id="renderer",
-            vertices=get_spatial_coordinates(steppers),
-        )
-    ])
+    app.layout = html.Div(
+        children=[
+            dcc.Graph(
+                id="steppers",
+                figure=graph_steppers(steppers),
+            ),
+            html.Div(
+                id="renderer_container",
+                children=[
+                    dcc.Markdown(
+"""
+Click and use the mouse and arrow keys to zoom and move around.
+Click outside to when done
+""",
+                        id="renderer_instructions"
+                    ),
+                    KlipperDashRenderer(
+                        id="renderer",
+                        vertices=get_spatial_coordinates(steppers),
+                    )
+                ]
+            )
+        ]
+    )
 
     app.clientside_callback(
         """

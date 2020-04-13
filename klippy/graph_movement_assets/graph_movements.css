@@ -1,0 +1,15 @@
+#steppers {
+    height: 100vh
+}
+
+#renderer_container {
+    height: 100vh
+}
+
+#renderer_instructions {
+    height: 50px
+}
+
+#renderer {
+    height: calc(100vh - 50px)
+}
