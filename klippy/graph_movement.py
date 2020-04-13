@@ -244,8 +244,16 @@ def get_spatial_coordinates(steppers):
     else:
         return []
 
+def get_printer_dimensions(printer):
+    toolhead = printer.lookup_object("toolhead")
+    rails = toolhead.kin.rails
+    # Not all kinematics types are supported by this at the moment
+    if len(rails) == 3:
+        return [(rail.position_min, rail.position_max) for rail in rails]
+    else:
+        return [(0,100), (0,100), (0,100)]
 
-def run_app(steppers):
+def run_app(steppers, printer):
     app = dash.Dash(
         assets_folder="graph_movement_assets",
         include_assets_files=False,
@@ -275,6 +283,7 @@ Click outside to when done
                     KlipperDashRenderer(
                         id="renderer",
                         vertices=get_spatial_coordinates(steppers),
+                        printer_dimensions=get_printer_dimensions(printer)
                     )
                 ]
             )
@@ -295,7 +304,7 @@ Click outside to when done
     app.run_server(debug=True)
 
 
-def parse(input, dictionary_file, config_file):
+def parse(input, dictionary_file, printer):
     dictionary = dictionary_file.read()
     dictionary_file.close()
     message_parser = MessageParser()
@@ -322,7 +331,7 @@ def parse(input, dictionary_file, config_file):
         elif name == "endstop_home":
             endstops[m["oid"]].home()
         elif name == "finalize_config":
-            apply_config(steppers, config_file)
+            apply_config(steppers, printer)
     
     start_time = messages[0]["timestamp"]
 
@@ -333,7 +342,7 @@ def parse(input, dictionary_file, config_file):
 
     return steppers
 
-def apply_config(steppers, config_file):
+def read_printer_config(config_file):
     start_args = {
         "debuginput": True,
         "config_file": config_file.name
@@ -341,6 +350,9 @@ def apply_config(steppers, config_file):
 
     printer = KlippyPrinter(None, None, start_args)
     printer._read_config()
+    return printer
+
+def apply_config(steppers, printer):
     toolhead = printer.lookup_object("toolhead")
     for rail in toolhead.kin.rails:
         for stepper in rail.steppers:
@@ -399,9 +411,10 @@ def main():
         return
 
 
-    steppers = parse(args.input, args.dict, args.config)
+    printer = read_printer_config(args.config)
+    steppers = parse(args.input, args.dict, printer)
 
-    run_app(steppers)
+    run_app(steppers, printer)
 
 
 if __name__ == "__main__":
