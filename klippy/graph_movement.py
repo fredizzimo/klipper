@@ -217,7 +217,7 @@ def graph_steppers(steppers):
     fig.update_layout(layout)
     return fig
 
-def get_spatial_coordinates(steppers):
+def get_stepper_data(steppers):
     def find_stepper(name):
         for s in steppers:
             if s.mcu._name == name:
@@ -235,14 +235,16 @@ def get_spatial_coordinates(steppers):
         merged = merged.merge(pd.DataFrame(stepper_z.steps, columns=["time", "z"]), how="outer", on="time")
         merged.sort_values(by="time", inplace=True)
         merged.fillna(method="ffill", inplace=True)
-        a = np.empty((merged.shape[0], 3))
-        a[:,0] = merged.x
-        a[:,1] = merged.y
-        a[:,2] = merged.z
-        a = a.flatten()
-        return a
+        return merged
     else:
-        return []
+        return pd.DataFrame(columns=["time", "x", "y", "z"])
+
+def get_spatial_coordinates(data):
+    a = np.empty((data.shape[0], 3))
+    a[:,0] = data.x
+    a[:,1] = data.y
+    a[:,2] = data.z
+    return a.flatten()
 
 def get_printer_dimensions(printer):
     toolhead = printer.lookup_object("toolhead")
@@ -254,6 +256,7 @@ def get_printer_dimensions(printer):
         return [(0,100), (0,100), (0,100)]
 
 def run_app(steppers, printer):
+    stepper_data = get_stepper_data(steppers)
     app = dash.Dash(
         assets_folder="graph_movement_assets",
         include_assets_files=False,
@@ -282,8 +285,9 @@ Click outside to when done
                     ),
                     KlipperDashRenderer(
                         id="renderer",
-                        vertices=get_spatial_coordinates(steppers),
-                        printer_dimensions=get_printer_dimensions(printer)
+                        vertices=get_spatial_coordinates(stepper_data),
+                        printer_dimensions=get_printer_dimensions(printer),
+                        times=stepper_data.time
                     )
                 ]
             )
@@ -297,6 +301,17 @@ Click outside to when done
         }
         """,
         Output("steppers", "figure"),
+        [Input("steppers", "relayoutData")],
+        [State("steppers", "figure")]
+    )
+
+    app.clientside_callback(
+        """
+        function(relayoutData, fig) {
+            return [...fig.layout.xaxis.range];
+        }
+        """,
+        Output("renderer", "selected_time"),
         [Input("steppers", "relayoutData")],
         [State("steppers", "figure")]
     )
