@@ -24,7 +24,7 @@ from msgproto import MessageParser
 from configfile import PrinterConfig
 from klippy import Printer as KlippyPrinter
 
-from klipper_dash_renderer import KlipperDashRenderer
+from klipper_dash_renderer import KlipperDashRenderer, KlipperViewer
 
 MASK_32_BIT = 0xFFFFFFFF
 MASK_32_BIT_HIGH = MASK_32_BIT << 32
@@ -260,15 +260,12 @@ def run_app(steppers, printer):
     app = dash.Dash(
         assets_folder="graph_movement_assets",
         include_assets_files=False,
-        external_scripts=[
-            "/assets/graph_movement.js",
-        ],
         external_stylesheets= [
             "/assets/graph_movements.css"
         ]
     )
     app.layout = html.Div(
-        children=[
+        children = [
             dcc.Graph(
                 id="steppers",
                 figure=graph_steppers(steppers),
@@ -297,7 +294,7 @@ Click outside to when done
     app.clientside_callback(
         """
         function(relayoutData, fig) {
-            return zoom_figure_y(fig);
+            return window.klipper_dash_renderer.zoom_figure_y(fig);
         }
         """,
         Output("steppers", "figure"),
