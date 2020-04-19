@@ -32,6 +32,11 @@ class Stepper(object):
         self.is_homing = False
         self.velocity = None
         self.acceleration = None
+
+    @property
+    def name(self):
+        return self.mcu._name
+
     def reset_step_clock(self, message):
         self.step_clock = message["clock"]
         # Fixup the step position to the homing pos
@@ -40,13 +45,12 @@ class Stepper(object):
         if self.is_homing:
             self.pos = int(self.rail.position_endstop / self.mcu._step_dist)
             self.is_homing = False
-
-    @property
-    def name(self):
-        return self.mcu._name
+            time = self.steps[-1][0] + 1e-12
+            self.steps.append((time, self.pos))
 
     def set_next_step_dir(self, message):
         self.dir = message["dir"]
+
     def queue_step(self, message):
         interval = message["interval"]
         count = message["count"]
@@ -69,6 +73,7 @@ class Stepper(object):
             interval += add
         self.pos = pos
         self.step_clock = t & MASK_32_BIT
+
     def calculate_moves(self, start_time):
         self.steps = np.array(self.steps, dtype=np.float)
         self.steps[0,0] = start_time
@@ -122,14 +127,18 @@ class Stepper(object):
 
     def get_message_clock(self, message):
         return message["timestamp"]
+
     def set_mcu(self, mcu):
         self.mcu = mcu
         self.invert_dir = self.mcu.is_dir_inverted()
+
     def set_rail(self, rail):
         self.rail = rail
+
     def set_extruder(self, extruder):
         self.extruder = extruder
         self.set_mcu(extruder.stepper)
+
     def home(self):
         self.is_homing = True
 
