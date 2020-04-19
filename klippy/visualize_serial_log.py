@@ -71,7 +71,7 @@ class Stepper(object):
         self.step_clock = t & MASK_32_BIT
     def calculate_moves(self, start_time):
         self.steps = np.array(self.steps, dtype=np.float)
-        self.steps[0][0] = start_time
+        self.steps[0,0] = start_time
         self.steps[:,0] -= start_time
         step_dist = self.mcu._step_dist
         if self.invert_dir:
@@ -121,7 +121,7 @@ class Stepper(object):
         self.acceleration[1:-1] += (f_2 / c) * 2.0
 
     def get_message_clock(self, message):
-        return int(message["timestamp"]*self.freq)
+        return message["timestamp"]
     def set_mcu(self, mcu):
         self.mcu = mcu
         self.invert_dir = self.mcu.is_dir_inverted()

@@ -665,6 +665,8 @@ build_and_send_command(struct serialqueue *sq, double eventtime)
     struct queue_message *out = message_alloc();
     out->len = MESSAGE_HEADER_SIZE;
 
+    uint64_t message_min_clock = MAX_CLOCK;
+
     while (sq->ready_bytes) {
         // Find highest priority message (message with lowest req_clock)
         uint64_t min_clock = MAX_CLOCK;
@@ -681,6 +683,8 @@ build_and_send_command(struct serialqueue *sq, double eventtime)
                 }
             }
         }
+        if (message_min_clock == MAX_CLOCK)
+            message_min_clock = min_clock;
         // Append message to outgoing command
         if (out->len + qm->len > sizeof(out->msg) - MESSAGE_TRAILER_SIZE)
             break;
@@ -709,10 +713,11 @@ build_and_send_command(struct serialqueue *sq, double eventtime)
     out->msg[out->len - MESSAGE_TRAILER_CRC+1] = crc & 0xff;
     out->msg[out->len - MESSAGE_TRAILER_SYNC] = MESSAGE_SYNC;
 
-    // Include the event time in the file output
+    // Include the clock in the file output
     if (sq->file_output)
     {
-        int ret = write(sq->serial_fd, &eventtime, sizeof(eventtime));
+        int ret = write(sq->serial_fd, &message_min_clock,
+            sizeof(message_min_clock));
         if (ret < 0)
             report_errno("write", ret);
     }

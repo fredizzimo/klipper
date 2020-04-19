@@ -309,7 +309,7 @@ class MessageParser:
                     logging.error("Invalid data")
                     data = data[-l:]
                     continue
-                timestamp = struct.unpack("d", data[:8])[0]
+                timestamp = struct.unpack("Q", data[:8])[0]
                 msgs = self.parse_packet(bytearray(data[8:8+l]))
                 for msg in msgs:
                     msg["timestamp"] = timestamp
