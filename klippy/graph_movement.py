@@ -24,7 +24,7 @@ from msgproto import MessageParser
 from configfile import PrinterConfig
 from klippy import Printer as KlippyPrinter
 
-from klipper_dash_renderer import KlipperDashRenderer, KlipperViewer
+from klipper_dash_visualizer import KlipperDashRenderer
 
 MASK_32_BIT = 0xFFFFFFFF
 MASK_32_BIT_HIGH = MASK_32_BIT << 32
