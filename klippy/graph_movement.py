@@ -12,19 +12,12 @@ import subprocess
 from whichcraft import which
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from plotly.colors import DEFAULT_PLOTLY_COLORS
-import dash
-import dash_core_components as dcc
-import dash_html_components as html
-from dash.dependencies import Input, Output, State
 
 from msgproto import MessageParser
 from configfile import PrinterConfig
 from klippy import Printer as KlippyPrinter
 
-from klipper_dash_visualizer import KlipperDashRenderer
+from klipper_dash_visualizer import StandaloneVisualizer
 
 MASK_32_BIT = 0xFFFFFFFF
 MASK_32_BIT_HIGH = MASK_32_BIT << 32
@@ -154,69 +147,6 @@ class Endstop(object):
             if s is not None:
                 s.home()
 
-def graph_steppers(steppers):
-    fig = go.Figure()
-    layout = {}
-    spacing = 0.01
-    domains = list(reversed(np.linspace(0, 1+spacing, len(steppers)+1)))
-    y_axis_spacing = 0.03
-
-    for i, stepper in enumerate(steppers):
-        yaxis1 = "yaxis%i" % (3*i+1)
-        yaxis2 = "yaxis%i" % (3*i+2)
-        yaxis3 = "yaxis%i" % (3*i+3)
-        y1 = "y%i" % (3*i+1)
-        y2 = "y%i" % (3*i+2)
-        y3 = "y%i" % (3*i+3)
-        color = DEFAULT_PLOTLY_COLORS[i]
-        fig.add_trace(go.Scatter(
-            x=stepper.steps[:,0], y=stepper.steps[:,1],
-            name="%s pos" % stepper.mcu._name,
-            line=go.scatter.Line(color=color),
-            yaxis=y1
-        ))
-        fig.add_trace(go.Scatter(
-            x=stepper.steps[:,0], y=stepper.velocity,
-            name="%s vel" % stepper.mcu._name,
-            line=go.scatter.Line(dash="dash", color=color),
-            yaxis=y2
-        ))
-        fig.add_trace(go.Scatter(
-            x=stepper.steps[:,0], y=stepper.acceleration,
-            name="%s acc" % stepper.mcu._name,
-            line=go.scatter.Line(dash="dot", color=color),
-            yaxis=y3
-        ))
-        layout[yaxis1] = go.layout.YAxis(
-            anchor="x",
-            domain=(domains[i+1], domains[i]-spacing),
-            showline=True,
-            fixedrange=True,
-            position=y_axis_spacing*0.0
-        )
-        layout[yaxis2] = go.layout.YAxis(
-            anchor="free",
-            overlaying=y1,
-            side="left",
-            position=y_axis_spacing*1.0,
-            fixedrange=True
-        )
-        layout[yaxis3] = go.layout.YAxis(
-            anchor="free",
-            overlaying=y1,
-            side="left",
-            position=y_axis_spacing*2.0,
-            fixedrange=True
-        )
-
-    layout["xaxis"] = go.layout.XAxis(
-        fixedrange=False,
-        domain=[y_axis_spacing*3.0,1]
-    )
-
-    fig.update_layout(layout)
-    return fig
-
 def get_stepper_data(steppers):
     def find_stepper(name):
         for s in steppers:
@@ -257,63 +187,13 @@ def get_printer_dimensions(printer):
 
 def run_app(steppers, printer):
     stepper_data = get_stepper_data(steppers)
-    app = dash.Dash(
-        assets_folder="graph_movement_assets",
-        include_assets_files=False,
-        external_stylesheets= [
-            "/assets/graph_movements.css"
-        ]
-    )
-    app.layout = html.Div(
-        children = [
-            dcc.Graph(
-                id="steppers",
-                figure=graph_steppers(steppers),
-            ),
-            html.Div(
-                id="renderer_container",
-                children=[
-                    dcc.Markdown(
-"""
-Click and use the mouse and arrow keys to zoom and move around.
-Click outside to when done
-""",
-                        id="renderer_instructions"
-                    ),
-                    KlipperDashRenderer(
-                        id="renderer",
-                        vertices=get_spatial_coordinates(stepper_data),
-                        printer_dimensions=get_printer_dimensions(printer),
-                        times=stepper_data.time
-                    )
-                ]
-            )
-        ]
-    )
+    spatial_coordinates = get_spatial_coordinates(stepper_data)
+    printer_dimensions = get_printer_dimensions(printer)
 
-    app.clientside_callback(
-        """
-        function(relayoutData, fig) {
-            return window.klipper_dash_renderer.zoom_figure_y(fig);
-        }
-        """,
-        Output("steppers", "figure"),
-        [Input("steppers", "relayoutData")],
-        [State("steppers", "figure")]
-    )
+    visualizer = StandaloneVisualizer(steppers, stepper_data,
+        spatial_coordinates, printer_dimensions)
 
-    app.clientside_callback(
-        """
-        function(relayoutData, fig) {
-            return [...fig.layout.xaxis.range];
-        }
-        """,
-        Output("renderer", "selected_time"),
-        [Input("steppers", "relayoutData")],
-        [State("steppers", "figure")]
-    )
-
-    app.run_server(debug=True)
+    visualizer.run(debug=True)
 
 
 def parse(input, dictionary_file, printer):
