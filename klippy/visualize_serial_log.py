@@ -41,6 +41,10 @@ class Stepper(object):
             self.pos = int(self.rail.position_endstop / self.mcu._step_dist)
             self.is_homing = False
 
+    @property
+    def name(self):
+        return self.mcu._name
+
     def set_next_step_dir(self, message):
         self.dir = message["dir"]
     def queue_step(self, message):
@@ -185,7 +189,7 @@ def run_app(steppers, printer):
     spatial_coordinates = get_spatial_coordinates(stepper_data)
     printer_dimensions = get_printer_dimensions(printer)
 
-    visualizer = StandaloneVisualizer(steppers, stepper_data,
+    visualizer = StandaloneVisualizer(steppers, stepper_data.time,
         spatial_coordinates, printer_dimensions)
 
     visualizer.run(debug=True)
