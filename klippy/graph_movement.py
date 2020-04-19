@@ -5,11 +5,6 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import argparse
-import sys
-import os
-import errno
-import subprocess
-from whichcraft import which
 import numpy as np
 import pandas as pd
 
@@ -258,26 +253,6 @@ def apply_config(steppers, printer):
             oid = extruder.stepper._oid
             steppers[oid].set_extruder(extruder)
 
-npm_packages = ["three@0.115.0", "@babel/standalone@7.9.5"]
-def check_npm_packages(asset_folder):
-    npm = which("npm")
-    if npm is None:
-        print("npm does not seem to be installed on your system, please "
-            "install it first")
-        return False
-    output = subprocess.check_output(["npm", "ls", "--prefix", asset_folder])
-    all_found = True
-    for package in npm_packages:
-        if output.find(package) == -1:
-            print("npm package %s not found. Run graph_movement with --install "
-                "to install it" % package)
-            all_found = False
-    return all_found
-
-def install_npm_packages(asset_folder):
-    args = ["npm", "install"] + npm_packages + ["--prefix", asset_folder]
-    output = subprocess.check_output(args)
-
 def main():
     parser = argparse.ArgumentParser(description=
         "Utility to graph the movement parsed from a serial dump file")
@@ -287,21 +262,9 @@ def main():
     parser.add_argument("--config", type=argparse.FileType(mode="r"),
         required=True,
         help="Path to the printer config file")
-    parser.add_argument("--install", required=False, action="store_true",
-        help="Install required javascript npm packages")
     parser.add_argument("input", type=argparse.FileType(mode="rb"),
         help="Path to the input serial port dump file")
     args = parser.parse_args()
-
-    current_dir = os.path.split(__file__)[0]
-    asset_folder = os.path.join(current_dir, "graph_movement_assets")
-
-    if args.install:
-        install_npm_packages(asset_folder)
-        return
-    elif not check_npm_packages(asset_folder):
-        return
-
 
     printer = read_printer_config(args.config)
     steppers = parse(args.input, args.dict, printer)
