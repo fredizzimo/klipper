@@ -45,6 +45,9 @@ class Stepper(object):
         if self.is_homing:
             self.pos = int(self.rail.position_endstop / self.mcu._step_dist)
             self.is_homing = False
+            # Generate two steps with the same positions to avoid
+            # too high artifical acceleration and speed
+            self.steps[-1] = (self.steps[-1][0], self.pos)
             time = self.steps[-1][0] + 1e-12
             self.steps.append((time, self.pos))
 
