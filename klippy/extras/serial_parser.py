@@ -7,7 +7,6 @@
 import argparse
 from abc import ABCMeta, abstractmethod
 import numpy as np
-import pandas as pd
 
 from msgproto import MessageParser
 from configfile import PrinterConfig
@@ -38,12 +37,26 @@ class SerialParserInterface(object):
         # starting from the start time for the given stepper number
         pass
 
+    @abstractmethod
+    def get_spatial_steppers(self):
+        #type () -> List[int]
+        # Should return list with indices of the steppers used to 
+        # calculate spatial coordinates
+        pass
+
+    @abstractmethod
+    def get_spatial_coordinate(self, positions):
+        #type (positions) -> Tuple[float, float, float]
+        # Should return the 3D cartesian spatial coordinate
+        # calculated from the given stepper positions 
+        pass
+
+
 class SerialParser(SerialParserInterface):
     def __init__(self, input, config, dict):
         SerialParserInterface.__init__(self, input, config, dict)
         self.printer = self.read_printer_config(config)
         self.steppers = self.parse(input, dict)
-        self.stepper_data = self.generate_stepper_data()
 
     def get_stepper_names(self):
         return [s.name for s in self.steppers]
@@ -53,35 +66,31 @@ class SerialParser(SerialParserInterface):
         for s in self.steppers[stepper].steps:
             yield (s[0], s[1])
 
-    def generate_stepper_data(self):
-        def find_stepper(name):
-            for s in self.steppers:
-                if s.mcu._name == name:
-                    return s
-            return None
-        
-        stepper_x = find_stepper("stepper_x")
-        stepper_y = find_stepper("stepper_y")
-        stepper_z = find_stepper("stepper_z")
+    def get_spatial_steppers(self):
+        # TODO: This supports only standard cartesean printers
+        stepper_x = self.find_stepper("stepper_x")
+        stepper_y = self.find_stepper("stepper_y")
+        stepper_z = self.find_stepper("stepper_z")
         # Only support 3d graphs if there are x, y and z steppers
         if (stepper_x is not None and stepper_y is not None and
                 stepper_z is not None):
-            merged = pd.DataFrame(stepper_x.steps, columns=["time", "x"])
-            merged = merged.merge(pd.DataFrame(stepper_y.steps, columns=["time", "y"]), how="outer", on="time")
-            merged = merged.merge(pd.DataFrame(stepper_z.steps, columns=["time", "z"]), how="outer", on="time")
-            merged.sort_values(by="time", inplace=True)
-            merged.fillna(method="ffill", inplace=True)
-            return merged
+            return [
+                self.steppers.index(stepper_x),
+                self.steppers.index(stepper_y),
+                self.steppers.index(stepper_z),
+            ]
         else:
-            return pd.DataFrame(columns=["time", "x", "y", "z"])
+            return []
 
-    def get_spatial_coordinates(self):
-        data = self.stepper_data 
-        a = np.empty((data.shape[0], 3))
-        a[:,0] = data.x
-        a[:,1] = data.y
-        a[:,2] = data.z
-        return a.flatten()
+    def get_spatial_coordinate(self, positions):
+        # TODO: This supports only standard cartesean printers
+        return positions
+
+    def find_stepper(self, name):
+        for s in self.steppers:
+            if s.mcu._name == name:
+                return s
+        return None
 
     def get_printer_dimensions(self):
         toolhead = self.printer.lookup_object("toolhead")
