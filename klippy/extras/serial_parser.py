@@ -5,17 +5,157 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import argparse
+from abc import ABCMeta, abstractmethod
 import numpy as np
 import pandas as pd
 
 from msgproto import MessageParser
 from configfile import PrinterConfig
-from klippy import Printer as KlippyPrinter
-
-from klipper_dash_visualizer import StandaloneVisualizer
+from klippy import Printer
 
 MASK_32_BIT = 0xFFFFFFFF
 MASK_32_BIT_HIGH = MASK_32_BIT << 32
+
+# Try to maintain backwards compatibility with this interface, so that
+# The klipper dash visualizer tool continues to work when klipper is
+# updated
+# Similarly if the tool is updated to use new functionality it should 
+# check if the functionality is available before attempting to use it.
+class SerialParserInterface(object):
+    __metaclass__ = ABCMeta
+    def __init__(self, input, config, dict):
+        pass
+
+    @abstractmethod
+    def get_stepper_names(self):
+        #type: () -> List(str)
+        pass
+
+    @abstractmethod
+    def get_steps(self, stepper, start):
+        #type (int, float) -> Generator[Tuple[float, float]]
+        # Should return a genertor generating tuples of (time, step)
+        # starting from the start time for the given stepper number
+        pass
+
+class SerialParser(SerialParserInterface):
+    def __init__(self, input, config, dict):
+        SerialParserInterface.__init__(self, input, config, dict)
+        self.printer = self.read_printer_config(config)
+        self.steppers = self.parse(input, dict)
+        self.stepper_data = self.generate_stepper_data()
+
+    def get_stepper_names(self):
+        return [s.name for s in self.steppers]
+
+    def get_steps(self, stepper, start):
+        # TODO: Start is ignore for now
+        for s in self.steppers[stepper].steps:
+            yield (s[0], s[1])
+
+    def generate_stepper_data(self):
+        def find_stepper(name):
+            for s in self.steppers:
+                if s.mcu._name == name:
+                    return s
+            return None
+        
+        stepper_x = find_stepper("stepper_x")
+        stepper_y = find_stepper("stepper_y")
+        stepper_z = find_stepper("stepper_z")
+        # Only support 3d graphs if there are x, y and z steppers
+        if (stepper_x is not None and stepper_y is not None and
+                stepper_z is not None):
+            merged = pd.DataFrame(stepper_x.steps, columns=["time", "x"])
+            merged = merged.merge(pd.DataFrame(stepper_y.steps, columns=["time", "y"]), how="outer", on="time")
+            merged = merged.merge(pd.DataFrame(stepper_z.steps, columns=["time", "z"]), how="outer", on="time")
+            merged.sort_values(by="time", inplace=True)
+            merged.fillna(method="ffill", inplace=True)
+            return merged
+        else:
+            return pd.DataFrame(columns=["time", "x", "y", "z"])
+
+    def get_spatial_coordinates(self):
+        data = self.stepper_data 
+        a = np.empty((data.shape[0], 3))
+        a[:,0] = data.x
+        a[:,1] = data.y
+        a[:,2] = data.z
+        return a.flatten()
+
+    def get_printer_dimensions(self):
+        toolhead = self.printer.lookup_object("toolhead")
+        rails = toolhead.kin.rails
+        # Not all kinematics types are supported by this at the moment
+        if len(rails) == 3:
+            return [(rail.position_min, rail.position_max) for rail in rails]
+        else:
+            return [(0,100), (0,100), (0,100)]
+
+    def parse(self, input, dictionary_file):
+        printer = self.printer
+        dictionary = dictionary_file.read()
+        dictionary_file.close()
+        message_parser = MessageParser()
+        message_parser.process_identify(dictionary, decompress=False)
+        messages = message_parser.parse_file(input)
+        clock_freq = message_parser.get_constant_float('CLOCK_FREQ')
+        steppers = {}
+        endstops = {}
+        for m in messages:
+            name = m["name"]
+            if name == "queue_step":
+                steppers[m["oid"]].queue_step(m)
+            elif name == "config_stepper":
+                stepper = Stepper(m, clock_freq)
+                steppers[stepper.oid] = stepper
+            elif name == "config_endstop":
+                endstops[m["oid"]] = Endstop(m)
+            elif name == "endstop_set_stepper":
+                endstops[m["oid"]].set_stepper(m, steppers)
+            elif name == "reset_step_clock":
+                steppers[m["oid"]].reset_step_clock(m)
+            elif name == "set_next_step_dir":
+                steppers[m["oid"]].set_next_step_dir(m)
+            elif name == "endstop_home":
+                endstops[m["oid"]].home()
+            elif name == "finalize_config":
+                self.apply_config(steppers, printer)
+        
+        start_time = messages[0]["timestamp"]
+
+        for s in steppers.itervalues():
+            s.calculate_moves(start_time)
+
+        steppers = sorted(list(steppers.values()), key=lambda x: x.oid) 
+
+        return steppers
+
+    @staticmethod
+    def read_printer_config(config_file):
+        start_args = {
+            "debuginput": True,
+            "config_file": config_file.name
+        }
+
+        printer = Printer(None, None, start_args)
+        printer._read_config()
+        return printer
+
+    @staticmethod
+    def apply_config(steppers, printer):
+        toolhead = printer.lookup_object("toolhead")
+        for rail in toolhead.kin.rails:
+            for stepper in rail.steppers:
+                oid = stepper._oid
+                steppers[oid].set_rail(rail)
+                steppers[oid].set_mcu(stepper)
+
+        extruders = printer.lookup_objects("extruder")
+        for _, extruder in extruders:
+            if hasattr(extruder, "stepper"):
+                oid = extruder.stepper._oid
+                steppers[oid].set_extruder(extruder)
 
 class Stepper(object):
     def __init__(self, message, clock_freq):
@@ -157,111 +297,3 @@ class Endstop(object):
         for s in self.steppers:
             if s is not None:
                 s.home()
-
-class SerialParser(object):
-    def __init__(self, input, config, dict):
-        self.printer = self.read_printer_config(config)
-        self.steppers = self.parse(input, dict)
-        self.stepper_data = self.generate_stepper_data()
-
-    def generate_stepper_data(self):
-        def find_stepper(name):
-            for s in self.steppers:
-                if s.mcu._name == name:
-                    return s
-            return None
-        
-        stepper_x = find_stepper("stepper_x")
-        stepper_y = find_stepper("stepper_y")
-        stepper_z = find_stepper("stepper_z")
-        # Only support 3d graphs if there are x, y and z steppers
-        if (stepper_x is not None and stepper_y is not None and
-                stepper_z is not None):
-            merged = pd.DataFrame(stepper_x.steps, columns=["time", "x"])
-            merged = merged.merge(pd.DataFrame(stepper_y.steps, columns=["time", "y"]), how="outer", on="time")
-            merged = merged.merge(pd.DataFrame(stepper_z.steps, columns=["time", "z"]), how="outer", on="time")
-            merged.sort_values(by="time", inplace=True)
-            merged.fillna(method="ffill", inplace=True)
-            return merged
-        else:
-            return pd.DataFrame(columns=["time", "x", "y", "z"])
-
-    def get_spatial_coordinates(self):
-        data = self.stepper_data 
-        a = np.empty((data.shape[0], 3))
-        a[:,0] = data.x
-        a[:,1] = data.y
-        a[:,2] = data.z
-        return a.flatten()
-
-    def get_printer_dimensions(self):
-        toolhead = self.printer.lookup_object("toolhead")
-        rails = toolhead.kin.rails
-        # Not all kinematics types are supported by this at the moment
-        if len(rails) == 3:
-            return [(rail.position_min, rail.position_max) for rail in rails]
-        else:
-            return [(0,100), (0,100), (0,100)]
-
-    def parse(self, input, dictionary_file):
-        printer = self.printer
-        dictionary = dictionary_file.read()
-        dictionary_file.close()
-        message_parser = MessageParser()
-        message_parser.process_identify(dictionary, decompress=False)
-        messages = message_parser.parse_file(input)
-        clock_freq = message_parser.get_constant_float('CLOCK_FREQ')
-        steppers = {}
-        endstops = {}
-        for m in messages:
-            name = m["name"]
-            if name == "queue_step":
-                steppers[m["oid"]].queue_step(m)
-            elif name == "config_stepper":
-                stepper = Stepper(m, clock_freq)
-                steppers[stepper.oid] = stepper
-            elif name == "config_endstop":
-                endstops[m["oid"]] = Endstop(m)
-            elif name == "endstop_set_stepper":
-                endstops[m["oid"]].set_stepper(m, steppers)
-            elif name == "reset_step_clock":
-                steppers[m["oid"]].reset_step_clock(m)
-            elif name == "set_next_step_dir":
-                steppers[m["oid"]].set_next_step_dir(m)
-            elif name == "endstop_home":
-                endstops[m["oid"]].home()
-            elif name == "finalize_config":
-                self.apply_config(steppers, printer)
-        
-        start_time = messages[0]["timestamp"]
-
-        for s in steppers.itervalues():
-            s.calculate_moves(start_time)
-
-        steppers = sorted(list(steppers.values()), key=lambda x: x.oid) 
-
-        return steppers
-
-    def read_printer_config(self, config_file):
-        start_args = {
-            "debuginput": True,
-            "config_file": config_file.name
-        }
-
-        printer = KlippyPrinter(None, None, start_args)
-        printer._read_config()
-        return printer
-
-    def apply_config(self, steppers, printer):
-        toolhead = printer.lookup_object("toolhead")
-        for rail in toolhead.kin.rails:
-            for stepper in rail.steppers:
-                oid = stepper._oid
-                steppers[oid].set_rail(rail)
-                steppers[oid].set_mcu(stepper)
-
-        extruders = printer.lookup_objects("extruder")
-        for _, extruder in extruders:
-            if hasattr(extruder, "stepper"):
-                oid = extruder.stepper._oid
-                steppers[oid].set_extruder(extruder)
