@@ -6,8 +6,6 @@
 import logging, math, collections
 
 HOMING_START_DELAY = 0.001
-ENDSTOP_SAMPLE_TIME = .000015
-ENDSTOP_SAMPLE_COUNT = 4
 
 # Return a completion that completes when all completions in a list complete
 def multi_complete(printer, completions):
@@ -55,9 +53,8 @@ class HomingMove:
         print_time = self.toolhead.get_last_move_time()
         endstop_triggers = []
         for mcu_endstop, name in self.endstops:
-            rest_time = self._calc_endstop_rate(mcu_endstop, movepos, speed)
-            wait = mcu_endstop.home_start(print_time, ENDSTOP_SAMPLE_TIME,
-                                          ENDSTOP_SAMPLE_COUNT, rest_time,
+            step_time = self._calc_endstop_rate(mcu_endstop, movepos, speed)
+            wait = mcu_endstop.home_start(print_time, step_time,
                                           triggered=triggered)
             endstop_triggers.append(wait)
         all_endstop_trigger = multi_complete(self.printer, endstop_triggers)
