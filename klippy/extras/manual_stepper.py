@@ -91,7 +91,7 @@ class ManualStepper:
             min_step_dist = min([s.get_step_dist()
                                  for s in mcu_endstop.get_steppers()])
             mcu_endstop.home_start(
-                self.next_cmd_time, ENDSTOP_SAMPLE_TIME, ENDSTOP_SAMPLE_COUNT,
+                self.next_cmd_time,
                 min_step_dist / speed, triggered=triggered)
         # Issue move
         self.do_move(movepos, speed, accel)

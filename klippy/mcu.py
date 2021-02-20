@@ -5,6 +5,7 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import sys, os, zlib, logging, math
 import serialhdl, pins, chelper, clocksync
+import ConfigParser
 
 class error(Exception):
     pass
@@ -23,6 +24,40 @@ class MCU_endstop:
         self._min_query_time = self._last_sent_time = 0.
         self._next_query_print_time = self._end_home_time = 0.
         self._trigger_completion = self._home_completion = None
+        self._sample_fast = None
+        self._sample_fast_opt = None
+        self._sample_fast_sect = None
+        self._sample_slow = None
+        self._sample_slow_opt = None
+        self._sample_slow_sect = None
+        self._sample_count = None
+        self._sample_count_opt = None
+        self._sample_count_sect = None
+    def config_sampling(self, config, prefix=''):
+        self._read_config_option(config, prefix, 'sample_fast')
+        self._read_config_option(config, prefix, 'sample_slow')
+        self._read_config_option(config, prefix, 'sample_count')
+    def _read_config_option(self, config, prefix, option):
+        if prefix != '':
+            prefix += '_'
+        opt = prefix + option
+        if option == 'sample_count':
+            value = config.getint(opt, None)
+        else:
+            value = config.getfloat(opt, None)
+        if getattr(self, '_' + option) is None:
+            setattr(self, '_' + option, value)
+            setattr(self, '_' + option + '_opt', opt)
+            setattr(self, '_' + option + '_sect', config.get_name())
+        elif value != None:
+            raise ConfigParser.Error(
+                "Option '%s' in section '%s' is not valid "
+                "when option '%s' in section '%s' is set.\n" % (
+                    opt, config.get_name(),
+                    getattr(self, '_' + option + '_opt'),
+                    getattr(self, '_' + option + '_sect'),
+                )
+            )
     def get_mcu(self):
         return self._mcu
     def add_stepper(self, stepper):
@@ -55,10 +90,22 @@ class MCU_endstop:
             "endstop_query_state oid=%c",
             "endstop_state oid=%c homing=%c pin_value=%c", oid=self._oid,
             cq=cmd_queue)
-    def home_start(self, print_time, sample_time, sample_count, rest_time,
-                   triggered=True):
+    def home_start(self, print_time, step_time, triggered=True):
         clock = self._mcu.print_time_to_clock(print_time)
-        rest_ticks = self._mcu.print_time_to_clock(print_time+rest_time) - clock
+        sample_fast = .000015
+        # Use step time if sample_slow is not set
+        sample_slow = step_time
+        sample_count = 4
+        if self._sample_fast is not None:
+            sample_fast = self._sample_fast
+        if self._sample_slow is not None and self._sample_slow != 0:
+            sample_slow = self._sample_slow
+        if self._sample_count is not None:
+            sample_count = self._sample_count
+        # Don't allow very slow sample rates
+        sample_slow = min(sample_slow, 0.001)
+        rest_ticks = self._mcu.print_time_to_clock(print_time+sample_slow)
+        rest_ticks -= clock
         self._next_query_print_time = print_time + self.RETRY_QUERY
         self._min_query_time = self._reactor.monotonic()
         self._last_sent_time = 0.
@@ -66,8 +113,11 @@ class MCU_endstop:
         self._trigger_completion = self._reactor.completion()
         self._mcu.register_response(self._handle_endstop_state,
                                     "endstop_state", self._oid)
+        logging.info('Homing %f %f %d, %f' % (
+            sample_slow, sample_fast, sample_count, rest_ticks))
         self._home_cmd.send(
-            [self._oid, clock, self._mcu.seconds_to_clock(sample_time),
+            [self._oid, clock,
+             self._mcu.seconds_to_clock(sample_fast),
              sample_count, rest_ticks, triggered ^ self._invert],
             reqclock=clock)
         self._home_completion = self._reactor.register_callback(

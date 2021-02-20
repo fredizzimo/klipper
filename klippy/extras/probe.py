@@ -281,6 +281,7 @@ class ProbeEndstopWrapper:
         mcu = pin_params['chip']
         mcu.register_config_callback(self._build_config)
         self.mcu_endstop = mcu.setup_pin('endstop', pin_params)
+        self.mcu_endstop.config_sampling(config)
         # Wrappers
         self.get_mcu = self.mcu_endstop.get_mcu
         self.add_stepper = self.mcu_endstop.add_stepper
@@ -288,6 +289,7 @@ class ProbeEndstopWrapper:
         self.home_start = self.mcu_endstop.home_start
         self.home_wait = self.mcu_endstop.home_wait
         self.query_endstop = self.mcu_endstop.query_endstop
+        self.config_sampling = self.mcu_endstop.config_sampling
     def _build_config(self):
         kin = self.printer.lookup_object('toolhead').get_kinematics()
         for stepper in kin.get_steppers():
