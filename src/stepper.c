@@ -13,6 +13,13 @@
 #include "sched.h" // struct timer
 #include "stepper.h" // command_config_stepper
 
+// There's not enough program memory on the PRU to support this
+#if CONFIG_MACH_PRU
+#define CONFIG_HAVE_SMOOTH_STOP 0
+#else
+#define CONFIG_HAVE_SMOOTH_STOP 1
+#endif
+
 DECL_CONSTANT("STEP_DELAY", CONFIG_STEP_DELAY);
 
 
@@ -63,7 +70,8 @@ enum { POSITION_BIAS=0x40000000 };
 
 enum {
     SF_LAST_DIR=1<<0, SF_NEXT_DIR=1<<1, SF_INVERT_STEP=1<<2, SF_HAVE_ADD=1<<3,
-    SF_LAST_RESET=1<<4, SF_NO_NEXT_CHECK=1<<5, SF_NEED_RESET=1<<6, SF_NEED_STOP=1<<7
+    SF_LAST_RESET=1<<4, SF_NO_NEXT_CHECK=1<<5, SF_NEED_RESET=1<<6,
+    SF_NEED_STOP=1<<7
 };
 
 // Setup a stepper for the next move in its queue
@@ -210,7 +218,8 @@ command_config_stepper(uint32_t *args)
         if (num_decel_segments >= 255) {
             shutdown("num_decel_segements needs to be less than 255");
         }
-        s->decel_segments = alloc_chunk(sizeof(struct decel_segment) * num_decel_segments);
+        s->decel_segments = alloc_chunk(sizeof(struct decel_segment) *
+             num_decel_segments);
         s->num_decel_segments = num_decel_segments;
     } else {
         s->decel_segments = NULL;
@@ -241,13 +250,13 @@ void command_set_decel_segment(uint32_t *args)
         segment->interval = args[2];
         segment->count = args[3];
         segment->add = args[4];
-        
     } else {
         shutdown("Invalid decel segment specified");
     }
 }
 DECL_COMMAND(command_set_decel_segment,
-             "set_decel_segment oid=%c segement=%c interval=%u count=%hu add=%hi");
+             "set_decel_segment oid=%c segement=%c interval=%u count=%hu"
+             " add=%hi");
 
 // Schedule a set of steps with a given timing
 void
@@ -345,6 +354,7 @@ command_stepper_get_position(uint32_t *args)
 }
 DECL_COMMAND(command_stepper_get_position, "stepper_get_position oid=%c");
 
+#if CONFIG_HAVE_SMOOTH_STOP
 void
 command_stepper_get_stop_info(uint32_t *args)
 {
@@ -357,9 +367,11 @@ command_stepper_get_stop_info(uint32_t *args)
     irq_enable();
     position -= POSITION_BIAS;
     stop_position -= POSITION_BIAS;
-    sendf("stepper_stop_info oid=%c pos=%i stop_pos=%i stop_delay=%i", oid, position, stop_position, stop_delay);
+    sendf("stepper_stop_info oid=%c pos=%i stop_pos=%i stop_delay=%i", oid,
+        position, stop_position, stop_delay);
 }
 DECL_COMMAND(command_stepper_get_stop_info, "stepper_get_stop_info oid=%c");
+#endif
 
 // Stop all moves for a given stepper (used for emergency stop).  IRQs
 // must be off.
@@ -380,6 +392,7 @@ stepper_stop(struct stepper *s)
     }
 }
 
+#if CONFIG_HAVE_SMOOTH_STOP
 // Stop all moves for a given stepper (used in end stop homing).
 // With deceleration if configured. IRQs must be off.
 void
@@ -390,7 +403,8 @@ stepper_stop_smooth(struct stepper *s)
         uint32_t interval = s->interval;
         s->stop_position = position;
         struct decel_segment *segment = s->decel_segments;
-        struct decel_segment *segments_end = s->decel_segments + s->num_decel_segments;
+        struct decel_segment *segments_end = s->decel_segments +
+            s->num_decel_segments;
         // Try to find the first segement with matching intervals
         while (segment->interval > interval && segment != segments_end) {
             segment++;
@@ -401,15 +415,17 @@ stepper_stop_smooth(struct stepper *s)
             // Save the waketime before it's it's deleted
             uint32_t waketime = s->time.waketime;
             sched_del_timer(&s->time);
-            s->flags = (s->flags & SF_INVERT_STEP) | SF_NEED_RESET | SF_NEED_STOP;
+            s->flags =
+                (s->flags & SF_INVERT_STEP) | SF_NEED_RESET | SF_NEED_STOP;
 
             while (!move_queue_empty(&s->mq)) {
                 struct move_node *mn = move_queue_pop(&s->mq);
-                struct stepper_move *m = container_of(mn, struct stepper_move, node);
+                struct stepper_move *m =
+                    container_of(mn, struct stepper_move, node);
                 move_free(m);
             }
 
-            uint16_t count = (segment->interval - interval) / segment->add; 
+            uint16_t count = (segment->interval - interval) / segment->add;
             count += 1;
             struct stepper_move *m = move_alloc();
             m->flags = 0;
@@ -417,7 +433,7 @@ stepper_stop_smooth(struct stepper *s)
             m->count = count;
             m->add = segment->add;
             move_queue_push(&m->node, &s->mq);
-            
+
             // Add the rest of the segments
             segment++;
             while (segment != segments_end) {
@@ -431,20 +447,20 @@ stepper_stop_smooth(struct stepper *s)
                 move_queue_push(&m->node, &s->mq);
             }
             s->stop_delay = interval;
-            
+
             // Check if we need to unstep first
             if (CONFIG_STEP_DELAY > 0 && s->count && (s->count & 1) == 0) {
                 uint32_t time = timer_read_time();
                 // Normally the code above should already delay enough
                 // but in case not, just busy sleep a bit more
                 // We could also schedule a timer, but that gets complex
-                // since this is already called from another timer, and 
+                // since this is already called from another timer, and
                 // it is probably an overkill
                 while (timer_is_before(time, waketime)) {
                    time = timer_read_time();
                 }
                 gpio_out_toggle_noirq(s->step_pin);
-                s->count--;        
+                s->count--;
             }
             // If we are in the middle of a move, then fix the next step time
             if (s->count)
@@ -458,11 +474,17 @@ stepper_stop_smooth(struct stepper *s)
             stepper_load_next(s, min_next_time);
             sched_add_timer(&s->time);
         }
-        
+
     }
     // Fall back to normal stop in case no acceleration is needed
     stepper_stop(s);
 }
+#else
+    void stepper_stop_smooth(struct stepper *s)
+    {
+        stepper_stop(s);
+    }
+#endif
 
 void
 stepper_shutdown(void)
