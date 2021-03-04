@@ -72,10 +72,11 @@ class MCU_stepper:
         min_stop_interval = max(0., self._min_stop_interval - max_error)
         self._mcu.add_config_cmd(
             "config_stepper oid=%d step_pin=%s dir_pin=%s"
-            " min_stop_interval=%d invert_step=%d" % (
+            " min_stop_interval=%d invert_step=%d"
+            " num_decel_segments=%d" % (
                 self._oid, self._step_pin, self._dir_pin,
                 self._mcu.seconds_to_clock(min_stop_interval),
-                self._invert_step))
+                self._invert_step, 0))
         self._mcu.add_config_cmd("reset_step_clock oid=%d clock=0"
                                  % (self._oid,), on_restart=True)
         step_cmd_id = self._mcu.lookup_command_id(
