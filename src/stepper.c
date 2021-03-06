@@ -37,7 +37,7 @@ struct stepper_move {
 
 struct decel_segment {
     uint32_t interval;
-    int16_t add;
+    uint16_t add;
     uint16_t count;
 };
 
@@ -417,7 +417,7 @@ stepper_stop_smooth(struct stepper *s)
             s->num_decel_segments;
         // Try to find the first segement with matching intervals
         for(;segment != segments_end; ++segment) {
-            if (segment->interval > interval)
+            if (segment->interval < interval)
                 break;
         }
 
@@ -434,15 +434,22 @@ stepper_stop_smooth(struct stepper *s)
                 move_free(m);
             }
 
-            uint16_t count = (segment->interval - interval) / -segment->add;
-            count = segment->count - count;
-            if (count > 0) {
-                struct stepper_move *m = move_alloc();
-                m->flags = 0;
-                m->interval = interval;
-                m->count = count;
-                m->add = segment->add;
-                move_queue_push(&m->node, &s->mq);
+            uint32_t count = 0;
+            if (segment->add != 0) {
+                // Ignore steps until the the correct interval is found
+                // Note that we add 1 so that we always start with a longer interval
+                // than the previous step, and therefore with deceleration
+                uint16_t ignore_count = 1 + (interval - s->interval) / s->add;
+                count = s->count - ignore_count;
+                interval = s->interval + s->add * ignore_count;
+                if (count > 0) {
+                    struct stepper_move *m = move_alloc();
+                    m->flags = 0;
+                    m->interval = interval;
+                    m->count = count;
+                    m->add = segment->add;
+                    move_queue_push(&m->node, &s->mq);
+                }
             }
 
             segments_end = s->decel_segments - 1;
