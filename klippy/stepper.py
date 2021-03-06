@@ -178,19 +178,29 @@ class MCU_stepper:
     def _calc_smooth_stop_profile(self):
         decel = self._smooth_stop_decel
         step_dist = self._step_dist
+        logging.info("step_dist %f", step_dist)
         if (decel == 0):
             return []
         def get_step_time(step):
             return self._mcu.seconds_to_clock(math.sqrt(2.0 * step * step_dist / decel))
         def build_segment(step):
+            logging.info("build segment %i", step)
             t1 = get_step_time(step)
             t2 = get_step_time(step + 1)
             t3 = get_step_time(step + 2)
             interval = t2 - t1
             add = (t3 - t2) - interval
-            return interval, add, n + 3, n, t1
+            return interval, add, step + 3, step, t1
         def eval_segement(interval, add, count):
-                return interval*count + 0.5 * add * (count - 1)*count
+            return interval*count + 0.5 * add * (count - 1)*count
+            
+        prev_t = 0
+        for i in range(1,100):
+            t = self._mcu.clock_to_seconds(get_step_time(i))
+            dist = step_dist * i
+            speed = step_dist / (t - prev_t)
+            logging.info("step %i dist %f time %f speed %f" % (i, dist, t, speed))
+            prev_t = t
         n = 0
         segments = []
         interval, add, n, segment_start_n, segment_start_time = build_segment(n)
@@ -210,6 +220,7 @@ class MCU_stepper:
                 #logging.info("Segment error %f %f %f" % (segment_error, desired_segment_time, actual_segment_time))
             n = segment_start_n + count
             segments.append((interval + add * (count-2), -add, count-1))
+            logging.info("n %i, count %i segment_start_n %i", n, count, segment_start_n)
             interval, add, n, segment_start_n, segment_start_time = build_segment(n)
         for segment in segments:
             speed = step_dist / self._mcu.clock_to_seconds(segment[0])
