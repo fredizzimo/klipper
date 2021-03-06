@@ -61,7 +61,7 @@ struct stepper {
     struct decel_segment *decel_segments;
     uint8_t num_decel_segments;
     uint32_t stop_position;
-    uint32_t stop_delay;
+    uint32_t stop_steps;
     // gcc (pre v6) does better optimization when uint8_t are bitfields
     uint8_t flags : 8;
 };
@@ -363,12 +363,12 @@ command_stepper_get_stop_info(uint32_t *args)
     irq_disable();
     uint32_t position = stepper_get_position(s);
     uint32_t stop_position = s->stop_position;
-    uint32_t stop_delay = s->stop_delay;
+    uint32_t stop_steps = s->stop_steps;
     irq_enable();
     position -= POSITION_BIAS;
     stop_position -= POSITION_BIAS;
-    sendf("stepper_stop_info oid=%c pos=%i stop_pos=%i stop_delay=%i", oid,
-        position, stop_position, stop_delay);
+    sendf("stepper_stop_info oid=%c pos=%u stop_pos=%u stop_steps=%u", oid,
+        position, stop_position, stop_steps);
 }
 DECL_COMMAND(command_stepper_get_stop_info, "stepper_get_stop_info oid=%c");
 #endif
@@ -398,26 +398,32 @@ stepper_stop(struct stepper *s)
 void
 stepper_stop_smooth(struct stepper *s)
 {
-    if (s->num_decel_segments > 0) {
-        uint32_t position = stepper_get_position(s);
+    uint32_t position = stepper_get_position(s);
+    s->stop_position = position;
+
+    // Only run smooth stop if it's configured
+    // And there are scheduled steps
+    if (s->num_decel_segments > 0 &&
+        (!move_queue_empty(&s->mq) ||
+        #if CONFIG_STEP_DELAY > 0
+            s->count > 1
+        #else
+            s->count > 0
+        #endif
+    )){
         uint32_t interval = s->interval;
-        s->stop_position = position;
         struct decel_segment *segment = s->decel_segments;
         struct decel_segment *segments_end = s->decel_segments +
             s->num_decel_segments;
         // Try to find the first segement with matching intervals
-        while (segment->interval > interval && segment != segments_end) {
-            segment++;
-        }
+        for(;segment != segments_end; ++segment) {}
 
         // Was a valid segment found?
         if (segment != segments_end) {
-            // Save the waketime before it's it's deleted
-            uint32_t waketime = s->time.waketime;
-            sched_del_timer(&s->time);
             s->flags =
                 (s->flags & SF_INVERT_STEP) | SF_NEED_RESET | SF_NEED_STOP;
 
+            // Delete all old moves
             while (!move_queue_empty(&s->mq)) {
                 struct move_node *mn = move_queue_pop(&s->mq);
                 struct stepper_move *m =
@@ -426,56 +432,30 @@ stepper_stop_smooth(struct stepper *s)
             }
 
             uint16_t count = (segment->interval - interval) / segment->add;
-            count += 1;
-            struct stepper_move *m = move_alloc();
-            m->flags = 0;
-            m->interval = interval;
-            m->count = count;
-            m->add = segment->add;
-            move_queue_push(&m->node, &s->mq);
+            if (count > 0) {
+                struct stepper_move *m = move_alloc();
+                m->flags = 0;
+                m->interval = interval;
+                m->count = count;
+                m->add = segment->add;
+                move_queue_push(&m->node, &s->mq);
+            }
 
             // Add the rest of the segments
-            segment++;
-            while (segment != segments_end) {
+            for (++segment;segment != segments_end; ++segment) {
                 struct stepper_move *m = move_alloc();
                 m->flags = 0;
                 m->interval = segment->interval;
                 m->count = segment->count;
                 m->add = segment->add;
                 count += segment->count;
-                interval += segment->interval;
                 move_queue_push(&m->node, &s->mq);
             }
-            s->stop_delay = interval;
-
-            // Check if we need to unstep first
-            if (CONFIG_STEP_DELAY > 0 && s->count && (s->count & 1) == 0) {
-                uint32_t time = timer_read_time();
-                // Normally the code above should already delay enough
-                // but in case not, just busy sleep a bit more
-                // We could also schedule a timer, but that gets complex
-                // since this is already called from another timer, and
-                // it is probably an overkill
-                while (timer_is_before(time, waketime)) {
-                   time = timer_read_time();
-                }
-                gpio_out_toggle_noirq(s->step_pin);
-                s->count--;
-            }
-            // If we are in the middle of a move, then fix the next step time
-            if (s->count)
-            {
-                s->next_step_time -= s->interval;
-            }
-
-            uint32_t step_delay = timer_from_us(CONFIG_STEP_DELAY);
-            uint32_t min_next_time = timer_read_time() + step_delay;
-
-            stepper_load_next(s, min_next_time);
-            sched_add_timer(&s->time);
+            s->stop_steps = count;
+            return;
         }
-
     }
+    s->stop_steps = 0;
     // Fall back to normal stop in case no acceleration is needed
     stepper_stop(s);
 }
