@@ -17,10 +17,11 @@ class error(Exception):
 # Interface to low-level mcu and chelper code
 class MCU_stepper:
     def __init__(self, name, step_pin_params, dir_pin_params, step_dist,
-                 units_in_radians=False):
+                 units_in_radians=False, smooth_stop_decel=0):
         self._name = name
         self._step_dist = step_dist
         self._units_in_radians = units_in_radians
+        self._smooth_stop_decel = smooth_stop_decel
         self._mcu = step_pin_params['chip']
         self._oid = oid = self._mcu.create_oid()
         self._mcu.register_config_callback(self._build_config)
@@ -70,6 +71,7 @@ class MCU_stepper:
     def _build_config(self):
         max_error = self._mcu.get_max_stepper_error()
         min_stop_interval = max(0., self._min_stop_interval - max_error)
+        self._calc_smooth_stop_profile()
         self._mcu.add_config_cmd(
             "config_stepper oid=%d step_pin=%s dir_pin=%s"
             " min_stop_interval=%d invert_step=%d"
@@ -173,6 +175,47 @@ class MCU_stepper:
     def is_active_axis(self, axis):
         return self._ffi_lib.itersolve_is_active_axis(
             self._stepper_kinematics, axis)
+    def _calc_smooth_stop_profile(self):
+        decel = self._smooth_stop_decel
+        step_dist = self._step_dist
+        if (decel == 0):
+            return []
+        def get_step_time(step):
+            return self._mcu.seconds_to_clock(math.sqrt(2.0 * step * step_dist / decel))
+        def build_segment(step):
+            t1 = get_step_time(step)
+            t2 = get_step_time(step + 1)
+            t3 = get_step_time(step + 2)
+            interval = t2 - t1
+            add = (t3 - t2) - interval
+            return interval, add, n + 3, n, t1
+        def eval_segement(interval, count):
+                return interval*count + 0.5 * add * (count - 1)*count
+        n = 0
+        segments = []
+        interval, add, n, segment_start_n, segment_start_time = build_segment(n)
+        while abs(add) > 32767:
+            segments.append((interval, 0, 1))
+            interval, add, n, segment_start_n, segment_start_time = build_segment(segment_start_n + 1)
+
+        max_error = self._mcu.seconds_to_clock(self._mcu.get_max_stepper_error())
+        while add != 0:
+            segment_error = 0
+            count = 2
+            while abs(segment_error) < max_error: 
+                count += 1
+                desired_segment_time = get_step_time(segment_start_n + count) - segment_start_time
+                actual_segment_time = eval_segement(interval, count)
+                segment_error = desired_segment_time - actual_segment_time
+                #logging.info("Segment error %f %f %f" % (segment_error, desired_segment_time, actual_segment_time))
+            n = segment_start_n + count
+            segments.append((interval + add * (count-2), -add, count-1))
+            interval, add, n, segment_start_n, segment_start_time = build_segment(n)
+        for segment in segments:
+            speed = step_dist / self._mcu.clock_to_seconds(segment[0])
+            logging.info("interval %i add %i count %i" % segment)
+            logging.info("speed %f", speed)
+            
 
 # Helper code to build a stepper object from a config section
 def PrinterStepper(config, units_in_radians=False):
@@ -185,8 +228,9 @@ def PrinterStepper(config, units_in_radians=False):
     dir_pin = config.get('dir_pin')
     dir_pin_params = ppins.lookup_pin(dir_pin, can_invert=True)
     step_dist = parse_step_distance(config, units_in_radians, True)
+    smooth_stop_decel = config.getfloat('smooth_stop_decel', 0, 0)
     mcu_stepper = MCU_stepper(name, step_pin_params, dir_pin_params, step_dist,
-                              units_in_radians)
+                              units_in_radians, smooth_stop_decel)
     # Support for stepper enable pin handling
     stepper_enable = printer.load_object(config, 'stepper_enable')
     stepper_enable.register_stepper(mcu_stepper, config.get('enable_pin', None))
@@ -235,7 +279,6 @@ def parse_step_distance(config, units_in_radians=None, note_valid=False):
                            % (config.get_name(),))
     gearing = parse_gear_ratio(config, note_valid)
     return rotation_dist / (full_steps * microsteps * gearing)
-
 
 ######################################################################
 # Stepper controlled rails

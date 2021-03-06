@@ -720,6 +720,8 @@ class MCU:
         self._reserved_move_slots += 1
     def seconds_to_clock(self, time):
         return int(time * self._mcu_freq)
+    def clock_to_seconds(self, clock):
+        return float(clock) / self._mcu_freq
     def get_max_stepper_error(self):
         return self._max_stepper_error
     # Wrapper functions
