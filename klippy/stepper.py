@@ -189,7 +189,7 @@ class MCU_stepper:
             interval = t2 - t1
             add = (t3 - t2) - interval
             return interval, add, n + 3, n, t1
-        def eval_segement(interval, count):
+        def eval_segement(interval, add, count):
                 return interval*count + 0.5 * add * (count - 1)*count
         n = 0
         segments = []
@@ -205,7 +205,7 @@ class MCU_stepper:
             while abs(segment_error) < max_error: 
                 count += 1
                 desired_segment_time = get_step_time(segment_start_n + count) - segment_start_time
-                actual_segment_time = eval_segement(interval, count)
+                actual_segment_time = eval_segement(interval, add, count)
                 segment_error = desired_segment_time - actual_segment_time
                 #logging.info("Segment error %f %f %f" % (segment_error, desired_segment_time, actual_segment_time))
             n = segment_start_n + count
