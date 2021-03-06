@@ -215,6 +215,42 @@ class MCU_stepper:
             speed = step_dist / self._mcu.clock_to_seconds(segment[0])
             logging.info("interval %i add %i count %i" % segment)
             logging.info("speed %f", speed)
+
+        interval = step_dist / 5.0
+        interval = self._mcu.seconds_to_clock(interval)
+        logging.info("Searching for %i", interval)
+        for index, s in enumerate(segments):
+            if s[0] <= interval:
+                break
+
+        if index != len(segments) and s[1] != 0:
+            logging.info("%i < %i" % (s[0], interval))
+            logging.info(s)
+            
+            start = s[0] + s[1] * (s[2] - 1)
+            logging.info(start)
+            #logging.info(interval)
+            #logging.info((start - interval) / s[1])
+            #count = (start - interval) / s[1]
+
+            # TODO: add can be zero
+            ignore_count = 1 + (interval - s[0]) / s[1]
+            logging.info(ignore_count)
+            count = s[2] - ignore_count
+            logging.info("count %i", count)
+            interval = s[0] + s[1] * ignore_count
+            if count > 0:
+                logging.info("Executing %i add %i, count %i, end %i" % (interval, s[1], count, interval + s[1] * (count-1)))
+
+
+            #segments_end = s->decel_segments - 1;
+            for s in reversed(segments[:index]):
+                logging.info("Executing %i add %i, count %i, end %i" % (s[0], s[1], s[2], s[0] + s[1] * (s[2]-1)))
+
+            #// Add the rest of the segments
+            #for (--segment;segment != segments_end; --segment) {
+                #logging.info("Executing %i add %i, count %i" % s[0], s[1], s[2])
+            #s->stop_steps = count;
             
 
 # Helper code to build a stepper object from a config section
