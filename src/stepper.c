@@ -416,7 +416,10 @@ stepper_stop_smooth(struct stepper *s)
         struct decel_segment *segments_end = s->decel_segments +
             s->num_decel_segments;
         // Try to find the first segement with matching intervals
-        for(;segment != segments_end; ++segment) {}
+        for(;segment != segments_end; ++segment) {
+            if (segment->interval > interval)
+                break;
+        }
 
         // Was a valid segment found?
         if (segment != segments_end) {
@@ -431,7 +434,8 @@ stepper_stop_smooth(struct stepper *s)
                 move_free(m);
             }
 
-            uint16_t count = (segment->interval - interval) / segment->add;
+            uint16_t count = (segment->interval - interval) / -segment->add;
+            count = segment->count - count;
             if (count > 0) {
                 struct stepper_move *m = move_alloc();
                 m->flags = 0;
@@ -441,8 +445,10 @@ stepper_stop_smooth(struct stepper *s)
                 move_queue_push(&m->node, &s->mq);
             }
 
+            segments_end = s->decel_segments - 1;
+
             // Add the rest of the segments
-            for (++segment;segment != segments_end; ++segment) {
+            for (--segment;segment != segments_end; --segment) {
                 struct stepper_move *m = move_alloc();
                 m->flags = 0;
                 m->interval = segment->interval;
