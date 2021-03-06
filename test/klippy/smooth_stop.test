@@ -1,0 +1,5 @@
+# Test for smooth stop
+CONFIG smooth_stop.cfg
+DICTIONARY atmega2560.dict
+
+G28
