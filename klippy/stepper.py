@@ -190,7 +190,7 @@ class MCU_stepper:
             t3 = get_step_time(step + 2)
             interval = t2 - t1
             add = (t3 - t2) - interval
-            return interval, add, step + 3, step, t1
+            return interval, add, t1
         def eval_segement(interval, add, count):
             return interval*count + 0.5 * add * (count - 1)*count
             
@@ -203,10 +203,11 @@ class MCU_stepper:
             prev_t = t
         n = 0
         segments = []
-        interval, add, n, segment_start_n, segment_start_time = build_segment(n)
+        interval, add, segment_start_time = build_segment(n)
         while abs(add) > 32767:
             segments.append((interval, 0, 1))
-            interval, add, n, segment_start_n, segment_start_time = build_segment(segment_start_n + 1)
+            n += 1
+            interval, add, segment_start_time = build_segment(n)
 
         max_error = self._mcu.seconds_to_clock(self._mcu.get_max_stepper_error())
         while add != 0:
@@ -214,20 +215,21 @@ class MCU_stepper:
             count = 2
             while abs(segment_error) < max_error: 
                 count += 1
-                desired_segment_time = get_step_time(segment_start_n + count) - segment_start_time
+                desired_segment_time = get_step_time(n + count) - segment_start_time
                 actual_segment_time = eval_segement(interval, add, count)
                 segment_error = desired_segment_time - actual_segment_time
                 #logging.info("Segment error %f %f %f" % (segment_error, desired_segment_time, actual_segment_time))
-            n = segment_start_n + count
-            segments.append((interval + add * (count-2), -add, count-1))
-            logging.info("n %i, count %i segment_start_n %i", n, count, segment_start_n)
-            interval, add, n, segment_start_n, segment_start_time = build_segment(n)
+            count -= 1
+            n += count
+            segments.append((interval + add * (count-1), -add, count))
+            logging.info("n %i, count %i", n, count)
+            interval, add, segment_start_time = build_segment(n)
         for segment in segments:
             speed = step_dist / self._mcu.clock_to_seconds(segment[0])
             logging.info("interval %i add %i count %i" % segment)
             logging.info("speed %f", speed)
 
-        interval = step_dist / 5.0
+        interval = step_dist / 35.0
         interval = self._mcu.seconds_to_clock(interval)
         logging.info("Searching for %i", interval)
         for index, s in enumerate(segments):
