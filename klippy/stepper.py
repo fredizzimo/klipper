@@ -44,6 +44,7 @@ class MCU_stepper:
         self._itersolve_generate_steps = self._ffi_lib.itersolve_generate_steps
         self._itersolve_check_active = self._ffi_lib.itersolve_check_active
         self._trapq = ffi_main.NULL
+        self._smooth_stop_profile = []
     def get_mcu(self):
         return self._mcu
     def get_name(self, short=False):
@@ -71,14 +72,19 @@ class MCU_stepper:
     def _build_config(self):
         max_error = self._mcu.get_max_stepper_error()
         min_stop_interval = max(0., self._min_stop_interval - max_error)
-        self._calc_smooth_stop_profile()
+        self._smooth_stop_profile = self._calc_smooth_stop_profile()
         self._mcu.add_config_cmd(
             "config_stepper oid=%d step_pin=%s dir_pin=%s"
             " min_stop_interval=%d invert_step=%d"
             " num_decel_segments=%d" % (
                 self._oid, self._step_pin, self._dir_pin,
                 self._mcu.seconds_to_clock(min_stop_interval),
-                self._invert_step, 0))
+                self._invert_step, len(self._smooth_stop_profile)))
+        for i, seq in enumerate(self._smooth_stop_profile):
+            self._mcu.add_config_cmd(
+                "set_decel_segment oid=%d segement=%d interval=%u count=%u"
+                " add=%d" % (self._oid, i, seq[0], seq[2], seq[1])
+            )
         self._mcu.add_config_cmd("reset_step_clock oid=%d clock=0"
                                  % (self._oid,), on_restart=True)
         step_cmd_id = self._mcu.lookup_command_id(
@@ -228,43 +234,7 @@ class MCU_stepper:
             speed = step_dist / self._mcu.clock_to_seconds(segment[0])
             logging.info("interval %i add %i count %i" % segment)
             logging.info("speed %f", speed)
-
-        interval = step_dist / 35.0
-        interval = self._mcu.seconds_to_clock(interval)
-        logging.info("Searching for %i", interval)
-        for index, s in enumerate(segments):
-            if s[0] <= interval:
-                break
-
-        if index != len(segments) and s[1] != 0:
-            logging.info("%i < %i" % (s[0], interval))
-            logging.info(s)
-            
-            start = s[0] + s[1] * (s[2] - 1)
-            logging.info(start)
-            #logging.info(interval)
-            #logging.info((start - interval) / s[1])
-            #count = (start - interval) / s[1]
-
-            # TODO: add can be zero
-            ignore_count = 1 + (interval - s[0]) / s[1]
-            logging.info(ignore_count)
-            count = s[2] - ignore_count
-            logging.info("count %i", count)
-            interval = s[0] + s[1] * ignore_count
-            if count > 0:
-                logging.info("Executing %i add %i, count %i, end %i" % (interval, s[1], count, interval + s[1] * (count-1)))
-
-
-            #segments_end = s->decel_segments - 1;
-            for s in reversed(segments[:index]):
-                logging.info("Executing %i add %i, count %i, end %i" % (s[0], s[1], s[2], s[0] + s[1] * (s[2]-1)))
-
-            #// Add the rest of the segments
-            #for (--segment;segment != segments_end; --segment) {
-                #logging.info("Executing %i add %i, count %i" % s[0], s[1], s[2])
-            #s->stop_steps = count;
-            
+        return segments
 
 # Helper code to build a stepper object from a config section
 def PrinterStepper(config, units_in_radians=False):
