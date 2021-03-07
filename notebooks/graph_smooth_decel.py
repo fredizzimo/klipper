@@ -105,8 +105,7 @@ def generate_v(intervals, oid):
 
 
 # %%
-def plot_segments(oid, reverse):
-    segments = decel_segments[oid]
+def plot_segments(oid, segments, reverse):
     if reverse:
         segments = reverse_segments(segments)
     intervals = generate_intervals(segments)
@@ -120,6 +119,44 @@ def plot_segments(oid, reverse):
 
 
 # %%
-plot_segments(2, True)
+plot_segments(2, decel_segments[oid], True)
+
+# %%
+def decelerate_from(oid, speed):
+    sd = step_dist[oid]
+    initial_interval = sd / speed
+    initial_interval = int(initial_interval * clock_freq)
+    segments = decel_segments[oid]
+    segments_end = len(segments)
+    i = 0
+    output = []
+    while i != segments_end:
+        interval, add, count = segments[i]
+        if interval <= initial_interval:
+            break
+        i += 1
+
+    print(interval, add, count)
+    if i != segments_end and add != 0:
+        ignore_count = 1 + (initial_interval - interval) / add
+        print("ignore_count %i" % (ignore_count,))
+        count = count - ignore_count
+        print("count %i" % (count,))
+        if count > 0:
+            output.append((
+                interval + add * ignore_count,
+                add,
+                count
+            ))
+
+        for interval, add, count in reversed(segments[:i]):
+            output.append((interval, add, count))
+    return output
+
+# %%
+segments = decelerate_from(2, 5)
+for s in segments:
+    print(s)
+plot_segments(2, segments, False)
 
 # %%
