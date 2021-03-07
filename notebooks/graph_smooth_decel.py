@@ -67,6 +67,9 @@ for oid, segments in decel_segments.iteritems():
     for segment in segments:
         print("interval %d add %d count %d" % segment)
 
+# %%
+def reverse_segments(segments):
+    return [(interval + add * (count - 1), -add, count) for interval, add, count in segments]
 
 # %%
 def generate_intervals(segments):
@@ -102,8 +105,11 @@ def generate_v(intervals, oid):
 
 
 # %%
-def plot_steps(oid):
-    intervals = generate_intervals(decel_segments[oid])
+def plot_segments(oid, reverse):
+    segments = decel_segments[oid]
+    if reverse:
+        segments = reverse_segments(segments)
+    intervals = generate_intervals(segments)
     t = generate_t(intervals)
     x = generate_x(t, oid)
     v = generate_v(intervals, oid)
@@ -114,14 +120,6 @@ def plot_steps(oid):
 
 
 # %%
-plot_steps(2)
-
-
-# %%
-
-
+plot_segments(2, True)
 
 # %%
-
-
-
