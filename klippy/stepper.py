@@ -17,10 +17,11 @@ class error(Exception):
 # Interface to low-level mcu and chelper code
 class MCU_stepper:
     def __init__(self, name, step_pin_params, dir_pin_params, step_dist,
-                 units_in_radians=False):
+                 units_in_radians=False, smooth_stop_decel=0):
         self._name = name
         self._step_dist = step_dist
         self._units_in_radians = units_in_radians
+        self._smooth_stop_decel = smooth_stop_decel
         self._mcu = step_pin_params['chip']
         self._oid = oid = self._mcu.create_oid()
         self._mcu.register_config_callback(self._build_config)
@@ -76,6 +77,13 @@ class MCU_stepper:
                 self._oid, self._step_pin, self._dir_pin,
                 self._mcu.seconds_to_clock(min_stop_interval),
                 self._invert_step))
+        if self._smooth_stop_decel > 0:
+            self._mcu.add_config_cmd(
+                "config_stepper_smooth_stop oid=%d accel=%u" % (
+                    self._oid,
+                    int(round(self._smooth_stop_decel / self._step_dist))
+                )
+            )
         self._mcu.add_config_cmd("reset_step_clock oid=%d clock=0"
                                  % (self._oid,), on_restart=True)
         step_cmd_id = self._mcu.lookup_command_id(
@@ -184,8 +192,9 @@ def PrinterStepper(config, units_in_radians=False):
     dir_pin = config.get('dir_pin')
     dir_pin_params = ppins.lookup_pin(dir_pin, can_invert=True)
     step_dist = parse_step_distance(config, units_in_radians, True)
+    smooth_stop_decel = config.getfloat('smooth_stop_decel', 0, 0)
     mcu_stepper = MCU_stepper(name, step_pin_params, dir_pin_params, step_dist,
-                              units_in_radians)
+                              units_in_radians, smooth_stop_decel)
     # Support for stepper enable pin handling
     stepper_enable = printer.load_object(config, 'stepper_enable')
     stepper_enable.register_stepper(mcu_stepper, config.get('enable_pin', None))
