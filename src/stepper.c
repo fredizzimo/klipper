@@ -54,7 +54,7 @@ struct stepper {
     uint16_t smooth_num_steps;
     uint32_t smooth_c;
     uint16_t smooth_divisor;
-    
+
     // Actual steps and c that will or have been taken
     // by the smooth stopping
     uint16_t stop_steps;
@@ -71,7 +71,8 @@ enum {
     SF_LAST_RESET=1<<4, SF_NO_NEXT_CHECK=1<<5, SF_NEED_RESET=1<<6
 };
 
-static void schedule_move(struct stepper *s, struct stepper_move *m, uint32_t min_next_time)
+static void schedule_move(struct stepper *s, struct stepper_move *m,
+    uint32_t min_next_time)
 {
     s->next_step_time += m->interval;
     s->add = m->add;
@@ -416,16 +417,16 @@ stepper_smooth_stop(struct stepper *s)
 
         if (radicand > 0) {
             const float t_step_0 = (v - sqrtf(radicand)) * a_inv;
-            
+
             float v2_two_a_inv = v2 * two_a_inv;
             // Prevent overflow of the uint16_t variables.
-            // The deceleration will be wrong, and the stepper 
+            // The deceleration will be wrong, and the stepper
             // will come to an abrupt stop at the end, but that's
             // better than doing no deceleration at all.
             // In practice the number of steps should be way lower
             // than this, so unless the user has configured things
             // way wrong, or he has some very special machine this
-            // should not happen. 
+            // should not happen.
             const float max_steps = (65536.f - 4.f - 1.f) / 4.f;
             if (v2_two_a_inv > max_steps)
                 v2_two_a_inv = max_steps;
@@ -444,7 +445,8 @@ stepper_smooth_stop(struct stepper *s)
     if (num_steps > 0) {
         while (!move_queue_empty(&s->mq)) {
             struct move_node *mn = move_queue_pop(&s->mq);
-            struct stepper_move *m = container_of(mn, struct stepper_move, node);
+            struct stepper_move *m =
+                container_of(mn, struct stepper_move, node);
             move_free(m);
         }
         s->flags = (s->flags & SF_INVERT_STEP) | SF_NEED_RESET;
