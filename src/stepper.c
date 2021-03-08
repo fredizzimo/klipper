@@ -12,6 +12,7 @@
 #include "command.h" // DECL_COMMAND
 #include "sched.h" // struct timer
 #include "stepper.h" // command_config_stepper
+#include "math.h"
 
 DECL_CONSTANT("STEP_DELAY", CONFIG_STEP_DELAY);
 
@@ -45,6 +46,20 @@ struct stepper {
     uint32_t position;
     struct move_queue_head mq;
     uint32_t min_stop_interval;
+
+    // Runtime for smooth stopping
+    float smooth_a_inv;
+    float smooth_two_a;
+    float smooth_two_a_inv;
+    uint16_t smooth_num_steps;
+    uint32_t smooth_c;
+    uint16_t smooth_divisor;
+    
+    // Actual steps and c that will or have been taken
+    // by the smooth stopping
+    uint16_t stop_steps;
+    uint16_t stop_c;
+
     // gcc (pre v6) does better optimization when uint8_t are bitfields
     uint8_t flags : 8;
 };
@@ -56,22 +71,8 @@ enum {
     SF_LAST_RESET=1<<4, SF_NO_NEXT_CHECK=1<<5, SF_NEED_RESET=1<<6
 };
 
-// Setup a stepper for the next move in its queue
-static uint_fast8_t
-stepper_load_next(struct stepper *s, uint32_t min_next_time)
+static void schedule_move(struct stepper *s, struct stepper_move *m, uint32_t min_next_time)
 {
-    if (move_queue_empty(&s->mq)) {
-        // There is no next move - the queue is empty
-        if (s->interval - s->add < s->min_stop_interval
-            && !(s->flags & SF_NO_NEXT_CHECK))
-            shutdown("No next step");
-        s->count = 0;
-        return SF_DONE;
-    }
-
-    // Load next 'struct stepper_move' into 'struct stepper'
-    struct move_node *mn = move_queue_pop(&s->mq);
-    struct stepper_move *m = container_of(mn, struct stepper_move, node);
     s->next_step_time += m->interval;
     s->add = m->add;
     s->interval = m->interval + m->add;
@@ -101,7 +102,48 @@ stepper_load_next(struct stepper *s, uint32_t min_next_time)
     } else {
         s->position += m->count;
     }
+}
 
+// Setup a stepper for the next move in its queue
+static uint_fast8_t
+stepper_load_next(struct stepper *s, uint32_t min_next_time)
+{
+    if (move_queue_empty(&s->mq)) {
+        if (s->smooth_num_steps > 0) {
+            uint32_t c = s->smooth_c;
+            uint32_t divisor = s->smooth_divisor;
+
+            struct stepper_move move = {
+                .interval = c,
+                .add = 0,
+                .count = 1,
+                .flags = 0
+            };
+            schedule_move(s, &move, min_next_time);
+            c = c - (2 * c) / divisor;
+            divisor += 4;
+            s->smooth_c = c;
+            s->smooth_divisor = divisor;
+            s->smooth_num_steps -= 1;
+            return SF_RESCHEDULE;
+        }
+        // If this is a smooth stop that's coming to an end
+        if (s->stop_steps > 0) {
+            stepper_stop(s);
+        }
+
+        // There is no next move - the queue is empty
+        if (s->interval - s->add < s->min_stop_interval
+            && !(s->flags & SF_NO_NEXT_CHECK))
+            shutdown("No next step");
+        s->count = 0;
+        return SF_DONE;
+    }
+
+    // Load next 'struct stepper_move' into 'struct stepper'
+    struct move_node *mn = move_queue_pop(&s->mq);
+    struct stepper_move *m = container_of(mn, struct stepper_move, node);
+    schedule_move(s, m, min_next_time);
     move_free(m);
     return SF_RESCHEDULE;
 }
@@ -197,6 +239,27 @@ DECL_COMMAND(command_config_stepper,
              "config_stepper oid=%c step_pin=%c dir_pin=%c"
              " min_stop_interval=%u invert_step=%c");
 
+void
+command_config_stepper_smooth_stop(uint32_t *args)
+{
+    struct stepper *s = stepper_oid_lookup(args[0]);
+    uint32_t accel = args[1];
+    if (accel >0) {
+        const float a_inv = 1.0f / accel;
+        const float two_a = 2.0f * accel;
+        const float two_a_inv = 1.0f / two_a;
+        s->smooth_a_inv = a_inv;
+        s->smooth_two_a = two_a;
+        s->smooth_two_a_inv = two_a_inv;
+    } else {
+        s->smooth_a_inv = 0.0f;
+        s->smooth_two_a = 0.0f;
+        s->smooth_two_a_inv = 0.0f;
+    }
+}
+DECL_COMMAND(command_config_stepper_smooth_stop,
+             "config_stepper_smooth_stop oid=%c accel=%u");
+
 // Return the 'struct stepper' for a given stepper oid
 struct stepper *
 stepper_oid_lookup(uint8_t oid)
@@ -267,6 +330,9 @@ command_reset_step_clock(uint32_t *args)
         shutdown("Can't reset time when stepper active");
     s->next_step_time = waketime;
     s->flags = (s->flags & ~SF_NEED_RESET) | SF_LAST_RESET;
+    s->stop_steps = 0;
+    s->stop_c = 0;
+    s->smooth_num_steps = 0;
     irq_enable();
 }
 DECL_COMMAND(command_reset_step_clock, "reset_step_clock oid=%c clock=%u");
@@ -316,6 +382,98 @@ stepper_stop(struct stepper *s)
         struct move_node *mn = move_queue_pop(&s->mq);
         struct stepper_move *m = container_of(mn, struct stepper_move, node);
         move_free(m);
+    }
+}
+//
+// Stop all moves for a given stepper (used in end stop homing).  IRQs
+// must be off.
+void
+stepper_smooth_stop(struct stepper *s)
+{
+    const float a_inv = s->smooth_a_inv;
+    uint16_t num_steps = 0;
+    // Only run when an acceleration is configured
+    // and there's at least one more step left in
+    // the scheduled moves
+    if (a_inv > 0.0f &&
+     (!move_queue_empty(&s->mq) ||
+        #if CONFIG_STEP_DELAY > 0
+            s->count > 2
+        #else
+            s->count > 1
+        #endif
+    )){
+        const float two_a = s->smooth_two_a;
+        const float two_a_inv = s->smooth_two_a_inv;
+        const float freq = (float)(CONFIG_CLOCK_FREQ);
+
+        const float interval = s->interval - s->add;
+
+        const float v = freq / interval;
+        const float v2 = v*v;
+
+        const float radicand = v2 - two_a;
+
+        if (radicand > 0) {
+            const float t_step_0 = (v - sqrtf(radicand)) * a_inv;
+            
+            float v2_two_a_inv = v2 * two_a_inv;
+            // Prevent overflow of the uint16_t variables.
+            // The deceleration will be wrong, and the stepper 
+            // will come to an abrupt stop at the end, but that's
+            // better than doing no deceleration at all.
+            // In practice the number of steps should be way lower
+            // than this, so unless the user has configured things
+            // way wrong, or he has some very special machine this
+            // should not happen. 
+            const float max_steps = (65536.f - 4.f - 1.f) / 4.f;
+            if (v2_two_a_inv > max_steps)
+                v2_two_a_inv = max_steps;
+
+            // Use integer math, so that everything is deterministic
+            num_steps = floorf(v2_two_a_inv);
+            const uint32_t c = roundf(t_step_0 * freq);
+            const uint16_t divisor = 4 - 4 * num_steps + 1;
+
+            s->smooth_num_steps = num_steps;
+            s->smooth_c = c;
+            s->smooth_divisor = divisor;
+            s->stop_c = c;
+        }
+    }
+    if (num_steps > 0) {
+        while (!move_queue_empty(&s->mq)) {
+            struct move_node *mn = move_queue_pop(&s->mq);
+            struct stepper_move *m = container_of(mn, struct stepper_move, node);
+            move_free(m);
+        }
+        s->flags = (s->flags & SF_INVERT_STEP) | SF_NEED_RESET;
+        s->position = stepper_get_position(s) | (s->position & 0x80000000);
+
+        // Let the next scheduled step run normally, so that we don't need
+        // to change the timers
+        if (CONFIG_STEP_DELAY > 0) {
+            // If the step is alredy taken, then just unstep
+            if (s->count && 1) {
+                s->count = 1;
+
+            } else {
+                // Otherwise do both the step and unstep
+                s->count = 2;
+                num_steps++;
+            }
+        }
+        else {
+            // Always run the next step when no step delay is configured
+            s->count = 1;
+            num_steps++;
+        }
+        s->stop_steps = num_steps;
+
+    } else {
+        // Fallback to default stepper stop
+        s->smooth_num_steps = 0;
+        stepper_stop(s);
     }
 }
 
