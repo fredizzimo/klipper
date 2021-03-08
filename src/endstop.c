@@ -30,7 +30,7 @@ stop_steppers(struct endstop *e)
     uint8_t count = e->stepper_count;
     while (count--)
         if (e->steppers[count])
-            stepper_stop(e->steppers[count]);
+            stepper_smooth_stop(e->steppers[count]);
     sched_wake_task(&endstop_wake);
 }
 
