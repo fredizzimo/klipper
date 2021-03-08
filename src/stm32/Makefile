@@ -21,7 +21,6 @@ CFLAGS += $(CFLAGS-y) -D$(MCU_UPPER) -mthumb -Ilib/cmsis-core -Ilib/fast-hash
 
 CFLAGS_klipper.elf += --specs=nano.specs --specs=nosys.specs
 CFLAGS_klipper.elf += -T $(OUT)src/generic/armcm_link.ld
-CFLAGS_klipper.elf += -lm
 $(OUT)klipper.elf: $(OUT)src/generic/armcm_link.ld
 
 # Add source files
