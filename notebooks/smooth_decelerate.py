@@ -57,16 +57,18 @@ def generate_intervals(v, a, step_dist, freq):
         t_step_0 = (v - sqrt(radicand)) * a_inv
 
         # Use integer math, so that everything is deterministic
-        num_steps = int(round(v2 * two_a_inv))
+        num_steps = int(floor(v2 * two_a_inv))
         
         c = int(round(t_step_0 * freq))
-        intervals = [c]
 
         divisor = 4 - 4 * num_steps + 1
-        for n in range(1, num_steps-1):
+        
+        intervals = []
+        while num_steps > 0:
+            intervals.append(c)
             c = c - (2 * c) / divisor
             divisor += 4
-            intervals.append(c)
+            num_steps -= 1
         return intervals
     else:
         return []
