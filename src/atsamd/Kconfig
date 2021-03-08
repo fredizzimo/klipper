@@ -13,6 +13,7 @@ config ATSAMD_SELECT
     select HAVE_GPIO_BITBANGING
     select HAVE_STRICT_TIMING
     select HAVE_CHIPID
+    select HAVE_SMOOTH_STOP
 
 config BOARD_DIRECTORY
     string

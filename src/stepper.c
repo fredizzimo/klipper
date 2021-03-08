@@ -47,6 +47,7 @@ struct stepper {
     struct move_queue_head mq;
     uint32_t min_stop_interval;
 
+#if CONFIG_HAVE_SMOOTH_STOP
     // Runtime for smooth stopping
     float smooth_a_inv;
     float smooth_two_a;
@@ -59,6 +60,7 @@ struct stepper {
     // by the smooth stopping
     uint16_t stop_steps;
     uint16_t stop_c;
+#endif
 
     // gcc (pre v6) does better optimization when uint8_t are bitfields
     uint8_t flags : 8;
@@ -110,6 +112,7 @@ static uint_fast8_t
 stepper_load_next(struct stepper *s, uint32_t min_next_time)
 {
     if (move_queue_empty(&s->mq)) {
+#if CONFIG_HAVE_SMOOTH_STOP
         if (s->smooth_num_steps > 0) {
             uint32_t c = s->smooth_c;
             uint32_t divisor = s->smooth_divisor;
@@ -132,6 +135,7 @@ stepper_load_next(struct stepper *s, uint32_t min_next_time)
         if (s->stop_steps > 0) {
             stepper_stop(s);
         }
+#endif
 
         // There is no next move - the queue is empty
         if (s->interval - s->add < s->min_stop_interval
@@ -240,6 +244,7 @@ DECL_COMMAND(command_config_stepper,
              "config_stepper oid=%c step_pin=%c dir_pin=%c"
              " min_stop_interval=%u invert_step=%c");
 
+#if CONFIG_HAVE_SMOOTH_STOP
 void
 command_config_stepper_smooth_stop(uint32_t *args)
 {
@@ -260,6 +265,7 @@ command_config_stepper_smooth_stop(uint32_t *args)
 }
 DECL_COMMAND(command_config_stepper_smooth_stop,
              "config_stepper_smooth_stop oid=%c accel=%u");
+#endif
 
 // Return the 'struct stepper' for a given stepper oid
 struct stepper *
@@ -331,9 +337,11 @@ command_reset_step_clock(uint32_t *args)
         shutdown("Can't reset time when stepper active");
     s->next_step_time = waketime;
     s->flags = (s->flags & ~SF_NEED_RESET) | SF_LAST_RESET;
+#if CONFIG_HAVE_SMOOTH_STOP
     s->stop_steps = 0;
     s->stop_c = 0;
     s->smooth_num_steps = 0;
+#endif
     irq_enable();
 }
 DECL_COMMAND(command_reset_step_clock, "reset_step_clock oid=%c clock=%u");
@@ -385,6 +393,8 @@ stepper_stop(struct stepper *s)
         move_free(m);
     }
 }
+
+#if CONFIG_HAVE_SMOOTH_STOP
 //
 // Stop all moves for a given stepper (used in end stop homing).  IRQs
 // must be off.
@@ -478,6 +488,7 @@ stepper_smooth_stop(struct stepper *s)
         stepper_stop(s);
     }
 }
+#endif
 
 void
 stepper_shutdown(void)
