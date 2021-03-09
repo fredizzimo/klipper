@@ -59,6 +59,7 @@ struct stepper {
     // Actual steps and c that will or have been taken
     // by the smooth stopping
     uint16_t stop_steps;
+    uint16_t stop_steps_extra;
     uint16_t stop_c;
 #endif
 
@@ -339,6 +340,7 @@ command_reset_step_clock(uint32_t *args)
     s->flags = (s->flags & ~SF_NEED_RESET) | SF_LAST_RESET;
 #if CONFIG_HAVE_SMOOTH_STOP
     s->stop_steps = 0;
+    s->stop_steps_extra = 0;
     s->stop_c = 0;
     s->smooth_num_steps = 0;
 #endif
@@ -395,6 +397,26 @@ stepper_stop(struct stepper *s)
 }
 
 #if CONFIG_HAVE_SMOOTH_STOP
+//
+// Report the current position of the stepper
+void
+command_stepper_get_stop_position(uint32_t *args)
+{
+    uint8_t oid = args[0];
+    struct stepper *s = stepper_oid_lookup(oid);
+    irq_disable();
+    uint32_t position = stepper_get_position(s);
+    uint16_t steps = s->stop_steps;
+    uint16_t extra = s->stop_steps_extra;
+    uint32_t c = s->stop_c;
+    irq_enable();
+    position -= POSITION_BIAS;
+    sendf("stepper_stop_position oid=%c pos=%i steps=%i extra_steps=%i c=%i",
+         oid, position, steps, extra, c);
+}
+DECL_COMMAND(command_stepper_get_stop_position,
+    "stepper_get_stop_position oid=%c");
+
 //
 // Stop all moves for a given stepper (used in end stop homing).  IRQs
 // must be off.
@@ -461,6 +483,8 @@ stepper_smooth_stop(struct stepper *s)
         }
         s->flags = (s->flags & SF_INVERT_STEP) | SF_NEED_RESET;
         s->position = stepper_get_position(s) | (s->position & 0x80000000);
+        s->stop_steps = num_steps;
+        s->stop_steps_extra = 0;
 
         // Let the next scheduled step run normally, so that we don't need
         // to change the timers
@@ -472,18 +496,18 @@ stepper_smooth_stop(struct stepper *s)
             } else {
                 // Otherwise do both the step and unstep
                 s->count = 2;
-                num_steps++;
+                s->stop_steps_extra = 1;
             }
         }
         else {
             // Always run the next step when no step delay is configured
             s->count = 1;
-            num_steps++;
+            s->stop_steps_extra = 1;
         }
-        s->stop_steps = num_steps;
-
     } else {
         // Fallback to default stepper stop
+        s->stop_steps_extra = 0;
+        s->stop_steps = 0;
         s->smooth_num_steps = 0;
         stepper_stop(s);
     }
