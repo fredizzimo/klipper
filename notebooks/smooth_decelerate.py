@@ -61,13 +61,13 @@ def generate_intervals(v, a, step_dist, freq):
         
         c = int(round(t_step_0 * freq))
 
-        divisor = 4 - 4 * num_steps + 1
+        divisor = 4 * num_steps - 5
         
         intervals = []
         while num_steps > 0:
             intervals.append(c)
-            c = c - (2 * c) / divisor
-            divisor += 4
+            c = c + (2 * c) / divisor
+            divisor -= 4
             num_steps -= 1
         return intervals
     else:
