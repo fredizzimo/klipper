@@ -466,7 +466,7 @@ stepper_smooth_stop(struct stepper *s)
         // to change the timers
         if (CONFIG_STEP_DELAY > 0) {
             // If the step is alredy taken, then just unstep
-            if (s->count && 1) {
+            if (s->count & 1) {
                 s->count = 1;
 
             } else {
