@@ -115,7 +115,7 @@ stepper_load_next(struct stepper *s, uint32_t min_next_time)
 #if CONFIG_HAVE_SMOOTH_STOP
         if (s->smooth_num_steps > 0) {
             uint32_t c = s->smooth_c;
-            uint32_t divisor = s->smooth_divisor;
+            uint16_t divisor = s->smooth_divisor;
 
             struct stepper_move move = {
                 .interval = c,
@@ -124,8 +124,8 @@ stepper_load_next(struct stepper *s, uint32_t min_next_time)
                 .flags = 0
             };
             schedule_move(s, &move, min_next_time);
-            c = c - (2 * c) / divisor;
-            divisor += 4;
+            c = c + (2 * c) / divisor;
+            divisor -= 4;
             s->smooth_c = c;
             s->smooth_divisor = divisor;
             s->smooth_num_steps -= 1;
@@ -437,14 +437,14 @@ stepper_smooth_stop(struct stepper *s)
             // than this, so unless the user has configured things
             // way wrong, or he has some very special machine this
             // should not happen.
-            const float max_steps = (65536.f - 4.f - 1.f) / 4.f;
+            const float max_steps = 65536.f / 4.f;
             if (v2_two_a_inv > max_steps)
                 v2_two_a_inv = max_steps;
 
             // Use integer math, so that everything is deterministic
             num_steps = floorf(v2_two_a_inv);
             const uint32_t c = roundf(t_step_0 * freq);
-            const uint16_t divisor = 4 - 4 * num_steps + 1;
+            const uint16_t divisor = 4 * num_steps - 5;
 
             s->smooth_num_steps = num_steps;
             s->smooth_c = c;
