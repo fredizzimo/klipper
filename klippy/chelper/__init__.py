@@ -5,6 +5,7 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import os, logging
 import cffi
+import subprocess
 
 
 ######################################################################
@@ -13,9 +14,8 @@ import cffi
 
 GCC_CMD = "gcc"
 COMPILE_ARGS = ("-Wall -g -O2 -shared -fPIC"
-                " -flto -fwhole-program -fno-use-linker-plugin"
-                " -o %s %s")
-SSE_FLAGS = "-mfpmath=sse -msse2"
+                " -flto -fwhole-program -fno-use-linker-plugin").split()
+SSE_FLAGS = "-mfpmath=sse -msse2".split()
 SOURCE_FILES = [
     'pyhelper.c', 'serialqueue.c', 'stepcompress.c', 'itersolve.c', 'trapq.c',
     'kin_cartesian.c', 'kin_corexy.c', 'kin_corexz.c', 'kin_delta.c',
@@ -219,11 +219,22 @@ def get_ffi():
         destlib = get_abs_files(srcdir, [DEST_LIB])[0]
         if check_build_code(srcfiles+ofiles+[__file__], destlib):
             if check_gcc_option(SSE_FLAGS):
-                cmd = "%s %s %s" % (GCC_CMD, SSE_FLAGS, COMPILE_ARGS)
+                cmd = [GCC_CMD] + SSE_FLAGS + COMPILE_ARGS
             else:
-                cmd = "%s %s" % (GCC_CMD, COMPILE_ARGS)
+                cmd = [GCC_CMD] + COMPILE_ARGS
+            # Delete the output to make sure that we don't use
+            # an out of date library if the compilation fails
+            if os.path.isfile(destlib):
+                os.remove(destlib)
             logging.info("Building C code module %s", DEST_LIB)
-            os.system(cmd % (destlib, ' '.join(srcfiles)))
+            try:
+                args = cmd + ["-o", destlib] + srcfiles
+                msg = subprocess.check_output(args, stderr=subprocess.STDOUT,
+                    shell=False)
+            except subprocess.CalledProcessError as e:
+                msg = "Unable to build C code module\n %s" % (e.output,)
+                logging.error(msg)
+                raise Exception(msg)
         FFI_main = cffi.FFI()
         for d in defs_all:
             FFI_main.cdef(d)
