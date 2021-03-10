@@ -5,6 +5,7 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import os, logging
 import cffi
+import subprocess
 
 
 ######################################################################
@@ -13,9 +14,8 @@ import cffi
 
 GCC_CMD = "gcc"
 COMPILE_ARGS = ("-Wall -g -O2 -shared -fPIC"
-                " -flto -fwhole-program -fno-use-linker-plugin"
-                " -o %s %s")
-SSE_FLAGS = "-mfpmath=sse -msse2"
+                " -flto -fwhole-program -fno-use-linker-plugin").split()
+SSE_FLAGS = "-mfpmath=sse -msse2".split()
 SOURCE_FILES = [
     'pyhelper.c', 'serialqueue.c', 'stepcompress.c', 'itersolve.c', 'trapq.c',
     'kin_cartesian.c', 'kin_corexy.c', 'kin_corexz.c', 'kin_delta.c',
@@ -206,18 +206,37 @@ def check_build_code(sources, target):
 
 # Check if the current gcc version supports a particular command-line option
 def check_gcc_option(option):
+    option = ' '.join(option)
     cmd = "%s %s -S -o /dev/null -xc /dev/null > /dev/null 2>&1" % (
         GCC_CMD, option)
     res = os.system(cmd)
     return res == 0
 
-# Check if the current gcc version supports a particular command-line option
-def do_build_code(cmd):
-    res = os.system(cmd)
-    if res:
-        msg = "Unable to build C code module (error=%s)" % (res,)
+# Perform the actual compilation
+def do_build_code(args):
+    try:
+        msg = subprocess.check_output(args, stderr=subprocess.STDOUT,
+            shell=False)
+    except subprocess.CalledProcessError as e:
+        msg = "Unable to build C code module\n %s" % (e.output,)
         logging.error(msg)
         raise Exception(msg)
+
+# Compile the code if it needs to be compiled
+def check_and_build_code(srcfiles, ofiles, destlib, extra_deps, start_msg,
+                         end_msg, printfunc):
+    if check_build_code(srcfiles+ofiles+[__file__]+extra_deps, destlib):
+        if check_gcc_option(SSE_FLAGS):
+            cmd = [GCC_CMD] + SSE_FLAGS + COMPILE_ARGS
+        else:
+            cmd = [GCC_CMD] + COMPILE_ARGS
+        # Delete the output to make sure that we don't use
+        # an out of date library if the compilation fails
+        if os.path.isfile(destlib):
+            os.remove(destlib)
+        printfunc(start_msg)
+        do_build_code(cmd + ["-o", destlib] + srcfiles)
+        printfunc(end_msg)
 
 FFI_main = None
 FFI_lib = None
@@ -235,13 +254,12 @@ def get_ffi():
         srcfiles = get_abs_files(srcdir, SOURCE_FILES)
         ofiles = get_abs_files(srcdir, OTHER_FILES)
         destlib = get_abs_files(srcdir, [DEST_LIB])[0]
-        if check_build_code(srcfiles+ofiles+[__file__], destlib):
-            if check_gcc_option(SSE_FLAGS):
-                cmd = "%s %s %s" % (GCC_CMD, SSE_FLAGS, COMPILE_ARGS)
-            else:
-                cmd = "%s %s" % (GCC_CMD, COMPILE_ARGS)
-            logging.info("Building C code module %s", DEST_LIB)
-            do_build_code(cmd % (destlib, ' '.join(srcfiles)))
+        check_and_build_code(srcfiles, ofiles, destlib,
+            [],
+            "Building C code module %s" % DEST_LIB,
+            "done",
+            logging.info)
+
         FFI_main = cffi.FFI()
         for d in defs_all:
             FFI_main.cdef(d)
