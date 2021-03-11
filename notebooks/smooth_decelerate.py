@@ -31,7 +31,7 @@ display(eq_c_n)
 display(eq_c_0)
 
 # %%
-def generate_intervals(v, a, step_dist, freq):
+def generate_intervals(v, a, step_dist, freq, extra_steps):
     #emulate what we have on the firmware side
     interval = 1.0 / v
     interval *= step_dist
@@ -61,60 +61,36 @@ def generate_intervals(v, a, step_dist, freq):
         
         c = int(round(t_step_0 * freq))
 
-        divisor = 4 * num_steps - 5
+        divisor = -4 * num_steps + 5
+        increment = 4
+         
+        # We need an even number of steps
+        if (num_steps + extra_steps) & 1:
+            extra_steps += 1
         
-        intervals = []
-        num_deceleration1_steps = num_steps
-        # Round up
-        num_acceleration_steps = (num_steps + 1) / 2
-        num_deceleration2_steps = num_steps - num_acceleration_steps
-        print(num_deceleration1_steps)
-        print(num_acceleration_steps)
-        print(num_deceleration2_steps)
-        # The last step will be taken when switching direction
-        while num_deceleration1_steps > 1:
-            print("decelerate 1")
-            intervals.append((c, 1))
-            print(divisor)
-            c = c + (2 * c) / divisor
-            divisor -= 4
-            num_deceleration1_steps -= 1
-        if num_deceleration1_steps == 1:
-            print("change direction")
-            intervals.append((c, 1))
-            intervals.append((c, -1))
-            divisor = 4 + 1
-            print(divisor)
+        intervals = [(interval, 1)] * extra_steps
+
+        num_deceleration_steps = num_steps
+        num_acceleration_steps = (num_steps + extra_steps) / 2
+        
+        num_steps = num_deceleration_steps + 2 * num_acceleration_steps
+        deceleration_end = num_steps - num_deceleration_steps
+        acceleration_end = deceleration_end - num_acceleration_steps
+
+        direction = 1
+        while num_steps > 0:
+            intervals.append((c, direction))
+            num_steps -= 1
+            if num_steps == deceleration_end:
+                # Switch both step direction and acceleration direction
+                direction = -1
+                divisor = -divisor + 6
+            elif num_steps == acceleration_end:
+                # Switch acceleration direction
+                divisor = -divisor + 6
             c = c - (2 * c) / divisor
-            divisor += 4
-            num_deceleration1_steps -= 1
-        # We have already taken one step, and will take another
-        # when switching direction again
-        while num_acceleration_steps > 2:
-            print("accelerate")
-            intervals.append((c, -1))
-            print(divisor)
-            c = c - (2 * c) / divisor
-            divisor += 4
-            num_acceleration_steps -= 1
-        if num_acceleration_steps == 2:
-            print("change direction 2")
-            intervals.append((c, -1))
-            intervals.append((c, -1))
-            divisor -= 6;
-            print(divisor)
-            c = c + (2 * c) / divisor
-            divisor -= 4
-            num_deceleration1_steps -= 1
-        while num_deceleration2_steps > 1:
-            print("decelerate 2")
-            intervals.append((c, -1))
-            print(divisor)
-            c = c + (2 * c) / divisor
-            divisor -= 4
-            num_deceleration2_steps -= 1
-            
-            
+            divisor += increment
+
         return intervals
     else:
         return []
@@ -146,8 +122,8 @@ def generate_v(intervals, ts, step_dist):
 
 
 # %%
-def plot_segments(v, a, step_dist, freq):
-    intervals = generate_intervals(v, a, step_dist, freq)
+def plot_segments(v, a, step_dist, freq, extra_steps):
+    intervals = generate_intervals(v, a, step_dist, freq, extra_steps)
     intervals = convert_intervals(intervals, freq)
     ts = generate_t(intervals)
     xs = generate_x(intervals, step_dist)
@@ -159,5 +135,5 @@ def plot_segments(v, a, step_dist, freq):
     fig.add_trace(go.Scatter(x=ts, y=v2s, name="vref"), secondary_y=True)
     fig.show()
 
-plot_segments(5, 300, 0.0025, 72000000)
+plot_segments(5, 300, 0.0025, 72000000, extra_steps=0)
 # %%
