@@ -11,6 +11,7 @@
 #include "command.h" // DECL_COMMAND
 #include "sched.h" // struct timer
 #include "stepper.h" // stepper_stop
+#include "stdbool.h"
 
 struct endstop {
     struct timer time;
@@ -166,8 +167,20 @@ endstop_report(uint8_t oid, struct endstop *e)
     e->flags &= ~ESF_REPORT;
     irq_enable();
 
+    bool homing = !!(eflags & ESF_HOMING);
+
+#if CONFIG_HAVE_SMOOTH_STOP
+    // Never report triggered when the homing is in progress
+    bool value = !(e->flags & ESF_PIN_HIGH);
+    if (!homing) {
+        value = gpio_in_read(e->pin);
+    }
     sendf("endstop_state oid=%c homing=%c pin_value=%c"
-          , oid, !!(eflags & ESF_HOMING), gpio_in_read(e->pin));
+          , oid, homing, value);
+#else
+    sendf("endstop_state oid=%c homing=%c pin_value=%c"
+          , oid, homing, gpio_in_read(e->pin));
+#endif
 }
 
 void
