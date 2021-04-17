@@ -7,7 +7,12 @@ klippy_path = os.path.join(klippy_path, "klippy")
 if klippy_path not in sys.path:
     sys.path.append(klippy_path)
 from math import ceil, sqrt
-from extras.bed_mesh import ZMesh
+try:
+    reload(extras.bed_mesh)
+    ZMesh = extras.bed_mesh.ZMesh
+except NameError:
+    import extras.bed_mesh
+    from extras.bed_mesh import ZMesh
 import plotly.graph_objects as go
 from ConfigParser import RawConfigParser
 from StringIO import StringIO
@@ -62,7 +67,7 @@ def plot_mesh(config_file, name, params):
     spacing=10.0
     c_min = 1000000 
     c_max = -1000000
-    for i, (algo, x_pps, y_pps, tension, downsample) in enumerate(params):
+    for i, (algo, x_pps, y_pps, param, downsample) in enumerate(params):
         config, matrix = read_mesh_from_config("klippy.cfg", name)
         if downsample: 
             matrix = np.array(matrix)
@@ -70,7 +75,8 @@ def plot_mesh(config_file, name, params):
             config["x_count"]  = matrix.shape[0]
             config["y_count"]  = matrix.shape[1]
         config["algo"] = algo
-        config["tension"] = tension
+        config["tension"] = param
+        config["stddev"] = param
         config["mesh_x_pps"] = x_pps
         config["mesh_y_pps"] = y_pps
         mesh = ZMesh(config)
@@ -112,3 +118,24 @@ params = [
     ("bicubic", x_pps, y_pps, 1.0, True),
 ]
 plot_mesh(config_name, mesh_name, params)
+
+# %%
+reload(extras.bed_mesh)
+ZMesh = extras.bed_mesh.ZMesh
+config_name = "klippy.cfg"
+mesh_name = "after_screw_adjust_80"
+x_pps = 2
+y_pps = 2
+params = [
+    ("lagrange", 0, 0, None, False),
+    ("fitpack", x_pps, y_pps, 0.01, False),
+    ("fitpack", x_pps, y_pps, 0.015, False),
+    ("fitpack", x_pps, y_pps, 0.02, False),
+    ("fitpack", x_pps, y_pps, 0.025, False),
+    ("fitpack", x_pps, y_pps, 0.03, False),
+    ("fitpack", x_pps, y_pps, 0.035, False),
+    ("fitpack", x_pps, y_pps, 0.04, False),
+    ("fitpack", x_pps, y_pps, 0.045, False),
+]
+plot_mesh(config_name, mesh_name, params)
+# %%
