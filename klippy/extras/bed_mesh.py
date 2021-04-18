@@ -4,7 +4,7 @@
 # Copyright (C) 2018-2019 Eric Callahan <arksine.code@gmail.com>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
-import logging, math, json, collections
+import logging, math, json, collections, sys
 from . import probe
 try:
     import scipy as sp
@@ -399,7 +399,7 @@ class BedMeshCalibrate:
                     (self.mesh_config['x_count'], self.mesh_config['y_count']))
                 params['algo'] = 'lagrange'
         elif params['algo'] == 'fitpack':
-            if sp is None:
+            if not 'scipy' in sys.modules:
                 raise error(
                     "bed_mesh: the fitpack algorithm needs the scipy package. "
                     "Please install it to your virtual environment"
