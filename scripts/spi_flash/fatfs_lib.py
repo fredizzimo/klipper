@@ -66,15 +66,11 @@ def check_fatfs_build(printfunc=lambda o: o):
     ofiles = chelper.get_abs_files(FATFS_DIR, FATFS_HEADERS)
     ofiles.extend(chelper.get_abs_files(srcdir, SPI_FLASH_HEADERS))
     destlib = os.path.join(srcdir, DEST_LIB)
-    if chelper.check_build_code(srcfiles+ofiles+[__file__], destlib):
-        if chelper.check_gcc_option(chelper.SSE_FLAGS):
-            cmd = "%s %s %s" % (chelper.GCC_CMD, chelper.SSE_FLAGS,
-                                chelper.COMPILE_ARGS)
-        else:
-            cmd = "%s %s" % (chelper.GCC_CMD, chelper.COMPILE_ARGS)
-        printfunc("Building FatFS shared library...")
-        chelper.do_build_code(cmd % (destlib, ' '.join(srcfiles)))
-        printfunc("Done\n")
+    chelper.check_and_build_code(srcfiles, ofiles, destlib,
+        [__file__],
+        "Building FatFS shared library...",
+        "Done\n",
+        printfunc)
     global fatfs_ffi_main, fatfs_ffi_lib
     ffi_main.cdef(FATFS_CDEFS)
     fatfs_ffi_lib = ffi_main.dlopen(destlib)
