@@ -4,14 +4,22 @@
 # Copyright (C) 2018-2019 Eric Callahan <arksine.code@gmail.com>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
-import logging, math, json, collections
+import logging, math, json, collections, sys
 from . import probe
+try:
+    import scipy as sp
+    import numpy as np
+    from scipy.interpolate import SmoothBivariateSpline
+except ImportError:
+    pass
 
-PROFILE_VERSION = 1
+
+PROFILE_VERSION = 2
+COMPATIBLE_PROFILE_VERSIONS = [1,2]
 PROFILE_OPTIONS = {
     'min_x': float, 'max_x': float, 'min_y': float, 'max_y': float,
     'x_count': int, 'y_count': int, 'mesh_x_pps': int, 'mesh_y_pps': int,
-    'algo': str, 'tension': float
+    'algo': str, 'tension': float, 'stddev': (float, 0.03)
 }
 
 class BedMeshError(Exception):
@@ -238,7 +246,7 @@ class BedMesh:
 
 
 class BedMeshCalibrate:
-    ALGOS = ['lagrange', 'bicubic']
+    ALGOS = ['lagrange', 'bicubic', 'fitpack']
     def __init__(self, config, bedmesh):
         self.printer = config.get_printer()
         self.orig_config = {'radius': None, 'origin': None}
@@ -405,6 +413,8 @@ class BedMeshCalibrate:
             config.get('algorithm', 'lagrange').strip().lower()
         orig_cfg['tension'] = mesh_cfg['tension'] = config.getfloat(
             'bicubic_tension', .2, minval=0., maxval=2.)
+        orig_cfg['stddev'] = mesh_cfg['stddev'] = config.getfloat(
+            'fitpack_stddev', .03, minval=0., maxval=1)
         for i in list(range(1, 100, 1)):
             min_opt = "faulty_region_%d_min" % (i,)
             max_opt = "faulty_region_%d_max" % (i,)
@@ -477,6 +487,12 @@ class BedMeshCalibrate:
                     "interpolation. Configured Probe Count: %d, %d" %
                     (self.mesh_config['x_count'], self.mesh_config['y_count']))
                 params['algo'] = 'lagrange'
+        elif params['algo'] == 'fitpack':
+            if not 'scipy' in sys.modules:
+                raise error(
+                    "bed_mesh: the fitpack algorithm needs the scipy package. "
+                    "Please install it to your virtual environment"
+                )
     def update_config(self, gcmd):
         # reset default configuration
         self.radius = self.orig_config['radius']
@@ -782,7 +798,8 @@ class ZMesh:
         interpolation_algos = {
             'lagrange': self._sample_lagrange,
             'bicubic': self._sample_bicubic,
-            'direct': self._sample_direct
+            'direct': self._sample_direct,
+            'fitpack': self._sample_fitpack
         }
         self._sample = interpolation_algos.get(params['algo'])
         # Number of points to interpolate per segment
@@ -907,7 +924,7 @@ class ZMesh:
              else z_matrix[j//y_mult][i//x_mult]
              for i in range(self.mesh_x_count)]
              for j in range(self.mesh_y_count)]
-        xpts, ypts = self._get_lagrange_coords()
+        xpts, ypts = self._get_probed_coords()
         # Interpolate X coordinates
         for i in range(self.mesh_y_count):
             # only interpolate X-rows that have probed coordinates
@@ -925,13 +942,21 @@ class ZMesh:
                     continue
                 y = self.get_y_coordinate(j)
                 self.mesh_matrix[j][i] = self._calc_lagrange(ypts, y, i, 1)
-    def _get_lagrange_coords(self):
+    def _get_probed_coords(self):
         xpts = []
         ypts = []
         for i in range(self.mesh_params['x_count']):
             xpts.append(self.get_x_coordinate(i * self.x_mult))
         for j in range(self.mesh_params['y_count']):
             ypts.append(self.get_y_coordinate(j * self.y_mult))
+        return xpts, ypts
+    def _get_interpolated_coords(self):
+        xpts = []
+        ypts = []
+        for i in range(self.mesh_x_count):
+            xpts.append(self.get_x_coordinate(i))
+        for j in range(self.mesh_y_count):
+            ypts.append(self.get_y_coordinate(j))
         return xpts, ypts
     def _calc_lagrange(self, lpts, c, vec, axis=0):
         pt_cnt = len(lpts)
@@ -1049,6 +1074,29 @@ class ZMesh:
         c = m1 * (t3 - 2*t2 + t)
         d = m2 * (t3 - t2)
         return a + b + c + d
+    def _sample_fitpack(self, z_matrix):
+        def make_one_dimensional(xpts, ypts):
+            xpts = np.array(xpts)
+            ypts = np.array(ypts)
+            x_count = xpts.shape[0]
+            y_count = ypts.shape[0]
+            xpts = np.tile(xpts, y_count)
+            ypts = np.repeat(ypts, x_count)
+            return xpts, ypts
+
+        z_matrix = np.array(z_matrix).flatten()
+
+        xpts, ypts = self._get_probed_coords()
+        xpts, ypts = make_one_dimensional(xpts, ypts)
+        std_dev = self.mesh_params['stddev']
+        w=np.full(xpts.shape[0], 1.0 / std_dev)
+        spline = SmoothBivariateSpline(xpts, ypts, z_matrix, w)
+
+        xpts, ypts = self._get_interpolated_coords()
+        xpts, ypts = make_one_dimensional(xpts, ypts)
+        values = spline.ev(xpts, ypts)
+        values = values.reshape((self.mesh_x_count, self.mesh_y_count))
+        self.mesh_matrix = values.tolist()
 
 
 class ProfileManager:
@@ -1067,7 +1115,7 @@ class ProfileManager:
         for profile in stored_profs:
             name = profile.get_name().split(' ', 1)[1]
             version = profile.getint('version', 0)
-            if version != PROFILE_VERSION:
+            if version not in COMPATIBLE_PROFILE_VERSIONS:
                 logging.info(
                     "bed_mesh: Profile [%s] not compatible with this version\n"
                     "of bed_mesh.  Profile Version: %d Current Version: %d "
@@ -1082,7 +1130,14 @@ class ProfileManager:
             self.profiles[name]['mesh_params'] = params = \
                 collections.OrderedDict()
             for key, t in PROFILE_OPTIONS.items():
-                if t is int:
+                if isinstance(t, tuple):
+                    if t[0] is int:
+                        params[key] = profile.getint(key, t[1])
+                    elif t[0] is float:
+                        params[key] = profile.getfloat(key, t[1])
+                    elif t is str:
+                        params[key] = profile.get(key, t[1])
+                elif t is int:
                     params[key] = profile.getint(key)
                 elif t is float:
                     params[key] = profile.getfloat(key)
