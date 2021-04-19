@@ -14,6 +14,7 @@ config SIMULATOR_SELECT
     select HAVE_GPIO_ADC
     select HAVE_GPIO_SPI
     select HAVE_GPIO_HARD_PWM
+    select HAVE_SMOOTH_STOP
 
 config SERIAL
     default y

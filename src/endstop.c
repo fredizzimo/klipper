@@ -4,18 +4,23 @@
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
+#include "autoconf.h"
 #include "basecmd.h" // oid_alloc
 #include "board/gpio.h" // struct gpio
 #include "board/irq.h" // irq_disable
 #include "command.h" // DECL_COMMAND
 #include "sched.h" // struct timer
 #include "stepper.h" // stepper_stop
+#include "stdbool.h"
 
 struct endstop {
     struct timer time;
     struct gpio_in pin;
     uint32_t rest_time, sample_time, nextwake;
     uint8_t flags, stepper_count, sample_count, trigger_count;
+#if CONFIG_HAVE_SMOOTH_STOP
+    uint8_t pending_smooth_stop;
+#endif
     struct stepper *steppers[0];
 };
 
@@ -23,16 +28,44 @@ enum { ESF_PIN_HIGH=1<<0, ESF_HOMING=1<<1, ESF_REPORT=1<<2 };
 
 static struct task_wake endstop_wake;
 
+#if CONFIG_HAVE_SMOOTH_STOP
+static void
+finalize_smooth_stop(struct endstop *e)
+{
+    uint8_t count = --e->pending_smooth_stop;
+    if (count == 0) {
+        e->flags = ESF_REPORT;
+        sched_wake_task(&endstop_wake);
+    }
+}
+
 static void
 stop_steppers(struct endstop *e)
 {
-    e->flags = ESF_REPORT;
+    uint8_t count = e->stepper_count;
+    e->pending_smooth_stop = count;
+    while (count--)
+        if (e->steppers[count]) {
+                stepper_smooth_stop(
+                    e->steppers[count], finalize_smooth_stop, e);
+        } else {
+            finalize_smooth_stop(e);
+        }
+}
+#else
+static void
+stop_steppers(struct endstop *e)
+{
     uint8_t count = e->stepper_count;
     while (count--)
-        if (e->steppers[count])
+        if (e->steppers[count]) {
             stepper_stop(e->steppers[count]);
+        }
+    e->flags = ESF_REPORT;
     sched_wake_task(&endstop_wake);
 }
+
+#endif
 
 static uint_fast8_t endstop_oversample_event(struct timer *t);
 
@@ -134,8 +167,20 @@ endstop_report(uint8_t oid, struct endstop *e)
     e->flags &= ~ESF_REPORT;
     irq_enable();
 
+    bool homing = !!(eflags & ESF_HOMING);
+
+#if CONFIG_HAVE_SMOOTH_STOP
+    // Never report triggered when the homing is in progress
+    bool value = !(e->flags & ESF_PIN_HIGH);
+    if (!homing) {
+        value = gpio_in_read(e->pin);
+    }
     sendf("endstop_state oid=%c homing=%c pin_value=%c"
-          , oid, !!(eflags & ESF_HOMING), gpio_in_read(e->pin));
+          , oid, homing, value);
+#else
+    sendf("endstop_state oid=%c homing=%c pin_value=%c"
+          , oid, homing, gpio_in_read(e->pin));
+#endif
 }
 
 void
