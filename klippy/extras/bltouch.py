@@ -11,9 +11,8 @@ MIN_CMD_TIME = 5 * SIGNAL_PERIOD
 
 TEST_TIME = 5 * 60.
 RETRY_RESET_TIME = 1.
+
 ENDSTOP_REST_TIME = .001
-ENDSTOP_SAMPLE_TIME = .000015
-ENDSTOP_SAMPLE_COUNT = 4
 
 Commands = {
     'pin_down': 0.000650, 'touch_mode': 0.001165,
@@ -47,6 +46,7 @@ class BLTouchEndstopWrapper:
         mcu = pin_params['chip']
         mcu.register_config_callback(self._build_config)
         self.mcu_endstop = mcu.setup_pin('endstop', pin_params)
+        self.mcu_endstop.config_sampling(config)
         # output mode
         omodes = {'5V': '5V', 'OD': 'OD', None: None}
         self.output_mode = config.getchoice('set_output_mode', omodes, None)
@@ -64,6 +64,7 @@ class BLTouchEndstopWrapper:
         self.get_steppers = self.mcu_endstop.get_steppers
         self.home_wait = self.mcu_endstop.home_wait
         self.query_endstop = self.mcu_endstop.query_endstop
+        self.config_sampling = self.mcu_endstop.config_sampling
         # Register BLTOUCH_DEBUG command
         self.gcode = self.printer.lookup_object('gcode')
         self.gcode.register_command("BLTOUCH_DEBUG", self.cmd_BLTOUCH_DEBUG,
@@ -112,8 +113,7 @@ class BLTouchEndstopWrapper:
         self.next_cmd_time = max(self.action_end_time, end_time + MIN_CMD_TIME)
     def verify_state(self, triggered):
         # Perform endstop check to verify bltouch reports desired state
-        self.mcu_endstop.home_start(self.action_end_time, ENDSTOP_SAMPLE_TIME,
-                                    ENDSTOP_SAMPLE_COUNT, ENDSTOP_REST_TIME,
+        self.mcu_endstop.home_start(self.action_end_time, ENDSTOP_REST_TIME,
                                     triggered=triggered)
         return self.mcu_endstop.home_wait(self.action_end_time + 0.100)
     def raise_probe(self):
@@ -187,11 +187,11 @@ class BLTouchEndstopWrapper:
             if self.multi == 'FIRST':
                 self.multi = 'ON'
         self.sync_print_time()
-    def home_start(self, print_time, sample_time, sample_count, rest_time,
+    def home_start(self, print_time, step_time,
                    triggered=True):
-        rest_time = min(rest_time, ENDSTOP_REST_TIME)
+        step_time = min(step_time, ENDSTOP_REST_TIME)
         self.finish_home_complete = self.mcu_endstop.home_start(
-            print_time, sample_time, sample_count, rest_time, triggered)
+            print_time, step_time, triggered)
         # Schedule wait_for_trigger callback
         r = self.printer.get_reactor()
         self.wait_trigger_complete = r.register_callback(self.wait_for_trigger)
